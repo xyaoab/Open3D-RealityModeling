@@ -1,5 +1,7 @@
 # Open3D: The CUDA Branch
 
+**I'm working at Intel as an intern now. Hopefully this branch will be official soon. Please be patient :)**
+
 This cuda branch is at **EARLY STAGE** under development. A fully functional 
 reconstruction system (`examples/Cuda/ReconstructionSystem`) is able to 
 reproduce reconstruction results from the CPU  version, while the running 
