@@ -67,8 +67,13 @@ option(BUILD_SHARED_LIBS         "Build shared libraries"                   OFF)
 option(WITH_OPENMP               "Use OpenMP multi-threading"               ON)
 option(ENABLE_HEADLESS_RENDERING "Use OSMesa for headless rendering"        OFF)
 option(BUILD_CPP_EXAMPLES        "Build the Open3D example programs"        ON)
+<<<<<<< HEAD
 option(BUILD_UNIT_TESTS          "Build the Open3D unit tests"              ON)
 option(BUILD_EIGEN3              "Build eigen3 from source"                 OFF)
+=======
+option(BUILD_UNIT_TESTS          "Build the Open3D unit tests"              OFF)
+option(BUILD_EIGEN3              "Use the Eigen3 that comes with Open3D"    ON)
+>>>>>>> 42173608... Merged Open3D-3rdparty repository into main repository (#967)
 option(BUILD_GLEW                "Build glew from source"                   OFF)
 option(BUILD_GLFW                "Build glfw from source"                   OFF)
 option(BUILD_JPEG                "Build jpeg from source"                   OFF)
