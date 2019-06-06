@@ -361,6 +361,7 @@ void ImageCuda<Scalar, Channel>::ConvertRGBToIntensity(
     }
 }
 
+#ifdef USE_OPENCV
 /** Legacy **/
 template<typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Upload(cv::Mat &m) {
@@ -436,5 +437,7 @@ cv::Mat ImageCuda<Scalar, Channel>::DownloadMat() {
                            cudaMemcpyDeviceToHost));
     return m;
 }
+#endif // USE_OPENCV
+
 } // cuda
 } // open3d

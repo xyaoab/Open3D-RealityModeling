@@ -12,7 +12,10 @@
 #include <cstdlib>
 #include <memory>
 // #include <vector_types.h>
+
+#ifdef USE_OPENCV
 #include <opencv2/opencv.hpp>
+#endif
 
 //#define HOST_DEBUG_MONITOR_LIFECYCLE
 
@@ -141,8 +144,10 @@ public:
     void ConvertRGBToIntensity(ImageCuda<float, 1> &image);
 
     /********** Legacy **********/
+#ifdef USE_OPENCV
     void Upload(cv::Mat &m);
     cv::Mat DownloadMat();
+#endif
 };
 
 template<typename Scalar, size_t Channel>

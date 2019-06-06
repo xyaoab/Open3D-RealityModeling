@@ -1,6 +1,7 @@
 //
 // Created by wei on 2/8/19.
 //
+#ifdef USE_OPENCV
 
 #include <Open3D/Open3D.h>
 #include <Cuda/Open3DCuda.h>
@@ -361,3 +362,4 @@ std::tuple<bool, Eigen::Matrix4d> PoseEstimation(
     return std::make_tuple(success, transform);
 }
 }
+#endif // USE_OPENCV

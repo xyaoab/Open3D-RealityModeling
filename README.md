@@ -1,51 +1,48 @@
-<p align="center">
-<img src="docs/_static/open3d_logo_horizontal.png" width="320" />
-</p>
+# Open3D: The unofficial cuda branch
 
-# Open3D: A Modern Library for 3D Data Processing
+**We are pushing the development of the official cuda branch. Please be patient :)**
 
-[![Build Status](https://travis-ci.org/IntelVCL/Open3D.svg?branch=master)](https://travis-ci.org/IntelVCL/Open3D)
-[![Build status](https://ci.appveyor.com/api/projects/status/sau3yewsyxaxpkqe?svg=true)](https://ci.appveyor.com/project/syncle/open3d)
+This is the **unofficial** cuda branch of [Open3D](http://www.open3d.org/), aiming at accelerating parallel operations like RGB-D Odometry and TSDF Integration.
+Overall, this cuda pipeline can accelerate Open3D by a factor >10 for the scene reconstruction task. For a typical [lounge](http://qianyi.info/scenedata.html) scene, 
+the pipeline can finish reconstruction in 5 minutes (tested on a laptop with an Intel i7 CPU, 1070 GPU). As an offline system, it reaches around 5~10 fps on average.
 
-## About this project
+For details, please refer to this [paper](http://dongwei.info/publications/gpu.pdf) in submission to IROS 2019.
 
-Open3D is an open-source library that supports rapid development of software that deals with 3D data. The Open3D frontend exposes a set of carefully selected data structures and algorithms in both C++ and Python. The backend is highly optimized and is set up for parallelization. We welcome contributions from the open-source community.
-
-Please cite our work if you use Open3D.
+## Build
+- Apart from the [official depedencies](http://www.open3d.org/docs/compilation.html), the only additional requirement is [CUDA](https://developer.nvidia.com/cuda-downloads). 
+I haven't tested many distributions, but >= 8.0 should work. It has been tested on Ubuntu 16.04 and 18.04.
+- The compilation would be the same as the official branch: `mkdir build && cd build && cmake .. && make -j4`
+- During compilation, Eigen may complain about `half` precision floats in CUDA headers: specifically Eigen <= 3.3.5 against CUDA >= 9.0.
+If you want to stick to the Eigen in `3rdparty`, a dirty workaround will be commenting out these lines in `3rdparty/Eigen/Eigen/Core`:
 ```
-@article{Zhou2018,
-	author    = {Qian-Yi Zhou and Jaesik Park and Vladlen Koltun},
-	title     = {{Open3D}: {A} Modern Library for {3D} Data Processing},
-	journal   = {arXiv:1801.09847},
-	year      = {2018},
-}
-```
+#include "src/Core/arch/CUDA/Half.h"
+#include "src/Core/arch/CUDA/PacketMathHalf.h"
+#include "src/Core/arch/CUDA/TypeCasting.h"
+``` 
 
-## Core features
+## Caveats
+I would like put warning signs before usages:
+- Currently there is NO python binding to the cuda implementations. We may fix this in the official cuda branch.
+- Many directory strings are hard coded in the source code (I am lazy) -- you many have to change some lines of code to adapt to your own dataset directories. 
+This will definitely be fixed in the official cuda branch (maybe I will randomly fix some of them in this branch :-) ).
+- Data management is very naive -- we may encounter memory overflow in some tasks (especially TSDF Integration, Marching Cubes, 3D feature extraction and brute force matching).
+This is because I pre-allocate memory buffers with some hard coded buffer sizes. Again, you may want to manually change them in the sources. 
+If you are playing with devices with small GPU memory (like [Jetson](https://developer.nvidia.com/embedded/buy/jetson-tx2)), 
+you may have to significantly restrict the scene size or reduce resolution to make it work.
+- There may be some discrepancies comparing to the official implementation, but most of the results should be identical.   
 
-* Basic 3D data structures
-* Basic 3D data processing algorithms
-* Scene reconstruction
-* Surface alignment
-* 3D visualization
-* Python binding
+## Usage
+- There are some demo codes for separate functions in `examples/Cuda/Demo`. Most of the files are self-explanatory.
+- The fully functional reconstruction system, almost identical to the [official implementation](http://www.open3d.org/docs/tutorial/ReconstructionSystem/index.html), 
+is available in `examples/Cuda/ReconstructionSystem`. To run `RunSystem`, please follow the [official document](http://www.open3d.org/docs/tutorial/ReconstructionSystem/capture_your_own_dataset.html#make-a-new-configuration-file), prepare datasets, and specify config files.
 
-## Supported compilers
+## Unofficial TODO
+- Currently, the local loop-closures component is entirely disabled in order to remove the heavy opencv dependency. 
+Since this is only used for ORB feature extraction, I may implement (or import) it as an independent component.
 
-* GCC 4.8 and later on Linux
-* XCode 8.0 and later on OS X
-* Visual Studio 2015 update 3 and later on Windows
+## Contact
+- To report problems, please use the [Discord channel](https://discordapp.com/invite/D35BGvn). 
+I will try to give some temporary workarounds and mark that as TODO in the official branch. 
 
-## Open3D ecosystem
-
-* [Open3D-PointNet:](https://github.com/IntelVCL/Open3D-PointNet) A fork of PyTorch PointNet for point cloud classification and semantic segmentation compatible with Open3D.
-* [Open3D-PointNet++:](https://github.com/IntelVCL/Open3D-PointNet2-Semantic3D) A re-implementation of PointNet++ using Open3D to enable real-time semantic segmentation of LIDAR point clouds.
-
-
-## Resources
-
-* Website: [open3d.org](http://www.open3d.org)
-* Code: [github.com/IntelVCL/Open3D](https://github.com/IntelVCL/Open3D)
-* Document: [open3d.org/docs](http://www.open3d.org/docs)
-* Getting started: [open3d.org/docs/getting_started.html](http://open3d.org/docs/getting_started.html)
-* License: [The MIT license](https://opensource.org/licenses/MIT)
+## License
+This branch follows the [license of the official Open3D](https://github.com/intel-isl/Open3D/blob/master/LICENSE). 

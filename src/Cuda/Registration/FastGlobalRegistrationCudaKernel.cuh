@@ -12,6 +12,7 @@
 #include <Cuda/Common/ReductionCuda.h>
 #include <cuda.h>
 #include <curand.h>
+#include <ctime>
 
 namespace open3d {
 namespace cuda {

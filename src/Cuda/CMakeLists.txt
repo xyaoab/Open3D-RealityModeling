@@ -8,7 +8,6 @@ macro(ADD_CUDA_SOURCE_GROUP MODULE_NAME)
             ${MODULE_CUDA_SOURCE_FILES})
 endmacro(ADD_CUDA_SOURCE_GROUP)
 
-# > Additional code to incorporate cuda and opencv (TEMPORARY!)
 find_package(CUDA 8.0 REQUIRED)
 # NOTE: Eigen <= 3.3.5 has problem with CUDA >= 9.0
 # Source code have to be modified in Eigen/Core to ignore fp16:
@@ -17,12 +16,9 @@ find_package(CUDA 8.0 REQUIRED)
 # #include "src/Core/arch/CUDA/PacketMathHalf.h"
 # #include "src/Core/arch/CUDA/TypeCasting.h"
 
-find_package(OpenCV REQUIRED)
-list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE}
-        ${OpenCV_INCLUDE_DIRS})
+list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE})
 list(APPEND 3RDPARTY_LIBRARIES
-        ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_curand_LIBRARY}
-        ${OpenCV_LIBS})
+        ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY})
 include_directories(${PROJECT_SOURCE_DIR}/src)
 include_directories(${3RDPARTY_INCLUDE_DIRS})
 link_directories(${3RDPARTY_LIBRARY_DIRS})

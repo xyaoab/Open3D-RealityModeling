@@ -146,6 +146,7 @@ void RGBDImageCuda::UpdateDevice() {
     }
 }
 
+#ifdef USE_OPENCV
 /** Legacy **/
 void RGBDImageCuda::Upload(cv::Mat &depth, cv::Mat &color) {
     assert(depth.cols == color.cols && depth.rows == color.rows);
@@ -159,5 +160,6 @@ void RGBDImageCuda::Upload(cv::Mat &depth, cv::Mat &color) {
         RGBDImageCudaKernelCaller::ConvertDepthToFloat(*this);
     }
 }
+#endif // USE_OPENCV
 } // cuda
 } // open3d

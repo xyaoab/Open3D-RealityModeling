@@ -80,7 +80,7 @@ void ScalableMeshVolumeCuda::Create(
         return;
     }
 
-    assert(N_ > 0 && max_subvolumes > 0 && max_vertices > 0 && max_triangles > 0);
+    assert(N > 0 && max_subvolumes > 0 && max_vertices > 0 && max_triangles > 0);
 
     device_ = std::make_shared<ScalableMeshVolumeCudaDevice>();
 

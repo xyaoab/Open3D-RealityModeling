@@ -12,8 +12,6 @@
 #include <Open3D/Registration/GlobalOptimization.h>
 #include <Cuda/Open3DCuda.h>
 
-#include <opencv2/opencv.hpp>
-
 #include "DatasetConfig.h"
 #include "ORBPoseEstimation.h"
 
@@ -49,8 +47,10 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
     pose_graph.nodes_.emplace_back(PoseGraphNode(trans_odometry));
 
     /** Add odometry and keyframe info **/
+#ifdef USE_OPENCV
     std::vector<ORBPoseEstimation::KeyframeInfo> keyframe_infos;
     cv::Ptr<cv::ORB> orb = cv::ORB::create(100);
+#endif
 
     for (int s = begin; s < end; ++s) {
         Image depth, color;
@@ -60,6 +60,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
         rgbd_source.Upload(depth, color);
 
         /** Insert a keyframe **/
+#ifdef USE_OPENCV
         if (config.with_opencv_ && s % config.n_keyframes_per_n_frame_ == 0) {
             cv::Mat im = cv::imread(config.color_files_[s]);
             cv::cvtColor(im, im, cv::COLOR_BGR2GRAY);
@@ -75,6 +76,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             keyframe_info.depth = rgbd_source.depth_.DownloadMat();
             keyframe_infos.emplace_back(keyframe_info);
         }
+#endif // USE_OPENCV
 
         int t = s + 1;
         if (t >= end) break;
@@ -102,6 +104,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             PoseGraphEdge(s - begin, t - begin, trans, information, false));
     }
 
+#ifdef USE_OPENCV
     /** Add Loop closures **/
     if (config.with_opencv_) {
         for (int i = 0; i < keyframe_infos.size() - 1; ++i) {
@@ -149,6 +152,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             }
         }
     }
+#endif // USE_OPENCV
     WritePoseGraph(config.GetPoseGraphFileForFragment(fragment_id, false),
                    pose_graph);
 }
@@ -214,7 +218,7 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     }
 
     tsdf_volume.GetAllSubvolumes();
-    WriteTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id), tsdf_volume);
+//    WriteTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id), tsdf_volume);
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,

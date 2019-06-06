@@ -7,7 +7,10 @@
 #include "ImageCuda.h"
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <memory>
+
+#ifdef USE_OPENCv
 #include <opencv2/opencv.hpp>
+#endif
 
 /** In VO, we need depth & intensity
  *  In fusion, we need depth & color
@@ -60,8 +63,10 @@ public:
     void Build(ImageCuda<ushort, 1> &depth_raw, ImageCuda<uchar, 3> &color_raw);
     void Upload(geometry::Image &depth_raw, geometry::Image &color_raw);
 
+#ifdef USE_OPENCV
     /** Legacy **/
     void Upload(cv::Mat &depth, cv::Mat &color);
+#endif // USE_OPENCV
 };
 
 class RGBDImageCudaKernelCaller {
