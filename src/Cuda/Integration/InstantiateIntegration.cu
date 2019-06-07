@@ -5,14 +5,18 @@
 #include <Cuda/Container/HashTableCudaDevice.cuh>
 #include <Cuda/Container/HashTableCudaKernel.cuh>
 
-#include "UniformTSDFVolumeCudaDevice.cuh"
-#include "UniformTSDFVolumeCudaKernel.cuh"
-#include "UniformMeshVolumeCudaDevice.cuh"
-#include "UniformMeshVolumeCudaKernel.cuh"
-#include "ScalableTSDFVolumeCudaDevice.cuh"
-#include "ScalableTSDFVolumeCudaKernel.cuh"
-#include "ScalableMeshVolumeCudaDevice.cuh"
-#include "ScalableMeshVolumeCudaKernel.cuh"
+#include <Cuda/Integration/UniformTSDFVolumeCudaDevice.cuh>
+#include <Cuda/Integration/UniformTSDFVolumeCudaKernel.cuh>
+#include <Cuda/Integration/UniformMeshVolumeCudaDevice.cuh>
+#include <Cuda/Integration/UniformMeshVolumeCudaKernel.cuh>
+#include <Cuda/Integration/ScalableTSDFVolumeCudaDevice.cuh>
+#include <Cuda/Integration/ScalableTSDFVolumeCudaKernel.cuh>
+#include <Cuda/Integration/ScalableMeshVolumeCudaDevice.cuh>
+#include <Cuda/Integration/ScalableMeshVolumeCudaKernel.cuh>
+
+#include <Cuda/Experiment/ScalableTSDFVolumeProcessorCudaKernel.cuh>
+#include <Cuda/Experiment/ScalableVolumeRegistrationCudaDevice.cuh>
+#include <Cuda/Experiment/ScalableVolumeRegistrationCudaKernel.cuh>
 
 namespace open3d {
 namespace cuda {

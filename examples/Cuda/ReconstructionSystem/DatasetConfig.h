@@ -20,7 +20,7 @@ struct Match {
 };
 
 static const std::string kDefaultDatasetConfigDir =
-    "/home/wei/Work/projects/dense_mapping/Open3D/examples/Cuda"
+    "../../../examples/Cuda"
     "/ReconstructionSystem/config";
 
 class DatasetConfig : public utility::IJsonConvertible {

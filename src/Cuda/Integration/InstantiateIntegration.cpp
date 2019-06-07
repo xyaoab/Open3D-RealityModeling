@@ -4,7 +4,10 @@
 
 #include <Cuda/Container/HashTableCudaHost.hpp>
 
-#include "UniformTSDFVolumeCudaHost.hpp"
-#include "UniformMeshVolumeCudaHost.hpp"
-#include "ScalableTSDFVolumeCudaHost.hpp"
-#include "ScalableMeshVolumeCudaHost.hpp"
+#include <Cuda/Integration/UniformTSDFVolumeCudaHost.hpp>
+#include <Cuda/Integration/UniformMeshVolumeCudaHost.hpp>
+#include <Cuda/Integration/ScalableTSDFVolumeCudaHost.hpp>
+#include <Cuda/Integration/ScalableMeshVolumeCudaHost.hpp>
+
+#include <Cuda/Experiment/ScalableTSDFVolumeProcessorCudaHost.hpp>
+#include <Cuda/Experiment/ScalableVolumeRegistrationCudaHost.hpp>
