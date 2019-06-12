@@ -25,3 +25,13 @@
 // ----------------------------------------------------------------------------
 
 #pragma once
+
+#include <cstddef>
+#include <vector>
+
+namespace open3d {
+
+// TODO: change Shape to a custom class to be used by GPU
+using Shape = std::vector<size_t>;
+
+}  // namespace open3d

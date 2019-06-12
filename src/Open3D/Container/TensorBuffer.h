@@ -23,3 +23,16 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
+
+#pragma once
+
+namespace open3d {
+
+// TensorBuffer contains the pointer to the actual raw buffer
+template <typename T>
+class TensorBuffer {
+public:
+    T* v_;
+};
+
+}  // namespace open3d

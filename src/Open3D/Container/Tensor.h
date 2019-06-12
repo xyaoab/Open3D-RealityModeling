@@ -25,3 +25,28 @@
 // ----------------------------------------------------------------------------
 
 #pragma once
+
+#include <cstddef>
+#include <string>
+
+#include "Open3D/Container/Shape.h"
+#include "Open3D/Container/TensorBuffer.h"
+
+// TODO: move the contents of this folder to "Open3D/src"?
+//       currently they are in "open3d" top namespace but under "Array" folder
+namespace open3d {
+
+// Tensor is a wrapper for TensorBuffer
+// This is useful for creating a single TensorBuffer
+template <typename T>
+class Tensor {
+public:
+    Tensor(const Shape& shape, const std::string& device = "cpu")
+        : shape_(shape), device_(device) {}
+    ~Tensor(){};
+    TensorBuffer<T> tensor_buffer_;
+    Shape shape_;
+    std::string device_;
+};
+
+}  // namespace open3d

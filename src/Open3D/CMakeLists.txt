@@ -1,6 +1,7 @@
 # Subdirectories
 add_subdirectory(Camera)
 add_subdirectory(ColorMap)
+add_subdirectory(Container)
 add_subdirectory(Geometry)
 add_subdirectory(Integration)
 add_subdirectory(Odometry)
@@ -12,6 +13,7 @@ add_subdirectory(Visualization)
 # Source group for Visual Studio
 ADD_SOURCE_GROUP(Camera)
 ADD_SOURCE_GROUP(ColorMap)
+ADD_SOURCE_GROUP(Container)
 ADD_SOURCE_GROUP(Geometry)
 ADD_SOURCE_GROUP(Integration)
 ADD_SOURCE_GROUP(Odometry)
@@ -31,7 +33,6 @@ install(DIRECTORY   "${CMAKE_CURRENT_SOURCE_DIR}"
 # note: adding at least one real source file to any target that references
 # reference: https://cmake.org/cmake/help/v3.12/command/add_library.html#object-libraries
 add_library(${CMAKE_PROJECT_NAME}
-    Open3DConfig.h
     Open3DConfig.cpp
     $<TARGET_OBJECTS:Camera>
     $<TARGET_OBJECTS:ColorMap>

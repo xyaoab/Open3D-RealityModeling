@@ -23,3 +23,14 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
+
+#include "Open3D/Container/Tensor.h"
+#include "TestUtility/UnitTest.h"
+
+using namespace std;
+using namespace open3d;
+
+TEST(Tensor, Create) {
+    Shape shape({3, 4});
+    Tensor<float> tensor(shape, "cpu");
+}
