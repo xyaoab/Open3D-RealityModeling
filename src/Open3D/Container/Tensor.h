@@ -41,9 +41,12 @@ template <typename T>
 class Tensor {
 public:
     Tensor(const Shape& shape, const std::string& device = "cpu")
-        : shape_(shape), device_(device) {
+        : shape_(shape),
+          device_(device),
+          num_elements_(shape.NumElements()),
+          byte_size_(sizeof(T) * shape.NumElements()) {
         if (device == "cpu") {
-            v_ = static_cast<T*>(MemoryManager::Allocate(ByteSize(), device_));
+            v_ = static_cast<T*>(MemoryManager::Allocate(byte_size_, device_));
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -55,7 +58,7 @@ public:
            const Shape& shape,
            const std::string& device = "cpu")
         : Tensor(shape, device) {
-        if (init_vals.size() != shape.NumElements()) {
+        if (init_vals.size() != num_elements_) {
             throw std::runtime_error(
                     "Tensor initialization values' size does not match the "
                     "shape.");
@@ -63,7 +66,7 @@ public:
 
         if (device == "cpu" || device == "gpu") {
             MemoryManager::CopyTo(v_, init_vals.data(), device_, "cpu",
-                                  ByteSize());
+                                  byte_size_);
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -73,13 +76,9 @@ public:
 
     ~Tensor() { MemoryManager::Free(v_, device_); };
 
-    size_t ByteSize() const { return sizeof(T) * shape_.NumElements(); }
-
-    size_t NumElements() const { return shape_.NumElements(); }
-
     std::vector<T> ToVector() const {
-        std::vector<T> vec(NumElements());
-        MemoryManager::CopyTo(vec.data(), v_, "cpu", device_, ByteSize());
+        std::vector<T> vec(num_elements_);
+        MemoryManager::CopyTo(vec.data(), v_, "cpu", device_, byte_size_);
         return vec;
     }
 
@@ -87,6 +86,10 @@ public:
     T* v_;
     Shape shape_;
     std::string device_;
+
+public:
+    const size_t num_elements_;  // Num elements
+    const size_t byte_size_;     // Num bytes
 };
 
 }  // namespace open3d
