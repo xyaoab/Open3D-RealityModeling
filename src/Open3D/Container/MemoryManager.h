@@ -67,21 +67,26 @@ public:
 
     static void CopyTo(void* dst_ptr,
                        const void* src_ptr,
-                       const std::string& dst_device,
-                       const std::string& src_device,
                        std::size_t num_bytes) {
+        if (dst_ptr == nullptr || src_ptr == nullptr) {
+            throw std::runtime_error("CopyTo: nullptr detected");
+        }
+
+        std::string dst_device = IsCUDAPointer(dst_ptr) ? "gpu" : "cpu";
+        std::string src_device = IsCUDAPointer(src_ptr) ? "gpu" : "cpu";
+
         if (src_device == "cpu" && dst_device == "cpu") {
             std::memcpy(dst_ptr, src_ptr, num_bytes);
         } else if (src_device == "cpu" && dst_device == "gpu") {
-            throw std::runtime_error("Unimplemented");
-        } else if (src_device == "gpu" && dst_device == "gpu") {
-            throw std::runtime_error("Unimplemented");
+            cudaMemcpy(dst_ptr, src_ptr, num_bytes, cudaMemcpyHostToDevice);
         } else if (src_device == "gpu" && dst_device == "cpu") {
-            throw std::runtime_error("Unimplemented");
+            cudaMemcpy(dst_ptr, src_ptr, num_bytes, cudaMemcpyDeviceToHost);
+        } else if (src_device == "gpu" && dst_device == "gpu") {
+            cudaMemcpy(dst_ptr, src_ptr, num_bytes, cudaMemcpyDeviceToDevice);
         }
     }
 
-    static bool IsCUDAPointer(void* ptr) {
+    static bool IsCUDAPointer(const void* ptr) {
         cudaPointerAttributes attributes;
         cudaPointerGetAttributes(&attributes, ptr);
         if (attributes.devicePointer != nullptr) {

@@ -63,8 +63,7 @@ public:
         }
 
         if (device == "cpu" || device == "gpu") {
-            MemoryManager::CopyTo(v_, init_vals.data(), device_, "cpu",
-                                  byte_size_);
+            MemoryManager::CopyTo(v_, init_vals.data(), byte_size_);
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -76,7 +75,7 @@ public:
 
     std::vector<T> ToVector() const {
         std::vector<T> vec(num_elements_);
-        MemoryManager::CopyTo(vec.data(), v_, "cpu", device_, byte_size_);
+        MemoryManager::CopyTo(vec.data(), v_, byte_size_);
         return vec;
     }
 
