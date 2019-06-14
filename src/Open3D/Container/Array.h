@@ -30,11 +30,9 @@
 #include <string>
 
 #include "Open3D/Container/Shape.h"
-#include "Open3D/Container/TensorBuffer.h"
 
 namespace open3d {
 
-// Array is a wrapper for multiple TensorBuffer(s)
 template <typename T>
 class Array {
 public:
@@ -46,10 +44,8 @@ public:
           device_(device),
           curr_size_(0) {
         if (device == "cpu") {
-            tensor_buffer_ = TensorBuffer<T>();
-            void* ptr = MemoryManager::Allocate(TensorByteSize() * max_size_,
-                                                device_);
-            tensor_buffer_.v_ = static_cast<T*>(ptr);
+            v_ = static_cast<T*>(MemoryManager::Allocate(
+                    TensorByteSize() * max_size_, device_));
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -57,18 +53,14 @@ public:
         }
     }
 
-    ~Array() { MemoryManager::Free(GetDataPtr(), device_); };
+    ~Array() { MemoryManager::Free(v_, device_); };
 
     size_t TensorByteSize() const {
         return sizeof(T) * tensor_shape_.NumElements();
     }
 
-    T* GetDataPtr() { return tensor_buffer_.v_; }
-
-    const T* GetDataPtr() const { return tensor_buffer_.v_; }
-
 public:
-    TensorBuffer<T> tensor_buffer_;
+    T* v_;
     Shape tensor_shape_;
     std::string device_;
     size_t curr_size_;

@@ -32,23 +32,18 @@
 
 #include "Open3D/Container/MemoryManager.h"
 #include "Open3D/Container/Shape.h"
-#include "Open3D/Container/TensorBuffer.h"
 
 // TODO: move the contents of this folder to "Open3D/src"?
 //       currently they are in "open3d" top namespace but under "Array" folder
 namespace open3d {
 
-// Tensor is a wrapper for TensorBuffer
-// This is useful for creating a single TensorBuffer
 template <typename T>
 class Tensor {
 public:
     Tensor(const Shape& shape, const std::string& device = "cpu")
         : shape_(shape), device_(device) {
         if (device == "cpu") {
-            tensor_buffer_ = TensorBuffer<T>();
-            void* ptr = MemoryManager::Allocate(ByteSize(), device_);
-            tensor_buffer_.v_ = static_cast<T*>(ptr);
+            v_ = static_cast<T*>(MemoryManager::Allocate(ByteSize(), device_));
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -67,8 +62,8 @@ public:
         }
 
         if (device == "cpu" || device == "gpu") {
-            MemoryManager::CopyTo(GetDataPtr(), init_vals.data(), device_,
-                                  "cpu", ByteSize());
+            MemoryManager::CopyTo(v_, init_vals.data(), device_, "cpu",
+                                  ByteSize());
         } else if (device == "gpu") {
             throw std::runtime_error("Unimplemented");
         } else {
@@ -76,7 +71,7 @@ public:
         }
     }
 
-    ~Tensor() { MemoryManager::Free(GetDataPtr(), device_); };
+    ~Tensor() { MemoryManager::Free(v_, device_); };
 
     size_t ByteSize() const { return sizeof(T) * shape_.NumElements(); }
 
@@ -84,17 +79,12 @@ public:
 
     std::vector<T> ToVector() const {
         std::vector<T> vec(NumElements());
-        MemoryManager::CopyTo(vec.data(), GetDataPtr(), "cpu", device_,
-                              ByteSize());
+        MemoryManager::CopyTo(vec.data(), v_, "cpu", device_, ByteSize());
         return vec;
     }
 
-    T* GetDataPtr() { return tensor_buffer_.v_; }
-
-    const T* GetDataPtr() const { return tensor_buffer_.v_; }
-
 public:
-    TensorBuffer<T> tensor_buffer_;
+    T* v_;
     Shape shape_;
     std::string device_;
 };
