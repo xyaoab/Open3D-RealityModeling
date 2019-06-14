@@ -31,7 +31,7 @@
 using namespace std;
 using namespace open3d;
 
-TEST(Container, Tensor) {
+TEST(Container, CPU_Tensor) {
     Shape shape;
 
     shape = {4, 4};
@@ -44,8 +44,27 @@ TEST(Container, Tensor) {
     unit_test::ExpectEQ(out_val, {1, 2, 3});
 }
 
-TEST(Container, Array) {
+TEST(Container, CPU_Array) {
     Shape tensor_shape = {3};
     size_t max_size = 100000;
     Array<float> points(tensor_shape, max_size, "cpu");
+}
+
+// TEST(Container, CPU_Tensor) {
+//     Shape shape;
+
+//     shape = {4, 4};
+//     Tensor<float> matrix4f(shape, "cpu");
+
+//     shape = {3};
+//     std::vector<float> init_val({1, 2, 3});
+//     Tensor<float> vector3f(init_val, shape, "cpu");
+//     std::vector<float> out_val = vector3f.ToVector();
+//     unit_test::ExpectEQ(out_val, {1, 2, 3});
+// }
+
+TEST(Container, GPU_Array) {
+    Shape tensor_shape = {3};
+    size_t max_size = 100000;
+    Array<float> points(tensor_shape, max_size, "gpu");
 }
