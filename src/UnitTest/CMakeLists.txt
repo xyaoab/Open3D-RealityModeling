@@ -1,5 +1,6 @@
 
 cmake_minimum_required(VERSION 3.0)
+find_package(CUDA 8.0 REQUIRED)
 
 include_directories(".")
 
@@ -8,3 +9,4 @@ add_executable(unitTests ${UNIT_TESTS})
 add_definitions(-DTEST_DATA_DIR="${PROJECT_SOURCE_DIR}/examples/TestData")
 
 target_link_libraries(unitTests pthread ${CMAKE_PROJECT_NAME})
+target_include_directories(unitTests PUBLIC ${CUDA_INCLUDE_DIRS})

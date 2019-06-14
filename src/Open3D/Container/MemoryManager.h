@@ -26,6 +26,8 @@
 
 #pragma once
 
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -56,13 +58,6 @@ public:
                 free(ptr);
             }
         } else if (device == "gpu") {
-            // cudaPointerAttributes attributes;
-            // CUDA_RT_SAFE_CALL_NO_THROW(
-            //         cudaPointerGetAttributes(&attributes, ptr));
-            // if (attributes.devicePointer != nullptr) {
-            //     return true;
-            // }
-            // return false;
             throw std::runtime_error("Unimplemented");
         } else {
             throw std::runtime_error("Unrecognized device");
@@ -83,5 +78,14 @@ public:
         } else if (src_device == "gpu" && dst_device == "cpu") {
             throw std::runtime_error("Unimplemented");
         }
+    }
+
+    static bool IsCUDAPointer(void* ptr) {
+        cudaPointerAttributes attributes;
+        cudaPointerGetAttributes(&attributes, ptr);
+        if (attributes.devicePointer != nullptr) {
+            return true;
+        }
+        return false;
     }
 };

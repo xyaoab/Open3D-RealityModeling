@@ -1,6 +1,3 @@
-# TODO: make CUDA optional
-find_package(CUDA 8.0 REQUIRED)
-
 # Subdirectories
 add_subdirectory(Camera)
 add_subdirectory(ColorMap)
@@ -39,6 +36,7 @@ add_library(${CMAKE_PROJECT_NAME}
     Open3DConfig.cpp
     $<TARGET_OBJECTS:Camera>
     $<TARGET_OBJECTS:ColorMap>
+    Container
     $<TARGET_OBJECTS:Geometry>
     $<TARGET_OBJECTS:Integration>
     $<TARGET_OBJECTS:Odometry>

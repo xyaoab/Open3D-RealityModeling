@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <string>
 
+#include "Open3D/Container/MemoryManager.h"
 #include "Open3D/Container/Shape.h"
 
 namespace open3d {
