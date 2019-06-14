@@ -45,10 +45,8 @@ public:
           device_(device),
           num_elements_(shape.NumElements()),
           byte_size_(sizeof(T) * shape.NumElements()) {
-        if (device == "cpu") {
+        if (device == "cpu" || device == "gpu") {
             v_ = static_cast<T*>(MemoryManager::Allocate(byte_size_, device_));
-        } else if (device == "gpu") {
-            throw std::runtime_error("Unimplemented");
         } else {
             throw std::runtime_error("Unrecognized device");
         }

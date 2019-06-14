@@ -44,11 +44,12 @@ public:
           max_size_(max_size),
           device_(device),
           curr_size_(0) {
-        if (device != "cpu" && device != "gpu") {
+        if (device == "cpu" || device == "gpu") {
+            v_ = static_cast<T*>(MemoryManager::Allocate(
+                    TensorByteSize() * max_size_, device_));
+        } else {
             throw std::runtime_error("Unrecognized device");
         }
-        v_ = static_cast<T*>(
-                MemoryManager::Allocate(TensorByteSize() * max_size_, device_));
     }
 
     ~Array() { MemoryManager::Free(v_); };
