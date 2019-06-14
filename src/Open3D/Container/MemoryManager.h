@@ -52,15 +52,13 @@ public:
     }
 
     // TODO: consider removing the "device" argument, check ptr device first
-    static void Free(void* ptr, const std::string& device) {
-        if (device == "cpu") {
-            if (ptr) {
+    static void Free(void* ptr) {
+        if (ptr) {
+            if (IsCUDAPointer(ptr)) {
+                throw std::runtime_error("Unimplemented");
+            } else {
                 free(ptr);
             }
-        } else if (device == "gpu") {
-            throw std::runtime_error("Unimplemented");
-        } else {
-            throw std::runtime_error("Unrecognized device");
         }
     }
 

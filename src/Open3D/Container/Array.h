@@ -54,7 +54,7 @@ public:
         }
     }
 
-    ~Array() { MemoryManager::Free(v_, device_); };
+    ~Array() { MemoryManager::Free(v_); };
 
     size_t TensorByteSize() const {
         return sizeof(T) * tensor_shape_.NumElements();

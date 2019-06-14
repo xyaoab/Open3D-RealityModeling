@@ -74,7 +74,7 @@ public:
         }
     }
 
-    ~Tensor() { MemoryManager::Free(v_, device_); };
+    ~Tensor() { MemoryManager::Free(v_); };
 
     std::vector<T> ToVector() const {
         std::vector<T> vec(num_elements_);
