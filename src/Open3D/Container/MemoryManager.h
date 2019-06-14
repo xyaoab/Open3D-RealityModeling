@@ -45,7 +45,10 @@ public:
             }
             return ptr;
         } else if (device == "gpu") {
-            throw std::runtime_error("Unimplemented");
+            // TODO add wrapper around CUDA calls
+            void* ptr;
+            cudaMalloc(static_cast<void**>(&ptr), byte_size);
+            return ptr;
         } else {
             throw std::runtime_error("Unrecognized device");
         }
@@ -55,7 +58,7 @@ public:
     static void Free(void* ptr) {
         if (ptr) {
             if (IsCUDAPointer(ptr)) {
-                throw std::runtime_error("Unimplemented");
+                cudaFree(ptr);
             } else {
                 free(ptr);
             }
