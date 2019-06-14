@@ -76,6 +76,8 @@ public:
         }
     }
 
+    ~Tensor() { MemoryManager::Free(GetDataPtr(), device_); };
+
     size_t ByteSize() const { return sizeof(T) * shape_.NumElements(); }
 
     size_t NumElements() const { return shape_.NumElements(); }
@@ -90,8 +92,6 @@ public:
     T* GetDataPtr() { return tensor_buffer_.v_; }
 
     const T* GetDataPtr() const { return tensor_buffer_.v_; }
-
-    ~Tensor() { MemoryManager::Free(GetDataPtr(), device_); };
 
 public:
     TensorBuffer<T> tensor_buffer_;

@@ -25,12 +25,13 @@
 // ----------------------------------------------------------------------------
 
 #include "Open3D/Container/Tensor.h"
+#include "Open3D/Container/Array.h"
 #include "TestUtility/UnitTest.h"
 
 using namespace std;
 using namespace open3d;
 
-TEST(Tensor, Create) {
+TEST(Container, Tensor) {
     Shape shape;
 
     shape = {4, 4};
@@ -41,4 +42,10 @@ TEST(Tensor, Create) {
     Tensor<float> vector3f(init_val, shape, "cpu");
     std::vector<float> out_val = vector3f.ToVector();
     unit_test::ExpectEQ(out_val, {1, 2, 3});
+}
+
+TEST(Container, Array) {
+    Shape tensor_shape = {3};
+    size_t max_size = 100000;
+    Array<float> points(tensor_shape, max_size, "cpu");
 }

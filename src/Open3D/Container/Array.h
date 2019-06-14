@@ -37,10 +37,40 @@ namespace open3d {
 // Array is a wrapper for multiple TensorBuffer(s)
 template <typename T>
 class Array {
+public:
     Array(const Shape& tensor_shape,
-          const std::string& device = "cpu",
-          size_t max_size = OPEN3D_ARRAY_DEFAULT_MAX_SIZE);
-    TensorBuffer<T>* tensor_buffers_;
+          size_t max_size,
+          const std::string& device = "cpu")
+        : tensor_shape_(tensor_shape),
+          max_size_(max_size),
+          device_(device),
+          curr_size_(0) {
+        if (device == "cpu") {
+            tensor_buffer_ = TensorBuffer<T>();
+            void* ptr = MemoryManager::Allocate(TensorByteSize() * max_size_,
+                                                device_);
+            tensor_buffer_.v_ = static_cast<T*>(ptr);
+        } else if (device == "gpu") {
+            throw std::runtime_error("Unimplemented");
+        } else {
+            throw std::runtime_error("Unrecognized device");
+        }
+    }
+
+    ~Array() { MemoryManager::Free(GetDataPtr(), device_); };
+
+    size_t TensorByteSize() const {
+        return sizeof(T) * tensor_shape_.NumElements();
+    }
+
+    T* GetDataPtr() { return tensor_buffer_.v_; }
+
+    const T* GetDataPtr() const { return tensor_buffer_.v_; }
+
+public:
+    TensorBuffer<T> tensor_buffer_;
+    Shape tensor_shape_;
+    std::string device_;
     size_t curr_size_;
     size_t max_size_;
 };
