@@ -34,12 +34,16 @@ using namespace open3d;
 TEST(Container, CPU_Tensor) {
     Shape shape;
 
+    // Create tensor
     shape = {4, 4};
     Tensor<float> matrix4f(shape, "cpu");
 
+    // Create tensor with init values
     shape = {3};
     std::vector<float> init_val({1, 2, 3});
     Tensor<float> vector3f(init_val, shape, "cpu");
+
+    // Check that the values are actually copied
     std::vector<float> out_val = vector3f.ToVector();
     unit_test::ExpectEQ(out_val, {1, 2, 3});
 }
@@ -50,18 +54,22 @@ TEST(Container, CPU_Array) {
     Array<float> points(tensor_shape, max_size, "cpu");
 }
 
-// TEST(Container, CPU_Tensor) {
-//     Shape shape;
+TEST(Container, GPU_Tensor) {
+    Shape shape;
 
-//     shape = {4, 4};
-//     Tensor<float> matrix4f(shape, "cpu");
+    // Create tensor
+    shape = {4, 4};
+    Tensor<float> matrix4f(shape, "gpu");
 
-//     shape = {3};
-//     std::vector<float> init_val({1, 2, 3});
-//     Tensor<float> vector3f(init_val, shape, "cpu");
-//     std::vector<float> out_val = vector3f.ToVector();
-//     unit_test::ExpectEQ(out_val, {1, 2, 3});
-// }
+    // Create tensor with init values
+    shape = {3};
+    std::vector<float> init_val({1, 2, 3});
+    Tensor<float> vector3f(init_val, shape, "gpu");
+
+    // Check that the values are actually copied
+    std::vector<float> out_val = vector3f.ToVector();
+    unit_test::ExpectEQ(out_val, {1, 2, 3});
+}
 
 TEST(Container, GPU_Array) {
     Shape tensor_shape = {3};
