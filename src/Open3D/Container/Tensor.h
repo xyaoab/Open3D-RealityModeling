@@ -80,6 +80,13 @@ public:
 
     size_t NumElements() const { return shape_.NumElements(); }
 
+    std::vector<T> ToVector() const {
+        std::vector<T> vec(NumElements());
+        MemoryManager::CopyTo(vec.data(), GetDataPtr(), "cpu", device_,
+                              ByteSize());
+        return vec;
+    }
+
     T* GetDataPtr() { return tensor_buffer_.v_; }
 
     const T* GetDataPtr() const { return tensor_buffer_.v_; }

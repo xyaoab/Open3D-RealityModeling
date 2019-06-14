@@ -34,9 +34,11 @@ TEST(Tensor, Create) {
     Shape shape;
 
     shape = {4, 4};
-    Tensor<double> matrix4d(shape, "cpu");
+    Tensor<float> matrix4f(shape, "cpu");
 
     shape = {3};
-    std::vector<double> init_val({1, 2, 3});
-    Tensor<double> vector3d(init_val, shape, "cpu");
+    std::vector<float> init_val({1, 2, 3});
+    Tensor<float> vector3f(init_val, shape, "cpu");
+    std::vector<float> out_val = vector3f.ToVector();
+    unit_test::ExpectEQ(out_val, {1, 2, 3});
 }
