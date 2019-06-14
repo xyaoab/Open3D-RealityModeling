@@ -61,10 +61,12 @@ public:
 
 public:
     T* v_;
-    Shape tensor_shape_;
-    std::string device_;
     size_t curr_size_;
     size_t max_size_;
+
+public:
+    const Shape tensor_shape_;
+    const std::string device_;
 };
 
 }  // namespace open3d

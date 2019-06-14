@@ -84,10 +84,10 @@ public:
 
 public:
     T* v_;
-    Shape shape_;
-    std::string device_;
 
 public:
+    const Shape shape_;
+    const std::string device_;
     const size_t num_elements_;  // Num elements
     const size_t byte_size_;     // Num bytes
 };
