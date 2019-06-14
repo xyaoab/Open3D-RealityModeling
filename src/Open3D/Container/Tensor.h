@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <string>
 
+#include "Open3D/Container/MemoryManager.h"
 #include "Open3D/Container/Shape.h"
 #include "Open3D/Container/TensorBuffer.h"
 
@@ -42,8 +43,15 @@ template <typename T>
 class Tensor {
 public:
     Tensor(const Shape& shape, const std::string& device = "cpu")
-        : shape_(shape), device_(device) {}
-    ~Tensor(){};
+        : shape_(shape), device_(device) {
+        tensor_buffer_ = TensorBuffer<T>();
+        void* ptr = MemoryManager::Allocate(sizeof(T) * shape.NumElements(),
+                                            device_);
+        tensor_buffer_.v_ = static_cast<T*>(ptr);
+    }
+    ~Tensor() { MemoryManager::Free(tensor_buffer_.v_, "cpu"); };
+
+public:
     TensorBuffer<T> tensor_buffer_;
     Shape shape_;
     std::string device_;

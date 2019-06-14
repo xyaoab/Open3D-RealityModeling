@@ -32,6 +32,45 @@
 namespace open3d {
 
 // TODO: change Shape to a custom class to be used by GPU
-using Shape = std::vector<size_t>;
+class Shape : public std::vector<size_t> {
+public:
+    Shape(const std::initializer_list<size_t>& dim_sizes)
+        : std::vector<size_t>(dim_sizes) {}
+
+    Shape(const std::vector<size_t>& dim_sizes)
+        : std::vector<size_t>(dim_sizes) {}
+
+    Shape(const Shape& other) : std::vector<size_t>(other) {}
+
+    explicit Shape(size_t n, size_t initial_value = 0)
+        : std::vector<size_t>(n, initial_value) {}
+
+    template <class InputIterator>
+    Shape(InputIterator first, InputIterator last)
+        : std::vector<size_t>(first, last) {}
+
+    Shape() {}
+
+    Shape& operator=(const Shape& v) {
+        static_cast<std::vector<size_t>*>(this)->operator=(v);
+        return *this;
+    }
+
+    Shape& operator=(Shape&& v) {
+        static_cast<std::vector<size_t>*>(this)->operator=(v);
+        return *this;
+    }
+
+    size_t NumElements() const {
+        if (this->size() == 0) {
+            return 0;
+        }
+        size_t size = 1;
+        for (const size_t& d : *this) {
+            size *= d;
+        }
+        return size;
+    }
+};
 
 }  // namespace open3d
