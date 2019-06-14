@@ -1,3 +1,6 @@
+# TODO: make CUDA optional
+find_package(CUDA 8.0 REQUIRED)
+
 # Subdirectories
 add_subdirectory(Camera)
 add_subdirectory(ColorMap)
