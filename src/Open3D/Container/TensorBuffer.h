@@ -32,7 +32,7 @@ namespace open3d {
 template <typename T>
 class TensorBuffer {
 public:
-    T* v_;
+    T* v_ = nullptr;
 };
 
 }  // namespace open3d

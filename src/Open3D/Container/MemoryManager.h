@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <cstring>
 #include <stdexcept>
 #include <string>
 
@@ -71,5 +72,16 @@ public:
     static void CopyTo(void* dst_ptr,
                        const void* src_ptr,
                        const std::string& dst_device,
-                       const std::string& src_device) {}
+                       const std::string& src_device,
+                       std::size_t num_bytes) {
+        if (src_device == "cpu" && dst_device == "cpu") {
+            std::memcpy(dst_ptr, src_ptr, num_bytes);
+        } else if (src_device == "cpu" && dst_device == "gpu") {
+            throw std::runtime_error("Unimplemented");
+        } else if (src_device == "gpu" && dst_device == "gpu") {
+            throw std::runtime_error("Unimplemented");
+        } else if (src_device == "gpu" && dst_device == "cpu") {
+            throw std::runtime_error("Unimplemented");
+        }
+    }
 };

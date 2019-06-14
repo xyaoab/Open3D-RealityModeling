@@ -31,7 +31,8 @@
 
 namespace open3d {
 
-// TODO: change Shape to a custom class to be used by GPU
+// Ref:
+// https://github.com/NervanaSystems/ngraph/blob/master/src/ngraph/shape.hpp
 class Shape : public std::vector<size_t> {
 public:
     Shape(const std::initializer_list<size_t>& dim_sizes)

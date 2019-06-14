@@ -31,6 +31,12 @@ using namespace std;
 using namespace open3d;
 
 TEST(Tensor, Create) {
-    Shape shape({3, 4});
-    Tensor<float> tensor(shape, "cpu");
+    Shape shape;
+
+    shape = {4, 4};
+    Tensor<double> matrix4d(shape, "cpu");
+
+    shape = {3};
+    std::vector<double> init_val({1, 2, 3});
+    Tensor<double> vector3d(init_val, shape, "cpu");
 }

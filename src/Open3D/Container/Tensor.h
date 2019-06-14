@@ -27,6 +27,7 @@
 #pragma once
 
 #include <cstddef>
+#include <iostream>
 #include <string>
 
 #include "Open3D/Container/MemoryManager.h"
@@ -44,12 +45,46 @@ class Tensor {
 public:
     Tensor(const Shape& shape, const std::string& device = "cpu")
         : shape_(shape), device_(device) {
-        tensor_buffer_ = TensorBuffer<T>();
-        void* ptr = MemoryManager::Allocate(sizeof(T) * shape.NumElements(),
-                                            device_);
-        tensor_buffer_.v_ = static_cast<T*>(ptr);
+        if (device == "cpu") {
+            tensor_buffer_ = TensorBuffer<T>();
+            void* ptr = MemoryManager::Allocate(ByteSize(), device_);
+            tensor_buffer_.v_ = static_cast<T*>(ptr);
+        } else if (device == "gpu") {
+            throw std::runtime_error("Unimplemented");
+        } else {
+            throw std::runtime_error("Unrecognized device");
+        }
     }
-    ~Tensor() { MemoryManager::Free(tensor_buffer_.v_, "cpu"); };
+
+    Tensor(const std::vector<T>& init_vals,
+           const Shape& shape,
+           const std::string& device = "cpu")
+        : Tensor(shape, device) {
+        if (init_vals.size() != shape.NumElements()) {
+            throw std::runtime_error(
+                    "Tensor initialization values' size does not match the "
+                    "shape.");
+        }
+
+        if (device == "cpu" || device == "gpu") {
+            MemoryManager::CopyTo(GetDataPtr(), init_vals.data(), device_,
+                                  "cpu", ByteSize());
+        } else if (device == "gpu") {
+            throw std::runtime_error("Unimplemented");
+        } else {
+            throw std::runtime_error("Unrecognized device");
+        }
+    }
+
+    size_t ByteSize() const { return sizeof(T) * shape_.NumElements(); }
+
+    size_t NumElements() const { return shape_.NumElements(); }
+
+    T* GetDataPtr() { return tensor_buffer_.v_; }
+
+    const T* GetDataPtr() const { return tensor_buffer_.v_; }
+
+    ~Tensor() { MemoryManager::Free(GetDataPtr(), device_); };
 
 public:
     TensorBuffer<T> tensor_buffer_;
