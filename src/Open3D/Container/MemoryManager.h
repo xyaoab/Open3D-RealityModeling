@@ -32,6 +32,7 @@
 #include <stdexcept>
 #include <string>
 
+namespace open3d {
 // TODO: - stateful memory manager
 //       - consider memory pool approach
 class MemoryManager {
@@ -95,3 +96,4 @@ public:
         return false;
     }
 };
+}  // namespace open3d

@@ -35,11 +35,11 @@
 namespace open3d {
 
 template <typename T>
-class Array {
+class TensorArray {
 public:
-    Array(const Shape& tensor_shape,
-          size_t max_size,
-          const std::string& device = "cpu")
+    TensorArray(const Shape& tensor_shape,
+                size_t max_size,
+                const std::string& device = "cpu")
         : tensor_shape_(tensor_shape),
           max_size_(max_size),
           device_(device),
@@ -52,7 +52,7 @@ public:
         }
     }
 
-    ~Array() { MemoryManager::Free(v_); };
+    ~TensorArray() { MemoryManager::Free(v_); };
 
     size_t TensorByteSize() const {
         return sizeof(T) * tensor_shape_.NumElements();

@@ -34,7 +34,8 @@
 #include "Open3D/Container/Shape.h"
 
 // TODO: move the contents of this folder to "Open3D/src"?
-//       currently they are in "open3d" top namespace but under "Array" folder
+//       currently they are in "open3d" top namespace but under "TensorArray"
+//       folder
 namespace open3d {
 
 template <typename T>
@@ -73,7 +74,7 @@ public:
 
     ~Tensor() { MemoryManager::Free(v_); };
 
-    std::vector<T> ToVector() const {
+    std::vector<T> ToStdVector() const {
         std::vector<T> vec(num_elements_);
         MemoryManager::CopyTo(vec.data(), v_, byte_size_);
         return vec;

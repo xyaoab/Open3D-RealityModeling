@@ -25,7 +25,7 @@
 // ----------------------------------------------------------------------------
 
 #include "Open3D/Container/Tensor.h"
-#include "Open3D/Container/Array.h"
+#include "Open3D/Container/TensorArray.h"
 #include "TestUtility/UnitTest.h"
 
 using namespace std;
@@ -44,14 +44,14 @@ TEST(Container, CPU_Tensor) {
     Tensor<float> vector3f(init_val, shape, "cpu");
 
     // Check that the values are actually copied
-    std::vector<float> out_val = vector3f.ToVector();
+    std::vector<float> out_val = vector3f.ToStdVector();
     unit_test::ExpectEQ(out_val, {1, 2, 3});
 }
 
 TEST(Container, CPU_Array) {
     Shape tensor_shape = {3};
     size_t max_size = 100000;
-    Array<float> points(tensor_shape, max_size, "cpu");
+    TensorArray<float> points(tensor_shape, max_size, "cpu");
 }
 
 TEST(Container, GPU_Tensor) {
@@ -67,12 +67,12 @@ TEST(Container, GPU_Tensor) {
     Tensor<float> vector3f(init_val, shape, "gpu");
 
     // Check that the values are actually copied
-    std::vector<float> out_val = vector3f.ToVector();
+    std::vector<float> out_val = vector3f.ToStdVector();
     unit_test::ExpectEQ(out_val, {1, 2, 3});
 }
 
 TEST(Container, GPU_Array) {
     Shape tensor_shape = {3};
     size_t max_size = 100000;
-    Array<float> points(tensor_shape, max_size, "gpu");
+    TensorArray<float> points(tensor_shape, max_size, "gpu");
 }
