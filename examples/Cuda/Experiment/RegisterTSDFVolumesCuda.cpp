@@ -28,7 +28,7 @@ ReadTSDFVolume(const std::string &filename, DatasetConfig &config) {
     Timer timer;
     timer.Start();
 
-    io::ReadTSDFVolumeFromBIN(filename, tsdf_volume);
+    io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     return tsdf_volume;
 }
 

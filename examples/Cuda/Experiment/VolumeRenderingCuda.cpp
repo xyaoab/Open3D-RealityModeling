@@ -29,7 +29,7 @@ void ReadAndComputeGradient(int fragment_id, DatasetConfig &config) {
     timer.Start();
 
     std::string filename = config.GetBinFileForFragment(fragment_id);
-    io::ReadTSDFVolumeFromBIN(filename, tsdf_volume);
+    io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     timer.Stop();
     utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
 
@@ -61,7 +61,7 @@ void ReadAndVolumeRendering(int fragment_id, DatasetConfig &config, cv::VideoWri
     timer.Start();
 
     std::string filename = config.GetBinFileForFragment(fragment_id);
-    io::ReadTSDFVolumeFromBIN(filename, tsdf_volume);
+    io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     timer.Stop();
     utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
 

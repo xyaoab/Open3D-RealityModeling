@@ -29,6 +29,7 @@
 
 #include <Open3D/Open3D.h>
 #include <Cuda/Open3DCuda.h>
+#include <Cuda/IO/ClassIO/UniformTSDFVolumeCudaIO.h>
 
 #include "Utils.h"
 
@@ -39,35 +40,63 @@ using namespace open3d::camera;
 using namespace open3d::geometry;
 using namespace open3d::visualization;
 
+std::shared_ptr<Image> ConvertImageFromFloatImage(const Image &image) {
+    auto uimage = std::make_shared<geometry::Image>();
+    if (image.IsEmpty()) {
+        return uimage;
+    }
+
+    uimage->PrepareImage(image.width_, image.height_, image.num_of_channels_,
+                         1);
+
+    int num_pixels = image.height_ * image.width_;
+    for (int i = 0; i < num_pixels; i++) {
+        uint8_t *p = (uint8_t *)(uimage->data_.data() +
+                                 i * uimage->num_of_channels_);
+
+        float *pf = (float *)(image.data_.data() +
+                              i * image.num_of_channels_ *
+                                      image.bytes_per_channel_);
+
+        for (int k = 0; k < image.num_of_channels_; ++k) {
+            p[k] = uint8_t(std::abs(pf[k]));
+        }
+    }
+
+    return uimage;
+}
+
 int main(int argc, char *argv[]) {
     SetVerbosityLevel(VerbosityLevel::VerboseDebug);
 
-    std::string base_path = "/home/wei/Work/data/tum/rgbd_dataset_freiburg3_long_office_household/";
-    auto camera_trajectory = CreatePinholeCameraTrajectoryFromFile(base_path + "/trajectory.log");
-    auto rgbd_filenames = ReadDataAssociation(base_path + "/data_association.txt");
-
-    int index = 0;
-    int save_index = 0;
+    std::string base_path = "/home/dongw1/Workspace/data/stanford/copyroom/";
+    auto camera_trajectory = CreatePinholeCameraTrajectoryFromFile(
+            base_path + "/trajectory.log");
+    auto rgbd_filenames =
+            ReadDataAssociation(base_path + "/data_association.txt");
 
     FPSTimer timer("Process RGBD stream",
-                   (int) camera_trajectory->parameters_.size());
+                   (int)camera_trajectory->parameters_.size());
 
     cuda::PinholeCameraIntrinsicCuda intrinsics(
-        PinholeCameraIntrinsicParameters::PrimeSenseDefault);
+            PinholeCameraIntrinsicParameters::PrimeSenseDefault);
 
-    float voxel_length = 0.01f;
+    float voxel_length = 0.015f;
+    int voxel_resolution = 128;
+    float offset = -voxel_length * voxel_resolution / 2;
     cuda::TransformCuda extrinsics = cuda::TransformCuda::Identity();
-    extrinsics.SetTranslation(cuda::Vector3f(-voxel_length * 256));
-    cuda::UniformTSDFVolumeCuda tsdf_volume(
-        512, voxel_length, 3 * voxel_length, extrinsics);
-    cuda::UniformMeshVolumeCuda mesher(
-        cuda::VertexWithNormalAndColor, 512, 4000000, 8000000);
+    extrinsics.SetTranslation(cuda::Vector3f(offset, offset, 0));
+    std::cout << extrinsics.ToEigen() << "\n";
+    cuda::UniformTSDFVolumeCuda tsdf_volume(voxel_resolution, voxel_length,
+                                            3 * voxel_length, extrinsics);
+    cuda::UniformMeshVolumeCuda mesher(cuda::VertexWithNormalAndColor,
+                                       voxel_resolution, 4000000, 8000000);
 
     Image depth, color;
-    cuda::RGBDImageCuda rgbd(640, 480, 4.0f, 5000.0f);
+    cuda::RGBDImageCuda rgbd(640, 480, 4.0f, 1000.0f);
 
     VisualizerWithCudaModule visualizer;
-    if (! visualizer.CreateVisualizerWindow("UniformFusion", 640, 480, 0, 0)) {
+    if (!visualizer.CreateVisualizerWindow("UniformFusion", 640, 480, 0, 0)) {
         PrintWarning("Failed creating OpenGL window.\n");
         return 0;
     }
@@ -75,18 +104,18 @@ int main(int argc, char *argv[]) {
     visualizer.UpdateWindowTitle();
 
     std::shared_ptr<cuda::TriangleMeshCuda> mesh =
-        std::make_shared<cuda::TriangleMeshCuda>();
+            std::make_shared<cuda::TriangleMeshCuda>();
     visualizer.AddGeometry(mesh);
 
-    for (int i = 0; i < rgbd_filenames.size() - 1; ++i) {
-        PrintDebug("Processing frame %d ...\n", index);
+    for (int i = 0; i < 1200; ++i) {
+        PrintDebug("Processing frame %d ...\n", i);
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);
 
         /* Use ground truth trajectory */
         Eigen::Matrix4d extrinsic =
-            camera_trajectory->parameters_[index].extrinsic_.inverse();
+                camera_trajectory->parameters_[index].extrinsic_.inverse();
 
         extrinsics.FromEigen(extrinsic);
         tsdf_volume.Integrate(rgbd, intrinsics, extrinsics);
@@ -97,9 +126,24 @@ int main(int argc, char *argv[]) {
         visualizer.PollEvents();
         visualizer.UpdateGeometry();
         visualizer.GetViewControl().ConvertFromPinholeCameraParameters(
-            camera_trajectory->parameters_[index]);
-        index++;
+                camera_trajectory->parameters_[index]);
     }
+    io::WriteUniformTSDFVolumeToBIN("copyroom_uniform.bin", tsdf_volume);
+
+//    io::ReadUniformTSDFVolumeFromBIN("copyroom_uniform.bin", tsdf_volume);
+    //    mesher.MarchingCubes(tsdf_volume);
+    //
+    //    *mesh = mesher.mesh();
+    //    visualization::DrawGeometriesWithCudaModule({mesh});
+
+    cuda::ImageCuda<float, 3> im_ray_casting(640, 480);
+    Eigen::Matrix4d extrinsic =
+            camera_trajectory->parameters_[0].extrinsic_.inverse();
+    extrinsics.FromEigen(extrinsic);
+
+    tsdf_volume.RayCasting(im_ray_casting, intrinsics, extrinsics);
+    io::WriteImage("test.png", *ConvertImageFromFloatImage(
+                                       *im_ray_casting.DownloadImage()));
 
     return 0;
 }

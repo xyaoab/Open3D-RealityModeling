@@ -56,7 +56,7 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
 
     timer.Start();
     std::string filename = config.GetBinFileForFragment(fragment_id);
-    io::WriteTSDFVolumeToBIN("target-high.bin", tsdf_volume, false);
+    io::WriteScalableTSDFVolumeToBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
     utility::PrintInfo("Write TSDF takes %f ms\n", timer.GetDuration());
 
@@ -95,7 +95,7 @@ void ReadFragment(int fragment_id, DatasetConfig &config) {
     timer.Start();
 
     std::string filename = config.GetBinFileForFragment(fragment_id);
-    io::ReadTSDFVolumeFromBIN("target-high.bin", tsdf_volume, false);
+    io::ReadScalableTSDFVolumeFromBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
     utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
 

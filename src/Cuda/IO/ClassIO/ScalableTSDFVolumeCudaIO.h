@@ -9,14 +9,12 @@
 namespace open3d {
 namespace io {
 
-bool WriteTSDFVolumeToBIN(const std::string &filename,
-                          cuda::ScalableTSDFVolumeCuda &volume,
-                          bool use_zlib = false);
-bool ReadTSDFVolumeFromBIN(const std::string &filename,
-                           cuda::ScalableTSDFVolumeCuda &volume,
-                           bool use_zlib = false,
-                           int batch_size = 5000);
-}
-}
-
-
+bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
+                                  cuda::ScalableTSDFVolumeCuda &volume,
+                                  bool use_zlib = false);
+bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
+                                   cuda::ScalableTSDFVolumeCuda &volume,
+                                   bool use_zlib = false,
+                                   int batch_size = 5000);
+}  // namespace io
+}  // namespace open3d

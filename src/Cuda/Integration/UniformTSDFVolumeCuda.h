@@ -151,6 +151,8 @@ public:
 
 class UniformTSDFVolumeCudaKernelCaller {
 public:
+    static void Reset(UniformTSDFVolumeCuda &volume);
+
     static void Integrate(
         UniformTSDFVolumeCuda &volume,
         RGBDImageCuda &rgbd,
@@ -164,6 +166,8 @@ public:
         TransformCuda &transform_camera_to_world);
 };
 
+__GLOBAL__
+void ResetUniformTSDFVolumeKernel(UniformTSDFVolumeCudaDevice server);
 
 __GLOBAL__
 void IntegrateKernel(UniformTSDFVolumeCudaDevice server,

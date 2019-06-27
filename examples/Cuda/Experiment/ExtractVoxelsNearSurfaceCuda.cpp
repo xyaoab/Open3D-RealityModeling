@@ -29,7 +29,7 @@ void ReadAndComputeGradient(int fragment_id, DatasetConfig &config) {
     timer.Start();
 
     std::string filename = config.GetBinFileForFragment(fragment_id);
-    io::ReadTSDFVolumeFromBIN("target.bin", tsdf_volume);
+    io::ReadScalableTSDFVolumeFromBIN("target.bin", tsdf_volume);
     timer.Stop();
     utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
 
