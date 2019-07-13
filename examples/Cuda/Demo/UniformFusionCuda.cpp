@@ -81,8 +81,8 @@ int main(int argc, char *argv[]) {
     cuda::PinholeCameraIntrinsicCuda intrinsics(
             PinholeCameraIntrinsicParameters::PrimeSenseDefault);
 
-    float voxel_length = 0.015f;
-    int voxel_resolution = 128;
+    float voxel_length = 0.008f;
+    int voxel_resolution = 256;
     float offset = -voxel_length * voxel_resolution / 2;
     cuda::TransformCuda extrinsics = cuda::TransformCuda::Identity();
     extrinsics.SetTranslation(cuda::Vector3f(offset, offset, 0));
@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
 
         /* Use ground truth trajectory */
         Eigen::Matrix4d extrinsic =
-                camera_trajectory->parameters_[index].extrinsic_.inverse();
+                camera_trajectory->parameters_[i].extrinsic_.inverse();
 
         extrinsics.FromEigen(extrinsic);
         tsdf_volume.Integrate(rgbd, intrinsics, extrinsics);
@@ -126,24 +126,26 @@ int main(int argc, char *argv[]) {
         visualizer.PollEvents();
         visualizer.UpdateGeometry();
         visualizer.GetViewControl().ConvertFromPinholeCameraParameters(
-                camera_trajectory->parameters_[index]);
+                camera_trajectory->parameters_[i]);
     }
     io::WriteUniformTSDFVolumeToBIN("copyroom_uniform.bin", tsdf_volume);
 
-//    io::ReadUniformTSDFVolumeFromBIN("copyroom_uniform.bin", tsdf_volume);
-    //    mesher.MarchingCubes(tsdf_volume);
-    //
-    //    *mesh = mesher.mesh();
-    //    visualization::DrawGeometriesWithCudaModule({mesh});
+//    io::ReadUniformTSDFVolumeFromBIN("copyroom_uniform_saved.bin", tsdf_volume);
+//    mesher.MarchingCubes(tsdf_volume);
+//
+//    *mesh = mesher.mesh();
+//    visualization::DrawGeometriesWithCudaModule({mesh});
+//
+//    io::WriteTriangleMesh("res.ply", *mesh->Download());
 
-    cuda::ImageCuda<float, 3> im_ray_casting(640, 480);
-    Eigen::Matrix4d extrinsic =
-            camera_trajectory->parameters_[0].extrinsic_.inverse();
-    extrinsics.FromEigen(extrinsic);
-
-    tsdf_volume.RayCasting(im_ray_casting, intrinsics, extrinsics);
-    io::WriteImage("test.png", *ConvertImageFromFloatImage(
-                                       *im_ray_casting.DownloadImage()));
+//    cuda::ImageCuda<float, 3> im_ray_casting(640, 480);
+//    Eigen::Matrix4d extrinsic =
+//            camera_trajectory->parameters_[0].extrinsic_.inverse();
+//    extrinsics.FromEigen(extrinsic);
+//
+//    tsdf_volume.RayCasting(im_ray_casting, intrinsics, extrinsics);
+//    io::WriteImage("test.png", *ConvertImageFromFloatImage(
+//                                       *im_ray_casting.DownloadImage()));
 
     return 0;
 }
