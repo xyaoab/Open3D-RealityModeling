@@ -31,8 +31,25 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
                 "Write BIN failed: unable to write volume resolution\n");
         return false;
     }
+    if (fwrite(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
+        utility::PrintWarning(
+                "Write BIN failed: unable to write voxel size\n");
+        return false;
+    }
+    auto grid_to_world = volume.transform_volume_to_world_.ToEigen();
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            float vij = float(grid_to_world(i, j));
+            if (fwrite(&vij, sizeof(float), 1, fid) < 1) {
+                utility::PrintWarning(
+                        "Write BIN failed: unable to write transform[%d, %d]\n",
+                        i, j);
+                return false;
+            }
+        }
+    }
 
-    /** subvolumes **/
+    /** volume **/
     std::vector<uchar> compressed_buf;
     if (use_zlib) {
         compressed_buf.resize(/* provide some redundancy */
@@ -85,9 +102,28 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
         return false;
     }
     assert(volume_resolution == volume.N_);
-
     int N = volume.N_;
     int NNN = N * N * N;
+
+    if (fread(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
+        utility::PrintWarning(
+                "Read BIN failed: unable to read voxel size\n");
+        return false;
+    }
+    Eigen::Matrix4d volume_to_world;
+    float vij;
+    for (int i = 0; i < 4; ++i) {
+        for (int j = 0; j < 4; ++j) {
+            if (fread(&vij, sizeof(float), 1, fid) < 1) {
+                utility::PrintWarning(
+                        "Read BIN failed: unable to read transform[%d, %d]\n",
+                        i, j);
+                return false;
+            }
+            volume_to_world(i, j) = vij;
+        }
+    }
+    volume.transform_volume_to_world_.FromEigen(volume_to_world);
 
     /** values **/
     std::vector<float> tsdf_buf(NNN);

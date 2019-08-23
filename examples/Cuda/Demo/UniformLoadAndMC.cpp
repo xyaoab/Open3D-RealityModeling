@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
     assert(argc > 2);
     std::string input_bin = argv[1];
 
-    float voxel_length = 0.008f;
-    int voxel_resolution = 256;
+    float voxel_length = 0.08f;
+    int voxel_resolution = 64;
     float offset = -voxel_length * voxel_resolution / 2;
     cuda::TransformCuda extrinsics = cuda::TransformCuda::Identity();
     extrinsics.SetTranslation(cuda::Vector3f(offset, offset, 0));
