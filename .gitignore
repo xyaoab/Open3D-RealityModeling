@@ -29,6 +29,7 @@ static/
 *.old*
 docs/python_api/
 _vimrc_local.vim
+*.json
 examples/TestData/Armadillo.ply
 examples/TestData/Bunny.ply
 examples/TestData/voxelized.ply
