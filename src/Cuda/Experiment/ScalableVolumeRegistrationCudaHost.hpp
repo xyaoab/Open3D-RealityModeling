@@ -74,7 +74,6 @@ RegistrationResultCuda ScalableVolumeRegistrationCuda::DoSingleIteration(
                         iter, delta.inlier_rmse_, delta.fitness_);
 
     trans_source_to_target_ =
-//        delta.transformation_.inverse() * trans_source_to_target_;
         trans_source_to_target_ * delta.transformation_.inverse() ;
     device_->trans_source_to_target_.FromEigen(trans_source_to_target_);
 
@@ -120,6 +119,23 @@ void ScalableVolumeRegistrationCuda::ExtractResults(
     }
     rmse = downloaded_result[cnt]; ++cnt;
     inliers = downloaded_result[cnt];
+}
+
+Eigen::Matrix6d ScalableVolumeRegistrationCuda::ComputeInformationMatrix() {
+    // Assume this is already up-to-date in DoSingleIteration()
+    // device_->trans_source_to_target_.FromEigen(trans_source_to_target_);
+
+    RegistrationResultCuda result;
+
+    results_.Memset(0);
+    ScalableVolumeRegistrationCudaKernelCaller::BuildLinearSystem(*this);
+
+    Eigen::Matrix6d JtJ;
+    Eigen::Vector6d Jtr;
+    float rmse, inliers;
+    ExtractResults(JtJ, Jtr, rmse, inliers);
+
+    return JtJ;
 }
 }
 }

@@ -62,6 +62,8 @@ public:
     RegistrationResultCuda BuildAndSolveLinearSystem();
     void ExtractResults(
         Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr, float &rmse, float &inlier);
+
+    Eigen::Matrix6d ComputeInformationMatrix();
 };
 
 class ScalableVolumeRegistrationCudaKernelCaller {
