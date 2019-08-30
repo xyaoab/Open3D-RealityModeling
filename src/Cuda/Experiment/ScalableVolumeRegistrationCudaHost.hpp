@@ -137,5 +137,16 @@ Eigen::Matrix6d ScalableVolumeRegistrationCuda::ComputeInformationMatrix() {
 
     return JtJ;
 }
+
+Eigen::Matrix6d ScalableVolumeRegistrationCuda::ComputeInformationMatrix(
+        ScalableTSDFVolumeCuda &source,
+        ScalableTSDFVolumeCuda &target,
+        const Eigen::Matrix4d &init) {
+
+    ScalableVolumeRegistrationCuda registration;
+    registration.Initialize(source, target, init);
+
+    return registration.ComputeInformationMatrix();
+}
 }
 }

@@ -64,6 +64,10 @@ public:
         Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr, float &rmse, float &inlier);
 
     Eigen::Matrix6d ComputeInformationMatrix();
+    static Eigen::Matrix6d ComputeInformationMatrix(
+            ScalableTSDFVolumeCuda &source,
+            ScalableTSDFVolumeCuda &target,
+            const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity());
 };
 
 class ScalableVolumeRegistrationCudaKernelCaller {

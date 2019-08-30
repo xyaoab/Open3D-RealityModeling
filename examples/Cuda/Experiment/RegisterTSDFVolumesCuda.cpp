@@ -108,6 +108,13 @@ int RegistrationForTSDFVolumes(
         should_close = !visualizer.PollEvents();
     }
     visualizer.DestroyVisualizerWindow();
+    std::cout << registration.ComputeInformationMatrix() << "\n";
+
+    std::cout << cuda::ScalableVolumeRegistrationCuda::ComputeInformationMatrix(
+            source,
+            target,
+            registration.trans_source_to_target_
+            ) << "\n";
 
     return 0;
 }
