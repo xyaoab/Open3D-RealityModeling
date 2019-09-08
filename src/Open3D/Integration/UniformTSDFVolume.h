@@ -26,9 +26,28 @@
 
 #pragma once
 
-#include <Open3D/Integration/TSDFVolume.h>
+#include "Open3D/Geometry/VoxelGrid.h"
+#include "Open3D/Integration/TSDFVolume.h"
 
 namespace open3d {
+
+namespace geometry {
+
+class TSDFVoxel : public Voxel {
+public:
+    TSDFVoxel() : Voxel() {}
+    TSDFVoxel(const Eigen::Vector3i &grid_index) : Voxel(grid_index) {}
+    TSDFVoxel(const Eigen::Vector3i &grid_index, const Eigen::Vector3d &color)
+        : Voxel(grid_index, color) {}
+    ~TSDFVoxel() {}
+
+public:
+    float tsdf_ = 0;
+    float weight_ = 0;
+};
+
+}  // namespace geometry
+
 namespace integration {
 
 class UniformTSDFVolume : public TSDFVolume {
@@ -48,8 +67,9 @@ public:
     std::shared_ptr<geometry::PointCloud> ExtractPointCloud() override;
     std::shared_ptr<geometry::TriangleMesh> ExtractTriangleMesh() override;
 
-    /// Debug function to extract the voxel data into a point cloud
-    std::shared_ptr<geometry::PointCloud> ExtractVoxelPointCloud();
+    /// Debug function to extract the voxel data into a VoxelGrid
+    std::shared_ptr<geometry::PointCloud> ExtractVoxelPointCloud() const;
+    std::shared_ptr<geometry::VoxelGrid> ExtractVoxelGrid() const;
 
     /// Faster Integrate function that uses depth_to_camera_distance_multiplier
     /// precomputed from camera intrinsic
@@ -68,13 +88,11 @@ public:
     }
 
 public:
+    std::vector<geometry::TSDFVoxel> voxels_;
     Eigen::Vector3d origin_;
     double length_;
     int resolution_;
     int voxel_num_;
-    std::vector<float> tsdf_;
-    std::vector<Eigen::Vector3f> color_;
-    std::vector<float> weight_;
 
 private:
     Eigen::Vector3d GetNormalAt(const Eigen::Vector3d &p);

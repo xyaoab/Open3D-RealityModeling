@@ -24,70 +24,61 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "LineSet.h"
+#include "Open3D/Geometry/LineSet.h"
+#include "Open3D/Geometry/BoundingVolume.h"
+
+#include <numeric>
 
 namespace open3d {
 namespace geometry {
 
-void LineSet::Clear() {
+LineSet &LineSet::Clear() {
     points_.clear();
     lines_.clear();
     colors_.clear();
+    return *this;
 }
 
 bool LineSet::IsEmpty() const { return !HasPoints(); }
 
 Eigen::Vector3d LineSet::GetMinBound() const {
-    if (!HasPoints()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    auto itr_x = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(0) < b(0);
-            });
-    auto itr_y = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(1) < b(1);
-            });
-    auto itr_z = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(2) < b(2);
-            });
-    return Eigen::Vector3d((*itr_x)(0), (*itr_y)(1), (*itr_z)(2));
+    return ComputeMinBound(points_);
 }
 
 Eigen::Vector3d LineSet::GetMaxBound() const {
-    if (!HasPoints()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    auto itr_x = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(0) < b(0);
-            });
-    auto itr_y = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(1) < b(1);
-            });
-    auto itr_z = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(2) < b(2);
-            });
-    return Eigen::Vector3d((*itr_x)(0), (*itr_y)(1), (*itr_z)(2));
+    return ComputeMaxBound(points_);
 }
 
-void LineSet::Transform(const Eigen::Matrix4d &transformation) {
-    for (auto &point : points_) {
-        Eigen::Vector4d new_point =
-                transformation *
-                Eigen::Vector4d(point(0), point(1), point(2), 1.0);
-        point = new_point.block<3, 1>(0, 0);
-    }
+Eigen::Vector3d LineSet::GetCenter() const { return ComputeCenter(points_); }
+
+AxisAlignedBoundingBox LineSet::GetAxisAlignedBoundingBox() const {
+    return AxisAlignedBoundingBox::CreateFromPoints(points_);
+}
+
+OrientedBoundingBox LineSet::GetOrientedBoundingBox() const {
+    return OrientedBoundingBox::CreateFromPoints(points_);
+}
+
+LineSet &LineSet::Transform(const Eigen::Matrix4d &transformation) {
+    TransformPoints(transformation, points_);
+    return *this;
+}
+
+LineSet &LineSet::Translate(const Eigen::Vector3d &translation, bool relative) {
+    TranslatePoints(translation, points_, relative);
+    return *this;
+}
+
+LineSet &LineSet::Scale(const double scale, bool center) {
+    ScalePoints(scale, points_, center);
+    return *this;
+}
+
+LineSet &LineSet::Rotate(const Eigen::Vector3d &rotation,
+                         bool center,
+                         RotationType type) {
+    RotatePoints(rotation, points_, center, type);
+    return *this;
 }
 
 LineSet &LineSet::operator+=(const LineSet &lineset) {

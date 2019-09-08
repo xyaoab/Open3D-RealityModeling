@@ -24,9 +24,9 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Visualizer.h"
+#include "Open3D/Visualization/Visualizer/Visualizer.h"
 
-#include <Open3D/Geometry/TriangleMesh.h>
+#include "Open3D/Geometry/TriangleMesh.h"
 
 namespace open3d {
 
@@ -34,15 +34,15 @@ namespace {
 
 class GLFWEnvironmentSingleton {
 private:
-
-    GLFWEnvironmentSingleton() { utility::PrintDebug("GLFW init.\n"); }
+    GLFWEnvironmentSingleton() { utility::LogDebug("GLFW init.\n"); }
     GLFWEnvironmentSingleton(const GLFWEnvironmentSingleton &) = delete;
     GLFWEnvironmentSingleton &operator=(const GLFWEnvironmentSingleton &) =
             delete;
+
 public:
     ~GLFWEnvironmentSingleton() {
         glfwTerminate();
-        utility::PrintDebug("GLFW destruct.\n");
+        utility::LogDebug("GLFW destruct.\n");
     }
 
 public:
@@ -57,7 +57,7 @@ public:
     }
 
     static void GLFWErrorCallback(int error, const char *description) {
-        utility::PrintError("GLFW Error: %s\n", description);
+        utility::LogError("GLFW Error: {}\n", description);
     }
 };
 
@@ -96,7 +96,7 @@ bool Visualizer::CreateVisualizerWindow(
 
     glfwSetErrorCallback(GLFWEnvironmentSingleton::GLFWErrorCallback);
     if (!GLFWEnvironmentSingleton::InitGLFW()) {
-        utility::PrintError("Failed to initialize GLFW\n");
+        utility::LogError("Failed to initialize GLFW\n");
         return false;
     }
 
@@ -109,7 +109,7 @@ bool Visualizer::CreateVisualizerWindow(
 
     window_ = glfwCreateWindow(width, height, window_name_.c_str(), NULL, NULL);
     if (!window_) {
-        utility::PrintError("Failed to create window\n");
+        utility::LogError("Failed to create window\n");
         return false;
     }
     glfwSetWindowPos(window_, left, top);
@@ -239,10 +239,10 @@ void Visualizer::BuildUtilities() {
 
     // 0. Build coordinate frame
     const auto boundingbox = GetViewControl().GetBoundingBox();
-    coordinate_frame_mesh_ptr_ = geometry::CreateMeshCoordinateFrame(
-            boundingbox.GetSize() * 0.2, boundingbox.min_bound_);
+    coordinate_frame_mesh_ptr_ = geometry::TriangleMesh::CreateCoordinateFrame(
+            boundingbox.GetMaxExtend() * 0.2, boundingbox.min_bound_);
     coordinate_frame_mesh_renderer_ptr_ =
-        std::make_shared<glsl::CoordinateFrameRenderer>();
+            std::make_shared<glsl::CoordinateFrameRenderer>();
     if (coordinate_frame_mesh_renderer_ptr_->AddGeometry(
                 coordinate_frame_mesh_ptr_) == false) {
         return;
@@ -274,7 +274,7 @@ void Visualizer::Close() {
         renderer_ptr->UpdateGeometry();
     }
     glfwSetWindowShouldClose(window_, GL_TRUE);
-    utility::PrintDebug("[Visualizer] Window closing.\n");
+    utility::LogDebug("[Visualizer] Window closing.\n");
 }
 
 bool Visualizer::WaitEvents() {
@@ -308,58 +308,103 @@ bool Visualizer::AddGeometry(
     if (is_initialized_ == false) {
         return false;
     }
-
     glfwMakeContextCurrent(window_);
+    std::shared_ptr<glsl::GeometryRenderer> renderer_ptr;
     if (geometry_ptr->GetGeometryType() ==
         geometry::Geometry::GeometryType::Unspecified) {
         return false;
     } else if (geometry_ptr->GetGeometryType() ==
                geometry::Geometry::GeometryType::PointCloud) {
-        auto renderer_ptr = std::make_shared<glsl::PointCloudRenderer>();
+        renderer_ptr = std::make_shared<glsl::PointCloudRenderer>();
         if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
             return false;
         }
-        geometry_renderer_ptrs_.push_back(renderer_ptr);
     } else if (geometry_ptr->GetGeometryType() ==
                geometry::Geometry::GeometryType::VoxelGrid) {
-        auto renderer_ptr = std::make_shared<glsl::VoxelGridRenderer>();
+        renderer_ptr = std::make_shared<glsl::VoxelGridRenderer>();
         if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
             return false;
         }
-        geometry_renderer_ptrs_.push_back(renderer_ptr);
+    } else if (geometry_ptr->GetGeometryType() ==
+               geometry::Geometry::GeometryType::Octree) {
+        renderer_ptr = std::make_shared<glsl::OctreeRenderer>();
+        if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
+            return false;
+        }
     } else if (geometry_ptr->GetGeometryType() ==
                geometry::Geometry::GeometryType::LineSet) {
-        auto renderer_ptr = std::make_shared<glsl::LineSetRenderer>();
+        renderer_ptr = std::make_shared<glsl::LineSetRenderer>();
         if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
             return false;
         }
-        geometry_renderer_ptrs_.push_back(renderer_ptr);
     } else if (geometry_ptr->GetGeometryType() ==
                        geometry::Geometry::GeometryType::TriangleMesh ||
                geometry_ptr->GetGeometryType() ==
                        geometry::Geometry::GeometryType::HalfEdgeTriangleMesh) {
-        auto renderer_ptr = std::make_shared<glsl::TriangleMeshRenderer>();
+        renderer_ptr = std::make_shared<glsl::TriangleMeshRenderer>();
         if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
             return false;
         }
-        geometry_renderer_ptrs_.push_back(renderer_ptr);
     } else if (geometry_ptr->GetGeometryType() ==
                geometry::Geometry::GeometryType::Image) {
-        auto renderer_ptr = std::make_shared<glsl::ImageRenderer>();
+        renderer_ptr = std::make_shared<glsl::ImageRenderer>();
         if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
             return false;
         }
-        geometry_renderer_ptrs_.push_back(renderer_ptr);
-    }
-    else {
+    } else if (geometry_ptr->GetGeometryType() ==
+               geometry::Geometry::GeometryType::RGBDImage) {
+        renderer_ptr = std::make_shared<glsl::RGBDImageRenderer>();
+        if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
+            return false;
+        }
+    } else if (geometry_ptr->GetGeometryType() ==
+               geometry::Geometry::GeometryType::TetraMesh) {
+        renderer_ptr = std::make_shared<glsl::TetraMeshRenderer>();
+        if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
+            return false;
+        }
+    } else if (geometry_ptr->GetGeometryType() ==
+               geometry::Geometry::GeometryType::OrientedBoundingBox) {
+        renderer_ptr = std::make_shared<glsl::OrientedBoundingBoxRenderer>();
+        if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
+            return false;
+        }
+    } else if (geometry_ptr->GetGeometryType() ==
+               geometry::Geometry::GeometryType::AxisAlignedBoundingBox) {
+        renderer_ptr = std::make_shared<glsl::AxisAlignedBoundingBoxRenderer>();
+        if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
+            return false;
+        }
+    } else {
         return false;
     }
-
-    geometry_ptrs_.push_back(geometry_ptr);
+    geometry_renderer_ptrs_.insert(renderer_ptr);
+    geometry_ptrs_.insert(geometry_ptr);
     view_control_ptr_->FitInGeometry(*geometry_ptr);
     ResetViewPoint();
-    utility::PrintDebug(
-            "Add geometry and update bounding box to %s\n",
+    utility::LogDebug(
+            "Add geometry and update bounding box to {}\n",
+            view_control_ptr_->GetBoundingBox().GetPrintInfo().c_str());
+    return UpdateGeometry();
+}
+
+bool Visualizer::RemoveGeometry(
+        std::shared_ptr<const geometry::Geometry> geometry_ptr) {
+    if (is_initialized_ == false) {
+        return false;
+    }
+    glfwMakeContextCurrent(window_);
+    std::shared_ptr<glsl::GeometryRenderer> geometry_renderer_delete = NULL;
+    for (auto &geometry_renderer_ptr : geometry_renderer_ptrs_) {
+        if (geometry_renderer_ptr->GetGeometry() == geometry_ptr)
+            geometry_renderer_delete = geometry_renderer_ptr;
+    }
+    if (geometry_renderer_delete == NULL) return false;
+    geometry_renderer_ptrs_.erase(geometry_renderer_delete);
+    geometry_ptrs_.erase(geometry_ptr);
+    ResetViewPoint(true);
+    utility::LogDebug(
+            "Remove geometry and update bounding box to {}\n",
             view_control_ptr_->GetBoundingBox().GetPrintInfo().c_str());
     return UpdateGeometry();
 }
@@ -380,60 +425,60 @@ bool Visualizer::HasGeometry() const { return !geometry_ptrs_.empty(); }
 
 void Visualizer::PrintVisualizerHelp() {
     // clang-format off
-    utility::PrintInfo("  -- Mouse view control --\n");
-    utility::PrintInfo("    Left button + drag         : Rotate.\n");
-    utility::PrintInfo("    Ctrl + left button + drag  : Translate.\n");
-    utility::PrintInfo("    Wheel button + drag        : Translate.\n");
-    utility::PrintInfo("    Shift + left button + drag : Roll.\n");
-    utility::PrintInfo("    Wheel                      : Zoom in/out.\n");
-    utility::PrintInfo("\n");
-    utility::PrintInfo("  -- Keyboard view control --\n");
-    utility::PrintInfo("    [/]          : Increase/decrease field of view.\n");
-    utility::PrintInfo("    R            : Reset view point.\n");
-    utility::PrintInfo("    Ctrl/Cmd + C : Copy current view status into the clipboard.\n");
-    utility::PrintInfo("    Ctrl/Cmd + V : Paste view status from clipboard.\n");
-    utility::PrintInfo("\n");
-    utility::PrintInfo("  -- General control --\n");
-    utility::PrintInfo("    Q, Esc       : Exit window.\n");
-    utility::PrintInfo("    H            : Print help message.\n");
-    utility::PrintInfo("    P, PrtScn    : Take a screen capture.\n");
-    utility::PrintInfo("    D            : Take a depth capture.\n");
-    utility::PrintInfo("    O            : Take a capture of current rendering settings.\n");
-    utility::PrintInfo("\n");
-    utility::PrintInfo("  -- Render mode control --\n");
-    utility::PrintInfo("    L            : Turn on/off lighting.\n");
-    utility::PrintInfo("    +/-          : Increase/decrease point size.\n");
-    utility::PrintInfo("    Ctrl + +/-   : Increase/decrease width of geometry::LineSet.\n");
-    utility::PrintInfo("    N            : Turn on/off point cloud normal rendering.\n");
-    utility::PrintInfo("    S            : Toggle between mesh flat shading and smooth shading.\n");
-    utility::PrintInfo("    W            : Turn on/off mesh wireframe.\n");
-    utility::PrintInfo("    B            : Turn on/off back face rendering.\n");
-    utility::PrintInfo("    I            : Turn on/off image zoom in interpolation.\n");
-    utility::PrintInfo("    T            : Toggle among image render:\n");
-    utility::PrintInfo("                   no stretch / keep ratio / freely stretch.\n");
-    utility::PrintInfo("\n");
-    utility::PrintInfo("  -- Color control --\n");
-    utility::PrintInfo("    0..4,9       : Set point cloud color option.\n");
-    utility::PrintInfo("                   0 - Default behavior, render point color.\n");
-    utility::PrintInfo("                   1 - Render point color.\n");
-    utility::PrintInfo("                   2 - x coordinate as color.\n");
-    utility::PrintInfo("                   3 - y coordinate as color.\n");
-    utility::PrintInfo("                   4 - z coordinate as color.\n");
-    utility::PrintInfo("                   9 - normal as color.\n");
-    utility::PrintInfo("    Ctrl + 0..4,9: Set mesh color option.\n");
-    utility::PrintInfo("                   0 - Default behavior, render uniform gray color.\n");
-    utility::PrintInfo("                   1 - Render point color.\n");
-    utility::PrintInfo("                   2 - x coordinate as color.\n");
-    utility::PrintInfo("                   3 - y coordinate as color.\n");
-    utility::PrintInfo("                   4 - z coordinate as color.\n");
-    utility::PrintInfo("                   9 - normal as color.\n");
-    utility::PrintInfo("    Shift + 0..4 : Color map options.\n");
-    utility::PrintInfo("                   0 - Gray scale color.\n");
-    utility::PrintInfo("                   1 - JET color map.\n");
-    utility::PrintInfo("                   2 - SUMMER color map.\n");
-    utility::PrintInfo("                   3 - WINTER color map.\n");
-    utility::PrintInfo("                   4 - HOT color map.\n");
-    utility::PrintInfo("\n");
+    utility::LogInfo("  -- Mouse view control --\n");
+    utility::LogInfo("    Left button + drag         : Rotate.\n");
+    utility::LogInfo("    Ctrl + left button + drag  : Translate.\n");
+    utility::LogInfo("    Wheel button + drag        : Translate.\n");
+    utility::LogInfo("    Shift + left button + drag : Roll.\n");
+    utility::LogInfo("    Wheel                      : Zoom in/out.\n");
+    utility::LogInfo("\n");
+    utility::LogInfo("  -- Keyboard view control --\n");
+    utility::LogInfo("    [/]          : Increase/decrease field of view.\n");
+    utility::LogInfo("    R            : Reset view point.\n");
+    utility::LogInfo("    Ctrl/Cmd + C : Copy current view status into the clipboard.\n");
+    utility::LogInfo("    Ctrl/Cmd + V : Paste view status from clipboard.\n");
+    utility::LogInfo("\n");
+    utility::LogInfo("  -- General control --\n");
+    utility::LogInfo("    Q, Esc       : Exit window.\n");
+    utility::LogInfo("    H            : Print help message.\n");
+    utility::LogInfo("    P, PrtScn    : Take a screen capture.\n");
+    utility::LogInfo("    D            : Take a depth capture.\n");
+    utility::LogInfo("    O            : Take a capture of current rendering settings.\n");
+    utility::LogInfo("\n");
+    utility::LogInfo("  -- Render mode control --\n");
+    utility::LogInfo("    L            : Turn on/off lighting.\n");
+    utility::LogInfo("    +/-          : Increase/decrease point size.\n");
+    utility::LogInfo("    Ctrl + +/-   : Increase/decrease width of geometry::LineSet.\n");
+    utility::LogInfo("    N            : Turn on/off point cloud normal rendering.\n");
+    utility::LogInfo("    S            : Toggle between mesh flat shading and smooth shading.\n");
+    utility::LogInfo("    W            : Turn on/off mesh wireframe.\n");
+    utility::LogInfo("    B            : Turn on/off back face rendering.\n");
+    utility::LogInfo("    I            : Turn on/off image zoom in interpolation.\n");
+    utility::LogInfo("    T            : Toggle among image render:\n");
+    utility::LogInfo("                   no stretch / keep ratio / freely stretch.\n");
+    utility::LogInfo("\n");
+    utility::LogInfo("  -- Color control --\n");
+    utility::LogInfo("    0..4,9       : Set point cloud color option.\n");
+    utility::LogInfo("                   0 - Default behavior, render point color.\n");
+    utility::LogInfo("                   1 - Render point color.\n");
+    utility::LogInfo("                   2 - x coordinate as color.\n");
+    utility::LogInfo("                   3 - y coordinate as color.\n");
+    utility::LogInfo("                   4 - z coordinate as color.\n");
+    utility::LogInfo("                   9 - normal as color.\n");
+    utility::LogInfo("    Ctrl + 0..4,9: Set mesh color option.\n");
+    utility::LogInfo("                   0 - Default behavior, render uniform gray color.\n");
+    utility::LogInfo("                   1 - Render point color.\n");
+    utility::LogInfo("                   2 - x coordinate as color.\n");
+    utility::LogInfo("                   3 - y coordinate as color.\n");
+    utility::LogInfo("                   4 - z coordinate as color.\n");
+    utility::LogInfo("                   9 - normal as color.\n");
+    utility::LogInfo("    Shift + 0..4 : Color map options.\n");
+    utility::LogInfo("                   0 - Gray scale color.\n");
+    utility::LogInfo("                   1 - JET color map.\n");
+    utility::LogInfo("                   2 - SUMMER color map.\n");
+    utility::LogInfo("                   3 - WINTER color map.\n");
+    utility::LogInfo("                   4 - HOT color map.\n");
+    utility::LogInfo("\n");
     // clang-format on
 }
 }  // namespace visualization

@@ -24,9 +24,9 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "ColorMap.h"
+#include "Open3D/Visualization/Utility/ColorMap.h"
 
-#include <Open3D/Utility/Console.h>
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 
@@ -36,7 +36,7 @@ using namespace visualization;
 class GlobalColorMapSingleton {
 private:
     GlobalColorMapSingleton() : color_map_(new ColorMapJet) {
-        utility::PrintDebug("Global colormap init.\n");
+        utility::LogDebug("Global colormap init.\n");
     }
     GlobalColorMapSingleton(const GlobalColorMapSingleton &) = delete;
     GlobalColorMapSingleton &operator=(const GlobalColorMapSingleton &) =
@@ -44,7 +44,7 @@ private:
 
 public:
     ~GlobalColorMapSingleton() {
-        utility::PrintDebug("Global colormap destruct.\n");
+        utility::LogDebug("Global colormap destruct.\n");
     }
 
 public:

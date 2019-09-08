@@ -40,10 +40,14 @@ public:
         TriangleMesh = 5,
         HalfEdgeTriangleMesh = 6,
         Image = 7,
+        RGBDImage = 8,
+        TetraMesh = 9,
+        OrientedBoundingBox = 10,
+        AxisAlignedBoundingBox = 11,
 
-        PointCloudCuda = 8,
-        TriangleMeshCuda = 9,
-        ImageCuda = 10
+        PointCloudCuda = 12,
+        TriangleMeshCuda = 13,
+        ImageCuda = 14
     };
 
 public:
@@ -54,7 +58,7 @@ protected:
         : geometry_type_(type), dimension_(dimension) {}
 
 public:
-    virtual void Clear() = 0;
+    virtual Geometry& Clear() = 0;
     virtual bool IsEmpty() const = 0;
     GeometryType GetGeometryType() const { return geometry_type_; }
     int Dimension() const { return dimension_; }

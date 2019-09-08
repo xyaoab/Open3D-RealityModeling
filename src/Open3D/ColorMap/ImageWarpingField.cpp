@@ -24,10 +24,11 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "ImageWarpingField.h"
+#include "Open3D/ColorMap/ImageWarpingField.h"
 
 #include <json/json.h>
-#include <Open3D/Utility/Console.h>
+
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace color_map {
@@ -92,7 +93,7 @@ bool ImageWarpingField::ConvertToJsonValue(Json::Value &value) const {
 
 bool ImageWarpingField::ConvertFromJsonValue(const Json::Value &value) {
     if (value.isObject() == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "ImageWarpingField read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -100,7 +101,7 @@ bool ImageWarpingField::ConvertFromJsonValue(const Json::Value &value) {
     if (value.get("class_name", "").asString() != "ImageWarpingField" ||
         value.get("version_major", 1).asInt() != 1 ||
         value.get("version_minor", 0).asInt() != 0) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "ImageWarpingField read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -110,8 +111,8 @@ bool ImageWarpingField::ConvertFromJsonValue(const Json::Value &value) {
 
     const Json::Value flow_array = value["flow"];
     if (flow_array.size() == 0 ||
-        flow_array.size() != (anchor_w_ * anchor_h_ * 2)) {
-        utility::PrintWarning(
+        int(flow_array.size()) != (anchor_w_ * anchor_h_ * 2)) {
+        utility::LogWarning(
                 "ImageWarpingField read JSON failed: invalid flow.\n");
         return false;
     }

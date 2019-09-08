@@ -24,12 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PhongShader.h"
+#include "Open3D/Visualization/Shader/PhongShader.h"
 
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/TriangleMesh.h>
-#include <Open3D/Visualization/Shader/Shader.h>
-#include <Open3D/Visualization/Utility/ColorMap.h>
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/TriangleMesh.h"
+#include "Open3D/Visualization/Shader/Shader.h"
+#include "Open3D/Visualization/Utility/ColorMap.h"
 
 namespace open3d {
 namespace visualization {
@@ -155,7 +155,7 @@ void PhongShader::SetLighting(const ViewControl &view,
     for (int i = 0; i < 4; i++) {
         light_position_world_data_.block<3, 1>(0, i) =
                 box.GetCenter().cast<GLfloat>() +
-                (float)box.GetSize() *
+                (float)box.GetMaxExtend() *
                         ((float)option.light_position_relative_[i](0) *
                                  view.GetRight() +
                          (float)option.light_position_relative_[i](1) *

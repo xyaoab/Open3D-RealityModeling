@@ -27,11 +27,13 @@
 #pragma once
 
 #include <Python/open3d_pybind.h>
-#include <Open3D/Geometry/Geometry.h>
-#include <Open3D/Geometry/Geometry2D.h>
-#include <Open3D/Geometry/Geometry3D.h>
-#include <Open3D/Geometry/TriangleMesh.h>
 
+#include "Open3D/Geometry/BoundingVolume.h"
+#include "Open3D/Geometry/Geometry.h"
+#include "Open3D/Geometry/Geometry2D.h"
+#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Geometry/TetraMesh.h"
+#include "Open3D/Geometry/TriangleMesh.h"
 #include "Python/geometry/geometry.h"
 
 using namespace open3d;
@@ -40,7 +42,9 @@ template <class GeometryBase = geometry::Geometry>
 class PyGeometry : public GeometryBase {
 public:
     using GeometryBase::GeometryBase;
-    void Clear() override { PYBIND11_OVERLOAD_PURE(void, GeometryBase, ); }
+    GeometryBase& Clear() override {
+        PYBIND11_OVERLOAD_PURE(GeometryBase&, GeometryBase, );
+    }
     bool IsEmpty() const override {
         PYBIND11_OVERLOAD_PURE(bool, GeometryBase, );
     }
@@ -56,8 +60,19 @@ public:
     Eigen::Vector3d GetMaxBound() const override {
         PYBIND11_OVERLOAD_PURE(Eigen::Vector3d, Geometry3DBase, );
     }
-    void Transform(const Eigen::Matrix4d &transformation) override {
-        PYBIND11_OVERLOAD_PURE(void, Geometry3DBase, transformation);
+    Eigen::Vector3d GetCenter() const override {
+        PYBIND11_OVERLOAD_PURE(Eigen::Vector3d, Geometry3DBase, );
+    }
+    geometry::AxisAlignedBoundingBox GetAxisAlignedBoundingBox()
+            const override {
+        PYBIND11_OVERLOAD_PURE(geometry::AxisAlignedBoundingBox,
+                               Geometry3DBase, );
+    }
+    geometry::OrientedBoundingBox GetOrientedBoundingBox() const override {
+        PYBIND11_OVERLOAD_PURE(geometry::OrientedBoundingBox, Geometry3DBase, );
+    }
+    Geometry3DBase& Transform(const Eigen::Matrix4d& transformation) override {
+        PYBIND11_OVERLOAD_PURE(Geometry3DBase&, Geometry3DBase, transformation);
     }
 };
 
@@ -71,22 +86,4 @@ public:
     Eigen::Vector2d GetMaxBound() const override {
         PYBIND11_OVERLOAD_PURE(Eigen::Vector2d, Geometry2DBase, );
     }
-};
-
-template <class TriangleMeshBase = geometry::TriangleMesh>
-class PyTriangleMesh : public PyGeometry3D<TriangleMeshBase> {
-public:
-    using PyGeometry3D<TriangleMeshBase>::PyGeometry3D;
-    void RemoveDuplicatedVertices() override {
-        PYBIND11_OVERLOAD(void, TriangleMeshBase, RemoveDuplicatedVertices, );
-    };
-    void RemoveDuplicatedTriangles() override {
-        PYBIND11_OVERLOAD(void, TriangleMeshBase, RemoveDuplicatedTriangles, );
-    };
-    void RemoveNonManifoldVertices() override {
-        PYBIND11_OVERLOAD(void, TriangleMeshBase, RemoveNonManifoldVertices, );
-    };
-    void RemoveNonManifoldTriangles() override {
-        PYBIND11_OVERLOAD(void, TriangleMeshBase, RemoveNonManifoldTriangles, );
-    };
 };

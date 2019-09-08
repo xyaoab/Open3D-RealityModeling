@@ -24,11 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3DConfig.h"
-#include <Open3D/Utility/Console.h>
+#include "Open3D/Open3DConfig.h"
+
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 
-void PrintOpen3DVersion() { utility::PrintInfo("Open3D %s\n", OPEN3D_VERSION); }
+void PrintOpen3DVersion() { utility::LogInfo("Open3D {}\n", OPEN3D_VERSION); }
 
 }  // namespace open3d

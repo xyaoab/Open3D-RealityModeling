@@ -24,12 +24,13 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PoseGraphIO.h"
+#include "Open3D/IO/ClassIO/PoseGraphIO.h"
 
 #include <unordered_map>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Utility/FileSystem.h>
-#include <Open3D/IO/ClassIO/IJsonConvertibleIO.h>
+
+#include "Open3D/IO/ClassIO/IJsonConvertibleIO.h"
+#include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/FileSystem.h"
 
 namespace open3d {
 
@@ -76,7 +77,7 @@ bool ReadPoseGraph(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read registration::PoseGraph failed: unknown file "
                 "extension.\n");
         return false;
@@ -84,7 +85,7 @@ bool ReadPoseGraph(const std::string &filename,
     auto map_itr =
             file_extension_to_pose_graph_read_function.find(filename_ext);
     if (map_itr == file_extension_to_pose_graph_read_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read registration::PoseGraph failed: unknown file "
                 "extension.\n");
         return false;
@@ -97,7 +98,7 @@ bool WritePoseGraph(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write registration::PoseGraph failed: unknown file "
                 "extension.\n");
         return false;
@@ -105,7 +106,7 @@ bool WritePoseGraph(const std::string &filename,
     auto map_itr =
             file_extension_to_pose_graph_write_function.find(filename_ext);
     if (map_itr == file_extension_to_pose_graph_write_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write registration::PoseGraph failed: unknown file "
                 "extension.\n");
         return false;

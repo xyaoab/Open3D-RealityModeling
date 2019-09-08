@@ -24,11 +24,10 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "TestUtility/UnitTest.h"
-#include "TestUtility/Raw.h"
-
 #include "Open3D/Geometry/LineSet.h"
 #include "Open3D/Geometry/PointCloud.h"
+#include "TestUtility/Raw.h"
+#include "TestUtility/UnitTest.h"
 
 using namespace Eigen;
 using namespace open3d;
@@ -46,9 +45,9 @@ TEST(LineSet, Constructor) {
     EXPECT_EQ(3, ls.Dimension());
 
     // public member variables
-    EXPECT_EQ(0, ls.points_.size());
-    EXPECT_EQ(0, ls.lines_.size());
-    EXPECT_EQ(0, ls.colors_.size());
+    EXPECT_EQ(0u, ls.points_.size());
+    EXPECT_EQ(0u, ls.lines_.size());
+    EXPECT_EQ(0u, ls.colors_.size());
 
     // public members
     EXPECT_TRUE(ls.IsEmpty());
@@ -144,8 +143,6 @@ TEST(LineSet, GetMinBound) {
 
     Rand(ls.points_, vmin, vmax, 0);
 
-    Vector3d minBound = ls.GetMinBound();
-
     ExpectEQ(Vector3d(19.607843, 0.0, 0.0), ls.GetMinBound());
 }
 
@@ -164,8 +161,6 @@ TEST(LineSet, GetMaxBound) {
 
     Rand(ls.points_, vmin, vmax, 0);
 
-    Vector3d maxBound = ls.GetMaxBound();
-
     ExpectEQ(Vector3d(996.078431, 996.078431, 996.078431), ls.GetMaxBound());
 }
 
@@ -173,16 +168,12 @@ TEST(LineSet, GetMaxBound) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, Transform) {
-    vector<Vector3d> ref_points = {{396.870588, 1201.976471, 880.472941},
-                                   {320.792157, 1081.976471, 829.139608},
-                                   {269.027451, 818.447059, 406.786667},
-                                   {338.831373, 1001.192157, 614.237647},
-                                   {423.537255, 1153.349020, 483.727843},
-                                   {432.949020, 1338.447059, 964.512157},
-                                   {140.007843, 444.721569, 189.296471},
-                                   {292.164706, 763.152941, 317.178824},
-                                   {134.517647, 407.858824, 192.002353},
-                                   {274.909804, 802.368627, 218.747451}};
+    vector<Vector3d> ref_points = {
+            {1.411252, 4.274168, 3.130918}, {1.231757, 4.154505, 3.183678},
+            {1.403168, 4.268779, 2.121679}, {1.456767, 4.304511, 2.640845},
+            {1.620902, 4.413935, 1.851255}, {1.374684, 4.249790, 3.062485},
+            {1.328160, 4.218773, 1.795728}, {1.713446, 4.475631, 1.860145},
+            {1.409239, 4.272826, 2.011462}, {1.480169, 4.320113, 1.177780}};
 
     vector<Vector2i> ref_lines = {
             {839, 392}, {780, 796}, {909, 196}, {333, 764}, {274, 552},
@@ -216,8 +207,37 @@ TEST(LineSet, Transform) {
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
+TEST(LineSet, PaintUniformColor) {
+    size_t size = 100;
+
+    Vector3d vmin(0.0, 0.0, 0.0);
+    Vector3d vmax(1000.0, 1000.0, 1000.0);
+
+    geometry::LineSet ls;
+
+    EXPECT_TRUE(ls.IsEmpty());
+
+    ls.points_.resize(size);
+    Rand(ls.points_, vmin, vmax, 0);
+    ls.lines_.resize(size);
+    Rand(ls.lines_, Zero2i, Vector2i(size - 1, size - 1), 0);
+
+    EXPECT_FALSE(ls.HasColors());
+
+    Vector3d color(233. / 255., 171. / 255., 53.0 / 255.);
+    ls.PaintUniformColor(color);
+
+    EXPECT_TRUE(ls.HasColors());
+
+    for (size_t i = 0; i < ls.colors_.size(); i++)
+        ExpectEQ(color, ls.colors_[i]);
+}
+
+// ----------------------------------------------------------------------------
+//
+// ----------------------------------------------------------------------------
 TEST(LineSet, OperatorAppend) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::LineSet ls0;
     geometry::LineSet ls1;
@@ -279,7 +299,7 @@ TEST(LineSet, OperatorAppend) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, OperatorADD) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::LineSet ls0;
     geometry::LineSet ls1;
@@ -340,7 +360,7 @@ TEST(LineSet, OperatorADD) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, HasPoints) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::LineSet ls;
 
@@ -355,7 +375,7 @@ TEST(LineSet, HasPoints) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, HasLines) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::LineSet ls;
 
@@ -371,7 +391,7 @@ TEST(LineSet, HasLines) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, HasColors) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::LineSet ls;
 
@@ -410,7 +430,7 @@ TEST(LineSet, GetLineCoordinate) {
             {{796.078431, 909.803922, 196.078431},
              {913.725490, 635.294118, 713.725490}}};
 
-    int size = 10;
+    size_t size = 10;
     geometry::LineSet ls;
 
     Vector3d dmin(0.0, 0.0, 0.0);
@@ -438,7 +458,7 @@ TEST(LineSet, GetLineCoordinate) {
 //
 // ----------------------------------------------------------------------------
 TEST(LineSet, CreateLineSetFromPointCloudCorrespondences) {
-    int size = 10;
+    size_t size = 10;
 
     vector<Vector3d> ref_points = {{839.215686, 392.156863, 780.392157},
                                    {796.078431, 909.803922, 196.078431},
@@ -485,15 +505,15 @@ TEST(LineSet, CreateLineSetFromPointCloudCorrespondences) {
     Rand(pc1.colors_, Zero3d, Vector3d(1.0, 1.0, 1.0), 1);
 
     Raw raw;
-    for (int i = 0; i < size; i++) {
+    for (size_t i = 0; i < size; i++) {
         int first = size * raw.Next<int>() / Raw::VMAX;
         int second = size * raw.Next<int>() / Raw::VMAX;
 
         correspondence[i] = pair<int, int>(first, second);
     }
 
-    auto ls = CreateLineSetFromPointCloudCorrespondences(pc0, pc1,
-                                                         correspondence);
+    auto ls = geometry::LineSet::CreateFromPointCloudCorrespondences(
+            pc0, pc1, correspondence);
 
     ExpectEQ(ref_points, ls->points_);
     ExpectEQ(ref_lines, ls->lines_);

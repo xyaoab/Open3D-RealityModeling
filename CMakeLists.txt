@@ -4,33 +4,38 @@
 
 cmake_minimum_required(VERSION 3.0.0)
 
+add_custom_target(build_all_3rd_party_libs
+    COMMAND cmake -E echo "Custom target build_all_3rd_party_libs reached."
+)
+
 if (NOT CMAKE_VERSION VERSION_LESS "3.1")
     cmake_policy(SET CMP0054 NEW)
+    set(OpenGL_GL_PREFERENCE LEGACY)
 endif()
 
 # central location for specifying the Open3D version
 file(STRINGS "src/Open3D/version.txt" OPEN3D_VERSION_READ)
 foreach(ver ${OPEN3D_VERSION_READ})
-    if (ver MATCHES "OPEN3D_VERSION_(MAJOR|MINOR|PATCH|TWEAK) +([^ ]+)$")
-        set(OPEN3D_VERSION_${CMAKE_MATCH_1} "${CMAKE_MATCH_2}" CACHE INTERNAL "")
-    endif()
+  if (ver MATCHES "OPEN3D_VERSION_(MAJOR|MINOR|PATCH|TWEAK) +([^ ]+)$")
+    set(OPEN3D_VERSION_${CMAKE_MATCH_1} "${CMAKE_MATCH_2}" CACHE INTERNAL "")
+  endif()
 endforeach()
 string(CONCAT OPEN3D_VERSION "${OPEN3D_VERSION_MAJOR}"
-        ".${OPEN3D_VERSION_MINOR}"
-        ".${OPEN3D_VERSION_PATCH}"
-        ".${OPEN3D_VERSION_TWEAK}")
+                             ".${OPEN3D_VERSION_MINOR}"
+                             ".${OPEN3D_VERSION_PATCH}"
+                             ".${OPEN3D_VERSION_TWEAK}")
 project(Open3D VERSION ${OPEN3D_VERSION})
 message(STATUS "Open3D ${PROJECT_VERSION}")
 
 # npm version has to be MAJOR.MINOR.PATCH
 string(CONCAT PROJECT_VERSION_THREE_NUMBER "${OPEN3D_VERSION_MAJOR}"
-        ".${OPEN3D_VERSION_MINOR}"
-        ".${OPEN3D_VERSION_PATCH}")
+                                           ".${OPEN3D_VERSION_MINOR}"
+                                           ".${OPEN3D_VERSION_PATCH}")
 
-# pypi package name controls specifies the repository name on pypi
-# possbie names include:
-# - open3d: default name when building from source and for conda
-# - open3d-python: for PyPI
+# PyPI package name controls specifies the repository name on PyPI. The default
+# name is "open3d". In the past, for historical reasons, we've used the
+# following names for PyPI, while they are now deprecated:
+# - open3d-python
 # - py3d
 # - open3d-original
 # - open3d-official
@@ -43,12 +48,8 @@ endif()
 set(PROJECT_EMAIL   "info@open3d.org")
 set(PROJECT_HOME    "http://www.open3d.org")
 set(PROJECT_DOCS    "http://www.open3d.org/docs")
-set(PROJECT_CODE    "https://github.com/IntelVCL/Open3D")
-set(PROJECT_ISSUES  "https://github.com/IntelVCL/Open3D/issues")
-
-# configure a header file to pass the version settings to the source code
-configure_file("${PROJECT_SOURCE_DIR}/src/Open3D/Open3DConfig.h.in"
-        "${PROJECT_SOURCE_DIR}/src/Open3D/Open3DConfig.h")
+set(PROJECT_CODE    "https://github.com/intel-isl/Open3D")
+set(PROJECT_ISSUES  "https://github.com/intel-isl/Open3D/issues")
 
 if(WIN32 AND NOT CYGWIN)
     set(DEF_INSTALL_CMAKE_DIR CMake)
@@ -56,7 +57,7 @@ else()
     set(DEF_INSTALL_CMAKE_DIR lib/cmake/Open3D)
 endif()
 set(INSTALL_CMAKE_DIR ${DEF_INSTALL_CMAKE_DIR} CACHE PATH
-        "Installation directory for CMake files")
+    "Installation directory for CMake files")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/3rdparty/CMake)
 
@@ -68,15 +69,15 @@ option(WITH_OPENMP               "Use OpenMP multi-threading"               ON)
 option(ENABLE_HEADLESS_RENDERING "Use OSMesa for headless rendering"        OFF)
 option(BUILD_CPP_EXAMPLES        "Build the Open3D example programs"        ON)
 option(BUILD_UNIT_TESTS          "Build the Open3D unit tests"              OFF)
-option(BUILD_EIGEN3              "Use the Eigen3 that comes with Open3D"    ON)
+option(BUILD_EIGEN3              "Build eigen3 from source"                 OFF)
 option(BUILD_GLEW                "Build glew from source"                   OFF)
 option(BUILD_GLFW                "Build glfw from source"                   OFF)
-option(BUILD_JPEG                "Build jpeg from source"                   OFF)
 option(BUILD_JSONCPP             "Build json from source"                   OFF)
 option(BUILD_PNG                 "Build png from source"                    OFF)
 option(BUILD_PYBIND11            "Build pybind11 from source"               ON)
 option(BUILD_PYTHON_MODULE       "Build the python module"                  ON)
 option(BUILD_LIBREALSENSE        "Build support for Intel RealSense camera" OFF)
+option(BUILD_AZURE_KINECT        "Build support for Azure Kinect sensor"    OFF)
 option(BUILD_TINYFILEDIALOGS     "Build tinyfiledialogs from source"        ON)
 option(BUILD_QHULL               "Build qhull from source"                  ON)
 option(ENABLE_JUPYTER            "Enable Jupyter support for Open3D"        ON)
@@ -88,8 +89,8 @@ option(BUILD_CUDA_EXAMPLES       "Build the CUDA example programs"          ON)
 # default built type
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release CACHE STRING
-            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
-            FORCE)
+        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+        FORCE)
 endif ()
 
 # if dynamic link is added, use if (WIN32) macro
@@ -114,18 +115,28 @@ if (WIN32)
         add_definitions(-D_USE_MATH_DEFINES)
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D _ENABLE_EXTENDED_ALIGNED_STORAGE")
+        # Multi-thread compile, two ways to enable
+        # Option 1, at build time: cmake --build . --parallel %NUMBER_OF_PROCESSORS%
+        # https://stackoverflow.com/questions/36633074/set-the-number-of-threads-in-a-cmake-build
+        # OPtion 2, at configure time: add /MP flag, no need to use Option 1
+        # https://docs.microsoft.com/en-us/cpp/build/reference/mp-build-with-multiple-processes?view=vs-2019
+        add_definitions("/MP")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MP")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MP")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MP")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MP")
     endif (MSVC)
 
     if (STATIC_WINDOWS_RUNTIME)
         # by default, "/MD" and "/MDd" is set by CMake automatically
-        string(REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-        string(REPLACE "/MDd" "/MTd" CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
+        string(REPLACE "/MD" "/MT" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
+        string(REPLACE "/MDd" "/MTd" CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG})
         string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
         string(REPLACE "/MDd" "/MTd" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
     else ()
         # handles the case when re-running cmake with STATIC_WINDOWS_RUNTIME=OFF
-        string(REPLACE "/MT" "/MD" CMAKE_C_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-        string(REPLACE "/MTd" "/MDd" CMAKE_C_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
+        string(REPLACE "/MT" "/MD" CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE})
+        string(REPLACE "/MTd" "/MDd" CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG})
         string(REPLACE "/MT" "/MD" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
         string(REPLACE "/MTd" "/MDd" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
     endif ()
@@ -178,7 +189,7 @@ if (WITH_OPENMP)
     else ()
         message(STATUS "OpenMP NOT found")
     endif ()
-endif ()
+  endif ()
 
 # recursively parse and return the entire directory tree.
 # the result is placed in output
@@ -202,16 +213,40 @@ macro(ADD_SOURCE_GROUP MODULE_NAME)
     source_group("Source Files\\${MODULE_NAME}" FILES ${MODULE_SOURCE_FILES})
 endmacro(ADD_SOURCE_GROUP)
 
+# 3rd-party projects that are added with external_project_add will be installed
+# with this prefix. E.g.
+# - 3RDPARTY_INSTALL_PREFIX: Open3D/build/3rdparty_install
+# - Headers: Open3D/build/3rdparty_install/include/extern_lib.h
+# - Libraries: Open3D/build/3rdparty_install/lib/extern_lib.a
+set(3RDPARTY_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/3rdparty_install")
+
+# 3rd-party libraries using the ExternalProject_Add approach will install
+# headers in Open3D/build/3rdparty_install/include. We prioritize this include
+# directory by putting it in front, to avoid mistakenly including other header
+# files of the same name.
+include_directories(${3RDPARTY_INSTALL_PREFIX}/include)
+
+# 3rd-party libraries using the ExternalProject_Add approach will install
+# libs in Open3D/build/3rdparty_install/lib.
+# This isn't required for Ubuntu/Mac since the link directory info is propagated
+# with the interface library. We still need this for Windows.
+link_directories(${CMAKE_PROJECT_NAME} ${3RDPARTY_INSTALL_PREFIX}/lib)
+
 # Handling dependencies
 add_subdirectory(3rdparty)
 link_directories(${3RDPARTY_LIBRARY_DIRS})
 
 # set include directories
 include_directories(
-        ${PROJECT_SOURCE_DIR}/src
-        ${PROJECT_SOURCE_DIR}/3rdparty
-        ${3RDPARTY_INCLUDE_DIRS}
-        ${PROJECT_SOURCE_DIR}/3rdparty/librealsense/include
+    ${PROJECT_SOURCE_DIR}/src
+)
+
+# Suppress 3rdparty header warnings with SYSTEM
+include_directories(
+    SYSTEM
+    ${PROJECT_SOURCE_DIR}/3rdparty
+    ${3RDPARTY_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/3rdparty/librealsense/include
 )
 
 # Open3D library
@@ -222,14 +257,14 @@ add_subdirectory(examples)
 
 # `make check-style` errors if styling is not compliant
 add_custom_target(check-style
-        COMMAND ${CMAKE_COMMAND}
-        -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/util/scripts/check-style.cmake
-        )
+    COMMAND ${CMAKE_COMMAND}
+    -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/util/scripts/check-style.cmake
+)
 
 # `make apply-style` runs clang-format to format all source code
 add_custom_target(apply-style
-        COMMAND ${CMAKE_COMMAND}
-        -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
-        -P ${CMAKE_CURRENT_SOURCE_DIR}/util/scripts/apply-style.cmake
-        )
+    COMMAND ${CMAKE_COMMAND}
+    -DPROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/util/scripts/apply-style.cmake
+)

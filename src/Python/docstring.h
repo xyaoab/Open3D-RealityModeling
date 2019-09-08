@@ -39,6 +39,8 @@ public:
     std::string name_ = "";
     std::string type_ = "";
     std::string default_ = "";
+    // Long default values are not displayed in signature, but in docstrings
+    std::string long_default_ = "";
     std::string body_ = "";
 };
 
@@ -106,7 +108,7 @@ protected:
     static ArgumentDoc ParseArgumentToken(const std::string& argument_token);
 
     /// Runs all string cleanup functions
-    static std::string StringCleanAll(const std::string& s,
+    static std::string StringCleanAll(std::string& s,
                                       const std::string& white_space = " \t\n");
 
     /// Apply fixes to namespace, e.g. "::" to "." for python
@@ -123,11 +125,25 @@ protected:
     std::string pybind_doc_ = "";
 };
 
-/// Parse pybind docstring to FunctionDoc and inject argument docstrings
+/// Parse pybind docstring to FunctionDoc and inject argument docstrings for
+/// functions
 void FunctionDocInject(
         py::module& pybind_module,
         const std::string& function_name,
         const std::unordered_map<std::string, std::string>& map_parameter_docs =
                 std::unordered_map<std::string, std::string>());
+
+/// Parse pybind docstring to FunctionDoc and inject argument docstrings for
+/// class methods
+void ClassMethodDocInject(
+        py::module& pybind_module,
+        const std::string& class_name,
+        const std::string& function_name,
+        const std::unordered_map<std::string, std::string>&
+                map_parameter_body_docs =
+                        std::unordered_map<std::string, std::string>());
+
+extern py::handle static_property;
+
 }  // namespace docstring
 }  // namespace open3d

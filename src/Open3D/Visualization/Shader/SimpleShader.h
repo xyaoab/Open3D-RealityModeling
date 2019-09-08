@@ -26,9 +26,10 @@
 
 #pragma once
 
-#include <vector>
 #include <Eigen/Core>
-#include <Open3D/Visualization/Shader/ShaderWrapper.h>
+#include <vector>
+
+#include "Open3D/Visualization/Shader/ShaderWrapper.h"
 
 namespace open3d {
 namespace visualization {
@@ -101,6 +102,53 @@ protected:
                         std::vector<Eigen::Vector3f> &colors) final;
 };
 
+class SimpleShaderForTetraMesh : public SimpleShader {
+public:
+    SimpleShaderForTetraMesh() : SimpleShader("SimpleShaderForTetraMesh") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
+class SimpleShaderForOrientedBoundingBox : public SimpleShader {
+public:
+    SimpleShaderForOrientedBoundingBox()
+        : SimpleShader("SimpleShaderForOrientedBoundingBox") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
+class SimpleShaderForAxisAlignedBoundingBox : public SimpleShader {
+public:
+    SimpleShaderForAxisAlignedBoundingBox()
+        : SimpleShader("SimpleShaderForAxisAlignedBoundingBox") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
 class SimpleShaderForTriangleMesh : public SimpleShader {
 public:
     SimpleShaderForTriangleMesh()
@@ -117,9 +165,56 @@ protected:
                         std::vector<Eigen::Vector3f> &colors) final;
 };
 
-class SimpleShaderForVoxelGrid : public SimpleShader {
+class SimpleShaderForVoxelGridLine : public SimpleShader {
 public:
-    SimpleShaderForVoxelGrid() : SimpleShader("SimpleShaderForVoxelGrid") {}
+    SimpleShaderForVoxelGridLine()
+        : SimpleShader("SimpleShaderForVoxelGridLine") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
+class SimpleShaderForVoxelGridFace : public SimpleShader {
+public:
+    SimpleShaderForVoxelGridFace()
+        : SimpleShader("SimpleShaderForVoxelGridFace") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
+class SimpleShaderForOctreeLine : public SimpleShader {
+public:
+    SimpleShaderForOctreeLine() : SimpleShader("SimpleShaderForOctreeLine") {}
+
+protected:
+    bool PrepareRendering(const geometry::Geometry &geometry,
+                          const RenderOption &option,
+                          const ViewControl &view) final;
+    bool PrepareBinding(const geometry::Geometry &geometry,
+                        const RenderOption &option,
+                        const ViewControl &view,
+                        std::vector<Eigen::Vector3f> &points,
+                        std::vector<Eigen::Vector3f> &colors) final;
+};
+
+class SimpleShaderForOctreeFace : public SimpleShader {
+public:
+    SimpleShaderForOctreeFace() : SimpleShader("SimpleShaderForOctreeFace") {}
 
 protected:
     bool PrepareRendering(const geometry::Geometry &geometry,

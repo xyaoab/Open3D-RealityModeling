@@ -26,10 +26,10 @@
 
 #pragma once
 
-#include <tuple>
 #include <functional>
-#include <vector>
 #include <string>
+#include <tuple>
+#include <vector>
 
 namespace open3d {
 namespace utility {
@@ -87,7 +87,7 @@ struct hash<std::tuple<TT...>> {
 namespace hash_eigen {
 
 template <typename T>
-struct hash : std::unary_function<T, size_t> {
+struct hash {
     std::size_t operator()(T const& matrix) const {
         size_t seed = 0;
         for (int i = 0; i < (int)matrix.size(); i++) {
@@ -108,17 +108,25 @@ void SplitString(std::vector<std::string>& tokens,
                  const std::string& delimiters = " ",
                  bool trim_empty_str = true);
 
-/// Strip empty charactors in front and after string. Similar to Python's
-/// str.strip()
-std::string StripString(const std::string& s,
-                        const std::string& white_space = " \t\n");
-
 /// String util: find length of current word staring from a position
 /// By default, alpha numeric chars and chars in valid_chars are considered
 /// as valid charactors in a word
 size_t WordLength(const std::string& doc,
                   size_t start_pos,
                   const std::string& valid_chars = "_");
+
+std::string& LeftStripString(std::string& str,
+                             const std::string& chars = "\t\n\v\f\r ");
+
+std::string& RightStripString(std::string& str,
+                              const std::string& chars = "\t\n\v\f\r ");
+
+/// Strip empty charactors in front and after string. Similar to Python's
+/// str.strip()
+std::string& StripString(std::string& str,
+                         const std::string& chars = "\t\n\v\f\r ");
+
+void Sleep(int milliseconds);
 
 }  // namespace utility
 }  // namespace open3d

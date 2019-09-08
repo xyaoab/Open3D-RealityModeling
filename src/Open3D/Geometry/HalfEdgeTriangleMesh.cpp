@@ -25,25 +25,30 @@
 // ----------------------------------------------------------------------------
 
 #include "Open3D/Geometry/HalfEdgeTriangleMesh.h"
-#include "Open3D/Utility/Helper.h"
+#include "Open3D/Geometry/BoundingVolume.h"
+
+#include <numeric>
+
 #include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/Helper.h"
 
 namespace open3d {
 namespace geometry {
 
-HalfEdgeTriangleMesh::HalfEdge::HalfEdge(const Eigen::Vector2i& vertex_indices,
+HalfEdgeTriangleMesh::HalfEdge::HalfEdge(const Eigen::Vector2i &vertex_indices,
                                          int triangle_index,
                                          int next,
                                          int twin)
-    : vertex_indices_(vertex_indices),
-      triangle_index_(triangle_index),
-      next_(next),
-      twin_(twin) {}
+    : next_(next),
+      twin_(twin),
+      vertex_indices_(vertex_indices),
+      triangle_index_(triangle_index) {}
 
-void HalfEdgeTriangleMesh::Clear() {
-    TriangleMesh::Clear();
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::Clear() {
+    // TriangleMesh::Clear();
     half_edges_.clear();
     ordered_half_edge_from_vertex_.clear();
+    return *this;
 }
 
 bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
@@ -59,18 +64,18 @@ bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
 
     for (size_t triangle_index = 0; triangle_index < triangles_.size();
          triangle_index++) {
-        const Eigen::Vector3i& triangle = triangles_[triangle_index];
+        const Eigen::Vector3i &triangle = triangles_[triangle_index];
         size_t num_half_edges = half_edges_.size();
 
         size_t he_0_index = num_half_edges;
         size_t he_1_index = num_half_edges + 1;
         size_t he_2_index = num_half_edges + 2;
-        HalfEdge he_0(Eigen::Vector2i(triangle(0), triangle(1)), triangle_index,
-                      he_1_index, -1);
-        HalfEdge he_1(Eigen::Vector2i(triangle(1), triangle(2)), triangle_index,
-                      he_2_index, -1);
-        HalfEdge he_2(Eigen::Vector2i(triangle(2), triangle(0)), triangle_index,
-                      he_0_index, -1);
+        HalfEdge he_0(Eigen::Vector2i(triangle(0), triangle(1)),
+                      int(triangle_index), int(he_1_index), -1);
+        HalfEdge he_1(Eigen::Vector2i(triangle(1), triangle(2)),
+                      int(triangle_index), int(he_2_index), -1);
+        HalfEdge he_2(Eigen::Vector2i(triangle(2), triangle(0)),
+                      int(triangle_index), int(he_0_index), -1);
 
         if (vertex_indices_to_half_edge_index.find(he_0.vertex_indices_) !=
                     vertex_indices_to_half_edge_index.end() ||
@@ -78,7 +83,7 @@ bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
                     vertex_indices_to_half_edge_index.end() ||
             vertex_indices_to_half_edge_index.find(he_2.vertex_indices_) !=
                     vertex_indices_to_half_edge_index.end()) {
-            utility::PrintError(
+            utility::LogWarning(
                     "ComputeHalfEdges failed. Duplicated half-edges.\n");
             return false;
         }
@@ -95,7 +100,7 @@ bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
     // each half-edge can have at most one twin half-edge.
     for (size_t this_he_index = 0; this_he_index < half_edges_.size();
          this_he_index++) {
-        HalfEdge& this_he = half_edges_[this_he_index];
+        HalfEdge &this_he = half_edges_[this_he_index];
         Eigen::Vector2i twin_end_points(this_he.vertex_indices_(1),
                                         this_he.vertex_indices_(0));
         if (this_he.twin_ == -1 &&
@@ -103,7 +108,7 @@ bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
                     vertex_indices_to_half_edge_index.end()) {
             size_t twin_he_index =
                     vertex_indices_to_half_edge_index[twin_end_points];
-            HalfEdge& twin_he = half_edges_[twin_he_index];
+            HalfEdge &twin_he = half_edges_[twin_he_index];
             this_he.twin_ = int(twin_he_index);
             twin_he.twin_ = int(this_he_index);
         }
@@ -126,15 +131,15 @@ bool HalfEdgeTriangleMesh::ComputeHalfEdges() {
          vertex_index++) {
         size_t num_boundaries = 0;
         int init_half_edge_index = 0;
-        for (const int& half_edge_index :
+        for (const int &half_edge_index :
              half_edges_from_vertex[vertex_index]) {
-            if (bool is_boundary = half_edges_[half_edge_index].IsBoundary()) {
+            if (half_edges_[half_edge_index].IsBoundary()) {
                 num_boundaries++;
                 init_half_edge_index = half_edge_index;
             }
         }
         if (num_boundaries > 1) {
-            utility::PrintError("ComputeHalfEdges failed. Invalid vertex.\n");
+            utility::LogWarning("ComputeHalfEdges failed. Invalid vertex.\n");
             return false;
         }
         // If there is a boundary edge, start from that; otherwise start
@@ -164,11 +169,11 @@ bool HalfEdgeTriangleMesh::HasHalfEdges() const {
 }
 
 int HalfEdgeTriangleMesh::NextHalfEdgeFromVertex(int half_edge_index) const {
-    const HalfEdge& curr_he = half_edges_[half_edge_index];
+    const HalfEdge &curr_he = half_edges_[half_edge_index];
     int next_he_index = curr_he.next_;
-    const HalfEdge& next_he = half_edges_[next_he_index];
+    const HalfEdge &next_he = half_edges_[next_he_index];
     int next_next_he_index = next_he.next_;
-    const HalfEdge& next_next_he = half_edges_[next_next_he_index];
+    const HalfEdge &next_next_he = half_edges_[next_next_he_index];
     int next_next_twin_he_index = next_next_he.twin_;
     return next_next_twin_he_index;
 }
@@ -176,11 +181,11 @@ int HalfEdgeTriangleMesh::NextHalfEdgeFromVertex(int half_edge_index) const {
 std::vector<int> HalfEdgeTriangleMesh::BoundaryHalfEdgesFromVertex(
         int vertex_index) const {
     int init_he_index = ordered_half_edge_from_vertex_[vertex_index][0];
-    const HalfEdge& init_he = half_edges_[init_he_index];
+    const HalfEdge &init_he = half_edges_[init_he_index];
 
     if (!init_he.IsBoundary()) {
-        utility::PrintWarning("The vertex %d is not on boundary.\n",
-                              vertex_index);
+        utility::LogWarning("The vertex {:d} is not on boundary.\n",
+                            vertex_index);
         return {};
     }
 
@@ -200,7 +205,7 @@ std::vector<int> HalfEdgeTriangleMesh::BoundaryVerticesFromVertex(
     std::vector<int> boundary_half_edges =
             BoundaryHalfEdgesFromVertex(vertex_index);
     std::vector<int> boundary_vertices;
-    for (const int& half_edge_idx : boundary_half_edges) {
+    for (const int &half_edge_idx : boundary_half_edges) {
         boundary_vertices.push_back(
                 half_edges_[half_edge_idx].vertex_indices_(0));
     }
@@ -231,18 +236,68 @@ std::vector<std::vector<int>> HalfEdgeTriangleMesh::GetBoundaries() const {
     return boundaries;
 }
 
+bool HalfEdgeTriangleMesh::IsEmpty() const { return !HasVertices(); }
+
+Eigen::Vector3d HalfEdgeTriangleMesh::GetMinBound() const {
+    return ComputeMinBound(vertices_);
+}
+
+Eigen::Vector3d HalfEdgeTriangleMesh::GetMaxBound() const {
+    return ComputeMaxBound(vertices_);
+}
+
+Eigen::Vector3d HalfEdgeTriangleMesh::GetCenter() const {
+    return ComputeCenter(vertices_);
+}
+
+AxisAlignedBoundingBox HalfEdgeTriangleMesh::GetAxisAlignedBoundingBox() const {
+    return AxisAlignedBoundingBox::CreateFromPoints(vertices_);
+}
+
+OrientedBoundingBox HalfEdgeTriangleMesh::GetOrientedBoundingBox() const {
+    return OrientedBoundingBox::CreateFromPoints(vertices_);
+}
+
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::Transform(
+        const Eigen::Matrix4d &transformation) {
+    TransformPoints(transformation, vertices_);
+    TransformNormals(transformation, vertex_normals_);
+    TransformNormals(transformation, triangle_normals_);
+    return *this;
+}
+
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::Translate(
+        const Eigen::Vector3d &translation, bool relative) {
+    TranslatePoints(translation, vertices_, relative);
+    return *this;
+}
+
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::Scale(const double scale,
+                                                  bool center) {
+    ScalePoints(scale, vertices_, center);
+    return *this;
+}
+
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::Rotate(
+        const Eigen::Vector3d &rotation, bool center, RotationType type) {
+    RotatePoints(rotation, vertices_, center, type);
+    RotateNormals(rotation, vertex_normals_, center, type);
+    RotateNormals(rotation, triangle_normals_, center, type);
+    return *this;
+}
+
 int HalfEdgeTriangleMesh::NextHalfEdgeOnBoundary(
         int curr_half_edge_index) const {
-    if (!HasHalfEdges() || curr_half_edge_index >= half_edges_.size() ||
+    if (!HasHalfEdges() || curr_half_edge_index >= int(half_edges_.size()) ||
         curr_half_edge_index == -1) {
-        utility::PrintError(
-                "edge index %d out of range or half-edges not available.\n",
+        utility::LogWarning(
+                "edge index {:d} out of range or half-edges not available.\n",
                 curr_half_edge_index);
         return -1;
     }
     if (!half_edges_[curr_half_edge_index].IsBoundary()) {
-        utility::PrintError(
-                "The currented half-edge index %d is on boundary.\n",
+        utility::LogWarning(
+                "The currented half-edge index {:d} is on boundary.\n",
                 curr_half_edge_index);
         return -1;
     }
@@ -253,7 +308,7 @@ int HalfEdgeTriangleMesh::NextHalfEdgeOnBoundary(
     int vertex_index = half_edges_[curr_half_edge_index].vertex_indices_(1);
     int next_half_edge_index = ordered_half_edge_from_vertex_[vertex_index][0];
     if (!half_edges_[next_half_edge_index].IsBoundary()) {
-        utility::PrintError(
+        utility::LogError(
                 "Internal algorithm error. The next half-edge along the "
                 "boundary is not a boundary edge.\n");
         return -1;
@@ -261,8 +316,8 @@ int HalfEdgeTriangleMesh::NextHalfEdgeOnBoundary(
     return next_half_edge_index;
 }
 
-std::shared_ptr<HalfEdgeTriangleMesh> CreateHalfEdgeMeshFromMesh(
-        const TriangleMesh& mesh) {
+std::shared_ptr<HalfEdgeTriangleMesh> HalfEdgeTriangleMesh::CreateFromMesh(
+        const TriangleMesh &mesh) {
     auto half_edge_mesh = std::make_shared<HalfEdgeTriangleMesh>();
 
     // Copy
@@ -274,7 +329,10 @@ std::shared_ptr<HalfEdgeTriangleMesh> CreateHalfEdgeMeshFromMesh(
     half_edge_mesh->adjacency_list_ = mesh.adjacency_list_;
 
     // Purge to remove duplications
-    half_edge_mesh->Purge();
+    half_edge_mesh->RemoveDuplicatedVertices();
+    half_edge_mesh->RemoveDuplicatedTriangles();
+    half_edge_mesh->RemoveUnreferencedVertices();
+    half_edge_mesh->RemoveDegenerateTriangles();
 
     // If the original mesh is not a manifold, we set HalfEdgeTriangleMesh to
     // be empty. Caller to this constructor is responsible to checking
@@ -286,41 +344,45 @@ std::shared_ptr<HalfEdgeTriangleMesh> CreateHalfEdgeMeshFromMesh(
     return half_edge_mesh;
 }
 
-void HalfEdgeTriangleMesh::RemoveDuplicatedVertices() {
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::RemoveDuplicatedVertices() {
     size_t before_num = vertices_.size();
-    TriangleMesh::RemoveDuplicatedVertices();
+    // TriangleMesh::RemoveDuplicatedVertices();
     if (HasHalfEdges() && vertices_.size() != before_num) {
         ComputeHalfEdges();
     }
+    return *this;
 }
 
-void HalfEdgeTriangleMesh::RemoveDuplicatedTriangles() {
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::RemoveDuplicatedTriangles() {
     size_t before_num = triangles_.size();
-    TriangleMesh::RemoveDuplicatedTriangles();
+    // TriangleMesh::RemoveDuplicatedTriangles();
     if (HasHalfEdges() && triangles_.size() != before_num) {
         ComputeHalfEdges();
     }
+    return *this;
 }
 
-void HalfEdgeTriangleMesh::RemoveNonManifoldVertices() {
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::RemoveUnreferencedVertices() {
     size_t before_num = vertices_.size();
-    TriangleMesh::RemoveNonManifoldVertices();
+    // TriangleMesh::RemoveUnreferencedVertices();
     if (HasHalfEdges() && vertices_.size() != before_num) {
         ComputeHalfEdges();
     }
+    return *this;
 }
 
-void HalfEdgeTriangleMesh::RemoveNonManifoldTriangles() {
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::RemoveDegenerateTriangles() {
     size_t before_num = triangles_.size();
-    TriangleMesh::RemoveNonManifoldTriangles();
+    // TriangleMesh::RemoveDegenerateTriangles();
     if (HasHalfEdges() && triangles_.size() != before_num) {
         ComputeHalfEdges();
     }
+    return *this;
 }
 
-HalfEdgeTriangleMesh& HalfEdgeTriangleMesh::operator+=(
-        const HalfEdgeTriangleMesh& mesh) {
-    TriangleMesh::operator+=(mesh);
+HalfEdgeTriangleMesh &HalfEdgeTriangleMesh::operator+=(
+        const HalfEdgeTriangleMesh &mesh) {
+    // TriangleMesh::operator+=(mesh);
     if (HasHalfEdges()) {
         ComputeHalfEdges();
     }
@@ -328,7 +390,7 @@ HalfEdgeTriangleMesh& HalfEdgeTriangleMesh::operator+=(
 }
 
 HalfEdgeTriangleMesh HalfEdgeTriangleMesh::operator+(
-        const HalfEdgeTriangleMesh& mesh) const {
+        const HalfEdgeTriangleMesh &mesh) const {
     return (HalfEdgeTriangleMesh(*this) += mesh);
 }
 

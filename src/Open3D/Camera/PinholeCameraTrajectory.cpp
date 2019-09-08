@@ -24,11 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PinholeCameraIntrinsic.h"
-#include "PinholeCameraTrajectory.h"
+#include "Open3D/Camera/PinholeCameraTrajectory.h"
 
 #include <json/json.h>
-#include <Open3D/Utility/Console.h>
+
+#include "Open3D/Camera/PinholeCameraIntrinsic.h"
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace camera {
@@ -54,7 +55,7 @@ bool PinholeCameraTrajectory::ConvertToJsonValue(Json::Value &value) const {
 
 bool PinholeCameraTrajectory::ConvertFromJsonValue(const Json::Value &value) {
     if (value.isObject() == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraTrajectory read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -62,7 +63,7 @@ bool PinholeCameraTrajectory::ConvertFromJsonValue(const Json::Value &value) {
     if (value.get("class_name", "").asString() != "PinholeCameraTrajectory" ||
         value.get("version_major", 1).asInt() != 1 ||
         value.get("version_minor", 0).asInt() != 0) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraTrajectory read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -71,14 +72,14 @@ bool PinholeCameraTrajectory::ConvertFromJsonValue(const Json::Value &value) {
     const Json::Value parameter_array = value["parameters"];
 
     if (parameter_array.size() == 0) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraTrajectory read JSON failed: empty "
                 "trajectory.\n");
         return false;
     }
     parameters_.resize(parameter_array.size());
-    for (auto i = 0; i < parameter_array.size(); i++) {
-        const Json::Value &status_object = parameter_array[i];
+    for (size_t i = 0; i < parameter_array.size(); i++) {
+        const Json::Value &status_object = parameter_array[int(i)];
         if (parameters_[i].intrinsic_.ConvertFromJsonValue(
                     status_object["intrinsic"]) == false) {
             return false;

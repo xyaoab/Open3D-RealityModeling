@@ -24,17 +24,15 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Visualizer.h"
-
-#include <Open3D/Visualization/Visualizer/ViewParameters.h>
-#include <Open3D/Visualization/Visualizer/ViewTrajectory.h>
-#include <Open3D/Camera/PinholeCameraTrajectory.h>
-#include <Open3D/Geometry/TriangleMesh.h>
-#include <Open3D/IO/ClassIO/ImageIO.h>
-#include <Open3D/IO/ClassIO/PointCloudIO.h>
-#include <Open3D/IO/ClassIO/IJsonConvertibleIO.h>
-
-#include <Open3D/Visualization/Utility/GLHelper.h>
+#include "Open3D/Camera/PinholeCameraTrajectory.h"
+#include "Open3D/Geometry/TriangleMesh.h"
+#include "Open3D/IO/ClassIO/IJsonConvertibleIO.h"
+#include "Open3D/IO/ClassIO/ImageIO.h"
+#include "Open3D/IO/ClassIO/PointCloudIO.h"
+#include "Open3D/Visualization/Utility/GLHelper.h"
+#include "Open3D/Visualization/Visualizer/ViewParameters.h"
+#include "Open3D/Visualization/Visualizer/ViewTrajectory.h"
+#include "Open3D/Visualization/Visualizer/Visualizer.h"
 
 namespace open3d {
 namespace visualization {
@@ -42,7 +40,7 @@ namespace visualization {
 bool Visualizer::InitOpenGL() {
     glewExperimental = true;
     if (glewInit() != GLEW_OK) {
-        utility::PrintError("Failed to initialize GLEW.\n");
+        utility::LogError("Failed to initialize GLEW.\n");
         return false;
     }
 
@@ -93,12 +91,14 @@ void Visualizer::ResetViewPoint(bool reset_bounding_box /* = false*/) {
     if (reset_bounding_box) {
         view_control_ptr_->ResetBoundingBox();
         for (const auto &geometry_ptr : geometry_ptrs_) {
-            view_control_ptr_->FitInGeometry(*geometry_ptr);
+            view_control_ptr_->FitInGeometry(*(geometry_ptr));
         }
         if (coordinate_frame_mesh_ptr_ && coordinate_frame_mesh_renderer_ptr_) {
             const auto &boundingbox = view_control_ptr_->GetBoundingBox();
-            *coordinate_frame_mesh_ptr_ = *geometry::CreateMeshCoordinateFrame(
-                    boundingbox.GetSize() * 0.2, boundingbox.min_bound_);
+            *coordinate_frame_mesh_ptr_ =
+                    *geometry::TriangleMesh::CreateCoordinateFrame(
+                            boundingbox.GetMaxExtend() * 0.2,
+                            boundingbox.min_bound_);
             coordinate_frame_mesh_renderer_ptr_->UpdateGeometry();
         }
     }
@@ -109,7 +109,7 @@ void Visualizer::ResetViewPoint(bool reset_bounding_box /* = false*/) {
 void Visualizer::CopyViewStatusToClipboard() {
     ViewParameters current_status;
     if (view_control_ptr_->ConvertToViewParameters(current_status) == false) {
-        utility::PrintInfo("Something is wrong copying view status.\n");
+        utility::LogWarning("Something is wrong copying view status.\n");
         return;
     }
     ViewTrajectory trajectory;
@@ -117,7 +117,7 @@ void Visualizer::CopyViewStatusToClipboard() {
     std::string clipboard_string;
     if (io::WriteIJsonConvertibleToJSONString(clipboard_string, trajectory) ==
         false) {
-        utility::PrintInfo("Something is wrong copying view status.\n");
+        utility::LogWarning("Something is wrong copying view status.\n");
         return;
     }
     glfwSetClipboardString(window_, clipboard_string.c_str());
@@ -130,11 +130,11 @@ void Visualizer::CopyViewStatusFromClipboard() {
         ViewTrajectory trajectory;
         if (io::ReadIJsonConvertibleFromJSONString(clipboard_string,
                                                    trajectory) == false) {
-            utility::PrintInfo("Something is wrong copying view status.\n");
+            utility::LogWarning("Something is wrong copying view status.\n");
             return;
         }
         if (trajectory.view_status_.size() != 1) {
-            utility::PrintInfo("Something is wrong copying view status.\n");
+            utility::LogWarning("Something is wrong copying view status.\n");
             return;
         }
         view_control_ptr_->ConvertFromViewParameters(
@@ -145,8 +145,8 @@ void Visualizer::CopyViewStatusFromClipboard() {
 std::shared_ptr<geometry::Image> Visualizer::CaptureScreenFloatBuffer(
         bool do_render /* = true*/) {
     geometry::Image screen_image;
-    screen_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                              view_control_ptr_->GetWindowHeight(), 3, 4);
+    screen_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                         view_control_ptr_->GetWindowHeight(), 3, 4);
     if (do_render) {
         Render();
         is_redraw_required_ = false;
@@ -159,8 +159,8 @@ std::shared_ptr<geometry::Image> Visualizer::CaptureScreenFloatBuffer(
     // glReadPixels get the screen in a vertically flipped manner
     // Thus we should flip it back.
     auto image_ptr = std::make_shared<geometry::Image>();
-    image_ptr->PrepareImage(view_control_ptr_->GetWindowWidth(),
-                            view_control_ptr_->GetWindowHeight(), 3, 4);
+    image_ptr->Prepare(view_control_ptr_->GetWindowWidth(),
+                       view_control_ptr_->GetWindowHeight(), 3, 4);
     int bytes_per_line = screen_image.BytesPerLine();
     for (int i = 0; i < screen_image.height_; i++) {
         memcpy(image_ptr->data_.data() + bytes_per_line * i,
@@ -181,8 +181,8 @@ void Visualizer::CaptureScreenImage(const std::string &filename /* = ""*/,
         camera_filename = "ScreenCamera_" + timestamp + ".json";
     }
     geometry::Image screen_image;
-    screen_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                              view_control_ptr_->GetWindowHeight(), 3, 1);
+    screen_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                         view_control_ptr_->GetWindowHeight(), 3, 1);
     if (do_render) {
         Render();
         is_redraw_required_ = false;
@@ -195,8 +195,8 @@ void Visualizer::CaptureScreenImage(const std::string &filename /* = ""*/,
     // glReadPixels get the screen in a vertically flipped manner
     // Thus we should flip it back.
     geometry::Image png_image;
-    png_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                           view_control_ptr_->GetWindowHeight(), 3, 1);
+    png_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                      view_control_ptr_->GetWindowHeight(), 3, 1);
     int bytes_per_line = screen_image.BytesPerLine();
     for (int i = 0; i < screen_image.height_; i++) {
         memcpy(png_image.data_.data() + bytes_per_line * i,
@@ -205,12 +205,12 @@ void Visualizer::CaptureScreenImage(const std::string &filename /* = ""*/,
                bytes_per_line);
     }
 
-    utility::PrintDebug("[Visualizer] Screen capture to %s\n",
-                        png_filename.c_str());
+    utility::LogDebug("[Visualizer] Screen capture to {}\n",
+                      png_filename.c_str());
     io::WriteImage(png_filename, png_image);
     if (!camera_filename.empty()) {
-        utility::PrintDebug("[Visualizer] Screen camera capture to %s\n",
-                            camera_filename.c_str());
+        utility::LogDebug("[Visualizer] Screen camera capture to {}\n",
+                          camera_filename.c_str());
         camera::PinholeCameraParameters parameter;
         view_control_ptr_->ConvertToPinholeCameraParameters(parameter);
         io::WriteIJsonConvertible(camera_filename, parameter);
@@ -220,8 +220,8 @@ void Visualizer::CaptureScreenImage(const std::string &filename /* = ""*/,
 std::shared_ptr<geometry::Image> Visualizer::CaptureDepthFloatBuffer(
         bool do_render /* = true*/) {
     geometry::Image depth_image;
-    depth_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                             view_control_ptr_->GetWindowHeight(), 1, 4);
+    depth_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                        view_control_ptr_->GetWindowHeight(), 1, 4);
     if (do_render) {
         Render();
         is_redraw_required_ = false;
@@ -259,8 +259,8 @@ std::shared_ptr<geometry::Image> Visualizer::CaptureDepthFloatBuffer(
     double z_near = view_control_ptr_->GetZNear();
     double z_far = view_control_ptr_->GetZFar();
 
-    image_ptr->PrepareImage(view_control_ptr_->GetWindowWidth(),
-                            view_control_ptr_->GetWindowHeight(), 1, 4);
+    image_ptr->Prepare(view_control_ptr_->GetWindowWidth(),
+                       view_control_ptr_->GetWindowHeight(), 1, 4);
     for (int i = 0; i < depth_image.height_; i++) {
         float *p_depth = (float *)(depth_image.data_.data() +
                                    depth_image.BytesPerLine() *
@@ -292,8 +292,8 @@ void Visualizer::CaptureDepthImage(const std::string &filename /* = ""*/,
         camera_filename = "DepthCamera_" + timestamp + ".json";
     }
     geometry::Image depth_image;
-    depth_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                             view_control_ptr_->GetWindowHeight(), 1, 4);
+    depth_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                        view_control_ptr_->GetWindowHeight(), 1, 4);
 
     if (do_render) {
         Render();
@@ -332,8 +332,8 @@ void Visualizer::CaptureDepthImage(const std::string &filename /* = ""*/,
     double z_near = view_control_ptr_->GetZNear();
     double z_far = view_control_ptr_->GetZFar();
 
-    png_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                           view_control_ptr_->GetWindowHeight(), 1, 2);
+    png_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                      view_control_ptr_->GetWindowHeight(), 1, 2);
     for (int i = 0; i < depth_image.height_; i++) {
         float *p_depth = (float *)(depth_image.data_.data() +
                                    depth_image.BytesPerLine() *
@@ -353,12 +353,12 @@ void Visualizer::CaptureDepthImage(const std::string &filename /* = ""*/,
         }
     }
 
-    utility::PrintDebug("[Visualizer] Depth capture to %s\n",
-                        png_filename.c_str());
+    utility::LogDebug("[Visualizer] Depth capture to {}\n",
+                      png_filename.c_str());
     io::WriteImage(png_filename, png_image);
     if (!camera_filename.empty()) {
-        utility::PrintDebug("[Visualizer] Depth camera capture to %s\n",
-                            camera_filename.c_str());
+        utility::LogDebug("[Visualizer] Depth camera capture to {}\n",
+                          camera_filename.c_str());
         camera::PinholeCameraParameters parameter;
         view_control_ptr_->ConvertToPinholeCameraParameters(parameter);
         io::WriteIJsonConvertible(camera_filename, parameter);
@@ -377,8 +377,8 @@ void Visualizer::CaptureDepthPointCloud(
         camera_filename = "DepthCamera_" + timestamp + ".json";
     }
     geometry::Image depth_image;
-    depth_image.PrepareImage(view_control_ptr_->GetWindowWidth(),
-                             view_control_ptr_->GetWindowHeight(), 1, 4);
+    depth_image.Prepare(view_control_ptr_->GetWindowWidth(),
+                        view_control_ptr_->GetWindowHeight(), 1, 4);
 
     if (do_render) {
         Render();
@@ -435,12 +435,12 @@ void Visualizer::CaptureDepthPointCloud(
         }
     }
 
-    utility::PrintDebug("[Visualizer] Depth point cloud capture to %s\n",
-                        ply_filename.c_str());
+    utility::LogDebug("[Visualizer] Depth point cloud capture to {}\n",
+                      ply_filename.c_str());
     io::WritePointCloud(ply_filename, depth_pointcloud);
     if (!camera_filename.empty()) {
-        utility::PrintDebug("[Visualizer] Depth camera capture to %s\n",
-                            camera_filename.c_str());
+        utility::LogDebug("[Visualizer] Depth camera capture to {}\n",
+                          camera_filename.c_str());
         camera::PinholeCameraParameters parameter;
         view_control_ptr_->ConvertToPinholeCameraParameters(parameter);
         io::WriteIJsonConvertible(camera_filename, parameter);
@@ -453,8 +453,8 @@ void Visualizer::CaptureRenderOption(const std::string &filename /* = ""*/) {
         std::string timestamp = utility::GetCurrentTimeStamp();
         json_filename = "RenderOption_" + timestamp + ".json";
     }
-    utility::PrintDebug("[Visualizer] Render option capture to %s\n",
-                        json_filename.c_str());
+    utility::LogDebug("[Visualizer] Render option capture to {}\n",
+                      json_filename.c_str());
     io::WriteIJsonConvertible(json_filename, *render_option_ptr_);
 }
 

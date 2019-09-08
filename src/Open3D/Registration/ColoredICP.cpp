@@ -24,16 +24,16 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "ColoredICP.h"
+#include "Open3D/Registration/ColoredICP.h"
 
 #include <Eigen/Dense>
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/KDTreeFlann.h>
-#include <Open3D/Geometry/KDTreeSearchParam.h>
-#include <Open3D/Utility/Eigen.h>
-
 #include <iostream>
-#include <Open3D/Utility/Console.h>
+
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/KDTreeSearchParam.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/Eigen.h"
 
 namespace open3d {
 
@@ -78,7 +78,7 @@ private:
 std::shared_ptr<PointCloudForColoredICP> InitializePointCloudForColoredICP(
         const geometry::PointCloud &target,
         const geometry::KDTreeSearchParamHybrid &search_param) {
-    utility::PrintDebug("InitializePointCloudForColoredICP\n");
+    utility::LogDebug("InitializePointCloudForColoredICP\n");
 
     geometry::KDTreeFlann tree;
     tree.SetGeometry(target);
@@ -91,7 +91,7 @@ std::shared_ptr<PointCloudForColoredICP> InitializePointCloudForColoredICP(
     size_t n_points = output->points_.size();
     output->color_gradient_.resize(n_points, Eigen::Vector3d::Zero());
 
-    for (auto k = 0; k < n_points; k++) {
+    for (size_t k = 0; k < n_points; k++) {
         const Eigen::Vector3d &vt = output->points_[k];
         const Eigen::Vector3d &nt = output->normals_[k];
         double it = (output->colors_[k](0) + output->colors_[k](1) +
@@ -109,7 +109,7 @@ std::shared_ptr<PointCloudForColoredICP> InitializePointCloudForColoredICP(
             Eigen::MatrixXd b(nn, 1);
             A.setZero();
             b.setZero();
-            for (auto i = 1; i < nn; i++) {
+            for (size_t i = 1; i < nn; i++) {
                 int P_adj_idx = point_idx[i];
                 Eigen::Vector3d vt_adj = output->points_[P_adj_idx];
                 Eigen::Vector3d vt_proj = vt_adj - (vt_adj - vt).dot(nt) * nt;

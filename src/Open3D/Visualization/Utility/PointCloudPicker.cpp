@@ -24,15 +24,19 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PointCloudPicker.h"
+#include "Open3D/Visualization/Utility/PointCloudPicker.h"
 
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Utility/Console.h>
+#include "Open3D/Geometry/BoundingVolume.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace visualization {
 
-void PointCloudPicker::Clear() { picked_indices_.clear(); }
+PointCloudPicker& PointCloudPicker::Clear() {
+    picked_indices_.clear();
+    return *this;
+}
 
 bool PointCloudPicker::IsEmpty() const {
     return (!pointcloud_ptr_ || picked_indices_.empty());
@@ -40,7 +44,7 @@ bool PointCloudPicker::IsEmpty() const {
 
 Eigen::Vector3d PointCloudPicker::GetMinBound() const {
     if (pointcloud_ptr_) {
-        return ((const geometry::PointCloud &)(*pointcloud_ptr_)).GetMinBound();
+        return ((const geometry::PointCloud&)(*pointcloud_ptr_)).GetMinBound();
     } else {
         return Eigen::Vector3d(0.0, 0.0, 0.0);
     }
@@ -48,14 +52,61 @@ Eigen::Vector3d PointCloudPicker::GetMinBound() const {
 
 Eigen::Vector3d PointCloudPicker::GetMaxBound() const {
     if (pointcloud_ptr_) {
-        return ((const geometry::PointCloud &)(*pointcloud_ptr_)).GetMaxBound();
+        return ((const geometry::PointCloud&)(*pointcloud_ptr_)).GetMaxBound();
     } else {
         return Eigen::Vector3d(0.0, 0.0, 0.0);
     }
 }
 
-void PointCloudPicker::Transform(const Eigen::Matrix4d & /*transformation*/) {
+Eigen::Vector3d PointCloudPicker::GetCenter() const {
+    if (pointcloud_ptr_) {
+        return ((const geometry::PointCloud&)(*pointcloud_ptr_)).GetCenter();
+    } else {
+        return Eigen::Vector3d(0.0, 0.0, 0.0);
+    }
+}
+
+geometry::AxisAlignedBoundingBox PointCloudPicker::GetAxisAlignedBoundingBox()
+        const {
+    if (pointcloud_ptr_) {
+        return geometry::AxisAlignedBoundingBox::CreateFromPoints(
+                ((const geometry::PointCloud&)(*pointcloud_ptr_)).points_);
+    } else {
+        return geometry::AxisAlignedBoundingBox();
+    }
+}
+
+geometry::OrientedBoundingBox PointCloudPicker::GetOrientedBoundingBox() const {
+    if (pointcloud_ptr_) {
+        return geometry::OrientedBoundingBox::CreateFromPoints(
+                ((const geometry::PointCloud&)(*pointcloud_ptr_)).points_);
+    } else {
+        return geometry::OrientedBoundingBox();
+    }
+}
+
+PointCloudPicker& PointCloudPicker::Transform(
+        const Eigen::Matrix4d& /*transformation*/) {
     // Do nothing
+    return *this;
+}
+
+PointCloudPicker& PointCloudPicker::Translate(
+        const Eigen::Vector3d& translation, bool relative) {
+    // Do nothing
+    return *this;
+}
+
+PointCloudPicker& PointCloudPicker::Scale(const double scale, bool center) {
+    // Do nothing
+    return *this;
+}
+
+PointCloudPicker& PointCloudPicker::Rotate(const Eigen::Vector3d& rotation,
+                                           bool center,
+                                           RotationType type) {
+    // Do nothing
+    return *this;
 }
 
 bool PointCloudPicker::SetPointCloud(

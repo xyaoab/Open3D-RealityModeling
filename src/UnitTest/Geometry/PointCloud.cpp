@@ -24,13 +24,13 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "TestUtility/UnitTest.h"
-#include "Open3D/Geometry/PointCloud.h"
-#include "Open3D/Geometry/Image.h"
-#include "Open3D/Geometry/RGBDImage.h"
-#include "Open3D/Camera/PinholeCameraIntrinsic.h"
-
 #include <algorithm>
+
+#include "Open3D/Camera/PinholeCameraIntrinsic.h"
+#include "Open3D/Geometry/Image.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/RGBDImage.h"
+#include "TestUtility/UnitTest.h"
 
 using namespace Eigen;
 using namespace open3d;
@@ -49,9 +49,9 @@ TEST(PointCloud, Constructor) {
     EXPECT_EQ(3, pc.Dimension());
 
     // public member variables
-    EXPECT_EQ(0, pc.points_.size());
-    EXPECT_EQ(0, pc.normals_.size());
-    EXPECT_EQ(0, pc.colors_.size());
+    EXPECT_EQ(0u, pc.points_.size());
+    EXPECT_EQ(0u, pc.normals_.size());
+    EXPECT_EQ(0u, pc.colors_.size());
 
     // public members
     EXPECT_TRUE(pc.IsEmpty());
@@ -144,8 +144,7 @@ TEST(PointCloud, GetMinBound) {
 
     Rand(pc.points_, vmin, vmax, 0);
 
-    Vector3d minBound = pc.GetMinBound();
-
+    ExpectEQ(Vector3d(19.607843, 0.0, 0.0), pc.GetMinBound());
     ExpectEQ(Vector3d(19.607843, 0.0, 0.0), pc.GetMinBound());
 }
 
@@ -164,8 +163,7 @@ TEST(PointCloud, GetMaxBound) {
 
     Rand(pc.points_, vmin, vmax, 0);
 
-    Vector3d maxBound = pc.GetMaxBound();
-
+    ExpectEQ(Vector3d(996.078431, 996.078431, 996.078431), pc.GetMaxBound());
     ExpectEQ(Vector3d(996.078431, 996.078431, 996.078431), pc.GetMaxBound());
 }
 
@@ -173,16 +171,12 @@ TEST(PointCloud, GetMaxBound) {
 //
 // ----------------------------------------------------------------------------
 TEST(PointCloud, Transform) {
-    vector<Vector3d> ref_points = {{396.870588, 1201.976471, 880.472941},
-                                   {320.792157, 1081.976471, 829.139608},
-                                   {269.027451, 818.447059, 406.786667},
-                                   {338.831373, 1001.192157, 614.237647},
-                                   {423.537255, 1153.349020, 483.727843},
-                                   {432.949020, 1338.447059, 964.512157},
-                                   {140.007843, 444.721569, 189.296471},
-                                   {292.164706, 763.152941, 317.178824},
-                                   {134.517647, 407.858824, 192.002353},
-                                   {274.909804, 802.368627, 218.747451}};
+    vector<Vector3d> ref_points = {
+            {1.411252, 4.274168, 3.130918}, {1.231757, 4.154505, 3.183678},
+            {1.403168, 4.268779, 2.121679}, {1.456767, 4.304511, 2.640845},
+            {1.620902, 4.413935, 1.851255}, {1.374684, 4.249790, 3.062485},
+            {1.328160, 4.218773, 1.795728}, {1.713446, 4.475631, 1.860145},
+            {1.409239, 4.272826, 2.011462}, {1.480169, 4.320113, 1.177780}};
 
     vector<Vector3d> ref_normals = {{396.470588, 1201.176471, 880.352941},
                                     {320.392157, 1081.176471, 829.019608},
@@ -300,7 +294,7 @@ TEST(PointCloud, NormalizeNormals) {
 //
 // ----------------------------------------------------------------------------
 TEST(PointCloud, PaintUniformColor) {
-    int size = 100;
+    size_t size = 100;
 
     Vector3d vmin(0.0, 0.0, 0.0);
     Vector3d vmax(1000.0, 1000.0, 1000.0);
@@ -315,19 +309,20 @@ TEST(PointCloud, PaintUniformColor) {
 
     EXPECT_FALSE(pc.HasColors());
 
-    pc.PaintUniformColor(Vector3d(233.0, 171.0, 53.0));
+    Vector3d color(233. / 255., 171. / 255., 53.0 / 255.);
+    pc.PaintUniformColor(color);
 
     EXPECT_TRUE(pc.HasColors());
 
     for (size_t i = 0; i < pc.colors_.size(); i++)
-        ExpectEQ(Vector3d(233.0, 171.0, 53.0), pc.colors_[i]);
+        ExpectEQ(color, pc.colors_[i]);
 }
 
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
 TEST(PointCloud, OperatorAppend) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::PointCloud pc0;
     geometry::PointCloud pc1;
@@ -386,7 +381,7 @@ TEST(PointCloud, OperatorAppend) {
 //
 // ----------------------------------------------------------------------------
 TEST(PointCloud, OperatorADD) {
-    int size = 100;
+    size_t size = 100;
 
     geometry::PointCloud pc0;
     geometry::PointCloud pc1;
@@ -477,7 +472,7 @@ TEST(PointCloud, SelectDownSample) {
                             {592.156863, 662.745098, 286.274510},
                             {823.529412, 329.411765, 184.313725}};
 
-    int size = 100;
+    size_t size = 100;
     geometry::PointCloud pc;
 
     Vector3d vmin(0.0, 0.0, 0.0);
@@ -494,7 +489,7 @@ TEST(PointCloud, SelectDownSample) {
     it = unique(indices.begin(), indices.end());
     indices.resize(distance(indices.begin(), it));
 
-    auto output_pc = geometry::SelectDownSample(pc, indices);
+    auto output_pc = pc.SelectDownSample(indices);
 
     ExpectEQ(ref, output_pc->points_);
 }
@@ -557,7 +552,7 @@ TEST(PointCloud, VoxelDownSample) {
                                    {227.000000, 88.000000, 16.000000},
                                    {233.000000, 162.000000, 182.000000}};
 
-    int size = 20;
+    size_t size = 20;
     geometry::PointCloud pc;
 
     pc.points_.resize(size);
@@ -569,7 +564,7 @@ TEST(PointCloud, VoxelDownSample) {
     Rand(pc.colors_, Zero3d, Vector3d(255.0, 255.0, 255.0), 0);
 
     double voxel_size = 0.5;
-    auto output_pc = geometry::VoxelDownSample(pc, voxel_size);
+    auto output_pc = pc.VoxelDownSample(voxel_size);
 
     // sometimes the order of these Vector3d values can be mixed-up
     // sort these vectors in order to match the expected order.
@@ -612,7 +607,7 @@ TEST(PointCloud, UniformDownSample) {
                             {772.549020, 286.274510, 329.411765},
                             {764.705882, 698.039216, 117.647059}};
 
-    int size = 100;
+    size_t size = 100;
     geometry::PointCloud pc;
 
     Vector3d vmin(0.0, 0.0, 0.0);
@@ -622,7 +617,7 @@ TEST(PointCloud, UniformDownSample) {
     Rand(pc.points_, vmin, vmax, 0);
 
     size_t every_k_points = 4;
-    auto output_pc = geometry::UniformDownSample(pc, every_k_points);
+    auto output_pc = pc.UniformDownSample(every_k_points);
 
     ExpectEQ(ref, output_pc->points_);
 }
@@ -631,7 +626,7 @@ TEST(PointCloud, UniformDownSample) {
 //
 // ----------------------------------------------------------------------------
 TEST(PointCloud, CropPointCloud) {
-    int size = 100;
+    size_t size = 100;
     geometry::PointCloud pc;
 
     Vector3d vmin(0.0, 0.0, 0.0);
@@ -642,7 +637,7 @@ TEST(PointCloud, CropPointCloud) {
 
     Vector3d minBound(200.0, 200.0, 200.0);
     Vector3d maxBound(800.0, 800.0, 800.0);
-    auto output_pc = geometry::CropPointCloud(pc, minBound, maxBound);
+    auto output_pc = pc.Crop(minBound, maxBound);
 
     ExpectLE(minBound, output_pc->points_);
     ExpectGE(maxBound, output_pc->points_);
@@ -674,7 +669,7 @@ TEST(PointCloud, EstimateNormals) {
             {0.178678, 0.974506, 0.135693},   {0.268803, 0.796616, 0.541431},
             {0.604933, 0.787776, -0.116044},  {0.111998, 0.869999, -0.480165}};
 
-    int size = 40;
+    size_t size = 40;
     geometry::PointCloud pc;
 
     Vector3d vmin(0.0, 0.0, 0.0);
@@ -683,8 +678,22 @@ TEST(PointCloud, EstimateNormals) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    bool result = geometry::EstimateNormals(pc);
+    pc.EstimateNormals(geometry::KDTreeSearchParamKNN(), true);
+    for (size_t idx = 0; idx < ref.size(); ++idx) {
+        if ((ref[idx](0) < 0 && pc.normals_[idx](0) > 0) ||
+            (ref[idx](0) > 0 && pc.normals_[idx](0) < 0)) {
+            pc.normals_[idx] *= -1;
+        }
+    }
+    ExpectEQ(ref, pc.normals_);
 
+    pc.EstimateNormals(geometry::KDTreeSearchParamKNN(), false);
+    for (size_t idx = 0; idx < ref.size(); ++idx) {
+        if ((ref[idx](0) < 0 && pc.normals_[idx](0) > 0) ||
+            (ref[idx](0) > 0 && pc.normals_[idx](0) < 0)) {
+            pc.normals_[idx] *= -1;
+        }
+    }
     ExpectEQ(ref, pc.normals_);
 }
 
@@ -723,9 +732,8 @@ TEST(PointCloud, OrientNormalsToAlignWithDirection) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    bool result = geometry::EstimateNormals(pc);
-    result = geometry::OrientNormalsToAlignWithDirection(
-            pc, Vector3d(1.5, 0.5, 3.3));
+    pc.EstimateNormals();
+    pc.OrientNormalsToAlignWithDirection(Vector3d(1.5, 0.5, 3.3));
 
     ExpectEQ(ref, pc.normals_);
 }
@@ -784,9 +792,8 @@ TEST(PointCloud, OrientNormalsTowardsCameraLocation) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    bool result = geometry::EstimateNormals(pc);
-    result = geometry::OrientNormalsTowardsCameraLocation(
-            pc, Vector3d(1.5, 0.5, 3.3));
+    pc.EstimateNormals();
+    pc.OrientNormalsTowardsCameraLocation(Vector3d(1.5, 0.5, 3.3));
 
     ExpectEQ(ref, pc.normals_);
 }
@@ -823,8 +830,7 @@ TEST(PointCloud, ComputePointCloudToPointCloudDistance) {
         pc1.points_.push_back(points[(size / 2) + i]);
     }
 
-    vector<double> distance =
-            geometry::ComputePointCloudToPointCloudDistance(pc0, pc1);
+    vector<double> distance = pc0.ComputePointCloudDistance(pc1);
 
     ExpectEQ(ref, distance);
 }
@@ -842,7 +848,7 @@ TEST(PointCloud, ComputePointCloudMeanAndCovariance) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    auto output = geometry::ComputePointCloudMeanAndCovariance(pc);
+    auto output = pc.ComputeMeanAndCovariance();
 
     Vector3d mean = get<0>(output);
     Matrix3d covariance = get<1>(output);
@@ -890,8 +896,7 @@ TEST(PointCloud, ComputePointCloudMahalanobisDistance) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    vector<double> distance =
-            geometry::ComputePointCloudMahalanobisDistance(pc);
+    vector<double> distance = pc.ComputeMahalanobisDistance();
 
     ExpectEQ(ref, distance);
 }
@@ -932,8 +937,7 @@ TEST(PointCloud, ComputePointCloudNearestNeighborDistance) {
     pc.points_.resize(size);
     Rand(pc.points_, vmin, vmax, 0);
 
-    vector<double> distance =
-            geometry::ComputePointCloudNearestNeighborDistance(pc);
+    vector<double> distance = pc.ComputeNearestNeighborDistance();
 
     ExpectEQ(ref, distance);
 }
@@ -976,15 +980,16 @@ TEST(PointCloud, CreatePointCloudFromDepthImage) {
     int local_num_of_channels = 1;
     int local_bytes_per_channel = 2;
 
-    image.PrepareImage(local_width, local_height, local_num_of_channels,
-                       local_bytes_per_channel);
+    image.Prepare(local_width, local_height, local_num_of_channels,
+                  local_bytes_per_channel);
 
     Rand(image.data_, 0, 255, 0);
 
     camera::PinholeCameraIntrinsic intrinsic = camera::PinholeCameraIntrinsic(
             camera::PinholeCameraIntrinsicParameters::PrimeSenseDefault);
 
-    auto output_pc = geometry::CreatePointCloudFromDepthImage(image, intrinsic);
+    auto output_pc =
+            geometry::PointCloud::CreateFromDepthImage(image, intrinsic);
 
     ExpectEQ(ref, output_pc->points_);
 }
@@ -1010,15 +1015,15 @@ void TEST_CreatePointCloudFromRGBDImage(const int& color_num_of_channels,
     int num_of_channels = 1;
     int bytes_per_channel = 1;
 
-    image.PrepareImage(width, height, num_of_channels, bytes_per_channel);
+    image.Prepare(width, height, num_of_channels, bytes_per_channel);
 
-    color.PrepareImage(width, height, color_num_of_channels,
-                       color_bytes_per_channel);
+    color.Prepare(width, height, color_num_of_channels,
+                  color_bytes_per_channel);
 
     Rand(image.data_, 100, 150, 0);
     Rand(color.data_, 130, 200, 0);
 
-    auto depth = geometry::ConvertDepthToFloatImage(image);
+    auto depth = image.ConvertDepthToFloatImage();
 
     geometry::RGBDImage rgbd_image(color, *depth);
 
@@ -1026,7 +1031,7 @@ void TEST_CreatePointCloudFromRGBDImage(const int& color_num_of_channels,
             camera::PinholeCameraIntrinsicParameters::PrimeSenseDefault);
 
     auto output_pc =
-            geometry::CreatePointCloudFromRGBDImage(rgbd_image, intrinsic);
+            geometry::PointCloud::CreateFromRGBDImage(rgbd_image, intrinsic);
 
     ExpectEQ(ref_points, output_pc->points_);
     ExpectEQ(ref_colors, output_pc->colors_);

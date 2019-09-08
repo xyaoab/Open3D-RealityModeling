@@ -24,12 +24,13 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "ImageWarpingFieldIO.h"
+#include "Open3D/IO/ClassIO/ImageWarpingFieldIO.h"
 
 #include <unordered_map>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Utility/FileSystem.h>
-#include <Open3D/IO/ClassIO/IJsonConvertibleIO.h>
+
+#include "Open3D/IO/ClassIO/IJsonConvertibleIO.h"
+#include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/FileSystem.h"
 
 namespace open3d {
 
@@ -80,7 +81,7 @@ bool ReadImageWarpingField(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read color_map::ImageWarpingField failed: unknown file "
                 "extension.\n");
         return false;
@@ -88,7 +89,7 @@ bool ReadImageWarpingField(const std::string &filename,
     auto map_itr =
             file_extension_to_warping_field_read_function.find(filename_ext);
     if (map_itr == file_extension_to_warping_field_read_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read color_map::ImageWarpingField failed: unknown file "
                 "extension.\n");
         return false;
@@ -101,7 +102,7 @@ bool WriteImageWarpingField(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write color_map::ImageWarpingField failed: unknown file "
                 "extension.\n");
         return false;
@@ -109,7 +110,7 @@ bool WriteImageWarpingField(const std::string &filename,
     auto map_itr =
             file_extension_to_warping_field_write_function.find(filename_ext);
     if (map_itr == file_extension_to_warping_field_write_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write color_map::ImageWarpingField failed: unknown file "
                 "extension.\n");
         return false;

@@ -24,10 +24,11 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PinholeCameraParameters.h"
+#include "Open3D/Camera/PinholeCameraParameters.h"
 
 #include <json/json.h>
-#include <Open3D/Utility/Console.h>
+
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace camera {
@@ -51,7 +52,7 @@ bool PinholeCameraParameters::ConvertToJsonValue(Json::Value &value) const {
 
 bool PinholeCameraParameters::ConvertFromJsonValue(const Json::Value &value) {
     if (value.isObject() == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraParameters read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -59,7 +60,7 @@ bool PinholeCameraParameters::ConvertFromJsonValue(const Json::Value &value) {
     if (value.get("class_name", "").asString() != "PinholeCameraParameters" ||
         value.get("version_major", 1).asInt() != 1 ||
         value.get("version_minor", 0).asInt() != 0) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraParameters read JSON failed: unsupported json "
                 "format.\n");
         return false;

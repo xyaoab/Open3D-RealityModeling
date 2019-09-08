@@ -26,10 +26,16 @@
 
 #pragma once
 
-#include <string>
+// Avoid warning caused by redefinition of APIENTRY macro
+// defined also in glfw3.h
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
-#include <Eigen/Core>
+#include <GL/glew.h>  // Make sure glew.h is included before gl.h
 #include <GLFW/glfw3.h>
+#include <Eigen/Core>
+#include <string>
 
 namespace open3d {
 namespace visualization {

@@ -26,26 +26,24 @@
 
 #include <iostream>
 #include <memory>
-#include <Open3D/Open3D.h>
-#include <Open3D/Odometry/Odometry.h>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Open3D.h>
+
+#include "Open3D/Open3D.h"
 
 void PrintHelp(char* argv[]) {
     using namespace open3d;
 
     PrintOpen3DVersion();
     // clang-format off
-    utility::PrintInfo("Usage:\n");
-    utility::PrintInfo(">    OdometryRGBD [color_source] [source_target] [color_target] [depth_target] [options]\n");
-    utility::PrintInfo("     Given RGBD image pair, estimate 6D odometry.\n");
-    utility::PrintInfo("     [options]\n");
-    utility::PrintInfo("     --camera_intrinsic [intrinsic_path]\n");
-    utility::PrintInfo("     --rgbd_type [number] (0:Redwood, 1:TUM, 2:SUN, 3:NYU)\n");
-    utility::PrintInfo("     --verbose : indicate this to display detailed information\n");
-    utility::PrintInfo("     --hybrid : compute odometry using hybrid objective\n");
-    // clang-format on
-    utility::PrintInfo("\n");
+    utility::LogInfo("Usage:\n");
+    utility::LogInfo(">    OdometryRGBD [color_source] [source_target] [color_target] [depth_target] [options]\n");
+    utility::LogInfo("     Given RGBD image pair, estimate 6D odometry.\n");
+    utility::LogInfo("     [options]\n");
+    utility::LogInfo("     --camera_intrinsic [intrinsic_path]\n");
+    utility::LogInfo("     --rgbd_type [number] (0:Redwood, 1:TUM, 2:SUN, 3:NYU)\n");
+    utility::LogInfo("     --verbose : indicate this to display detailed information\n");
+    utility::LogInfo("     --hybrid : compute odometry using hybrid objective\n");
+    // clang-NewPormat on
+    utility::LogInfo("\n");
 }
 
 int main(int argc, char* argv[]) {
@@ -62,23 +60,23 @@ int main(int argc, char* argv[]) {
         intrinsic_path = utility::GetProgramOptionAsString(argc, argv,
                                                            "--camera_intrinsic")
                                  .c_str();
-        utility::PrintInfo("Camera intrinsic path %s\n",
+        utility::LogInfo("Camera intrinsic path {}\n",
                            intrinsic_path.c_str());
     } else {
-        utility::PrintInfo("Camera intrinsic path is not given\n");
+        utility::LogWarning("Camera intrinsic path is not given\n");
     }
     camera::PinholeCameraIntrinsic intrinsic;
     if (intrinsic_path.empty() ||
         !io::ReadIJsonConvertible(intrinsic_path, intrinsic)) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Failed to read intrinsic parameters for depth image.\n");
-        utility::PrintWarning("Use default value for Primesense camera.\n");
+        utility::LogWarning("Use default value for Primesense camera.\n");
         intrinsic = camera::PinholeCameraIntrinsic(
                 camera::PinholeCameraIntrinsicParameters::PrimeSenseDefault);
     }
 
     if (utility::ProgramOptionExists(argc, argv, "--verbose"))
-        utility::SetVerbosityLevel(utility::VerbosityLevel::VerboseAlways);
+        utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
     int rgbd_type =
             utility::GetProgramOptionAsInt(argc, argv, "--rgbd_type", 0);
@@ -89,15 +87,15 @@ int main(int argc, char* argv[]) {
     std::shared_ptr<geometry::RGBDImage> (*CreateRGBDImage)(
             const geometry::Image&, const geometry::Image&, bool);
     if (rgbd_type == 0)
-        CreateRGBDImage = &geometry::CreateRGBDImageFromRedwoodFormat;
+        CreateRGBDImage = &geometry::RGBDImage::CreateFromRedwoodFormat;
     else if (rgbd_type == 1)
-        CreateRGBDImage = &geometry::CreateRGBDImageFromTUMFormat;
+        CreateRGBDImage = &geometry::RGBDImage::CreateFromTUMFormat;
     else if (rgbd_type == 2)
-        CreateRGBDImage = &geometry::CreateRGBDImageFromSUNFormat;
+        CreateRGBDImage = &geometry::RGBDImage::CreateFromSUNFormat;
     else if (rgbd_type == 3)
-        CreateRGBDImage = &geometry::CreateRGBDImageFromNYUFormat;
+        CreateRGBDImage = &geometry::RGBDImage::CreateFromNYUFormat;
     else
-        CreateRGBDImage = &geometry::CreateRGBDImageFromRedwoodFormat;
+        CreateRGBDImage = &geometry::RGBDImage::CreateFromRedwoodFormat;
     auto source = CreateRGBDImage(*color_source, *depth_source, true);
     auto target = CreateRGBDImage(*color_target, *depth_target, true);
 

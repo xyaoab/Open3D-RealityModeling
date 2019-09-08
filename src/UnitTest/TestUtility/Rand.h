@@ -26,10 +26,10 @@
 
 #pragma once
 
-#include <Open3D/Utility/Eigen.h>
-
 #include <Eigen/Core>
 #include <vector>
+
+#include "Open3D/Utility/Eigen.h"
 
 namespace unit_test {
 // Initialize an Eigen::Vector3d.
@@ -79,6 +79,13 @@ void Rand(std::vector<Eigen::Vector3d>& v,
 void Rand(std::vector<Eigen::Vector4i, open3d::utility::Vector4i_allocator>& v,
           const int& vmin,
           const int& vmax,
+          const int& seed);
+
+// Initialize an Eigen::Vector4i vector.
+// Output range: [vmin:vmax].
+void Rand(std::vector<Eigen::Vector4i, open3d::utility::Vector4i_allocator>& v,
+          const Eigen::Vector4i& vmin,
+          const Eigen::Vector4i& vmax,
           const int& seed);
 
 // Initialize a uint8_t vector.

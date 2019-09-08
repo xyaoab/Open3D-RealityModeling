@@ -36,9 +36,9 @@
 #include <Eigen/Core>
 #include <vector>
 
-#include "Print.h"
-#include "Rand.h"
-#include "Sort.h"
+#include "UnitTest/TestUtility/Print.h"
+#include "UnitTest/TestUtility/Rand.h"
+#include "UnitTest/TestUtility/Sort.h"
 
 namespace unit_test {
 // thresholds for comparing floating point values
@@ -56,16 +56,30 @@ void NotImplemented();
 // Equal test.
 template <class T, int M, int N, int A>
 void ExpectEQ(const Eigen::Matrix<T, M, N, A>& v0,
-              const Eigen::Matrix<T, M, N, A>& v1) {
+              const Eigen::Matrix<T, M, N, A>& v1,
+              double threshold = THRESHOLD_1E_6) {
     EXPECT_EQ(v0.size(), v1.size());
     for (int i = 0; i < v0.size(); i++)
-        EXPECT_NEAR(v0.coeff(i), v1.coeff(i), THRESHOLD_1E_6);
+        EXPECT_NEAR(v0.coeff(i), v1.coeff(i), threshold);
 }
 template <class T, int M, int N, int A>
 void ExpectEQ(const std::vector<Eigen::Matrix<T, M, N, A>>& v0,
-              const std::vector<Eigen::Matrix<T, M, N, A>>& v1) {
+              const std::vector<Eigen::Matrix<T, M, N, A>>& v1,
+              double threshold = THRESHOLD_1E_6) {
     EXPECT_EQ(v0.size(), v1.size());
-    for (int i = 0; i < v0.size(); i++) ExpectEQ(v0[i], v1[i]);
+    for (size_t i = 0; i < v0.size(); i++) ExpectEQ(v0[i], v1[i], threshold);
+}
+template <class T, int M, int N, int A>
+void ExpectEQ(
+        const std::vector<Eigen::Matrix<T, M, N, A>,
+                          Eigen::aligned_allocator<Eigen::Matrix<T, M, N, A>>>&
+                v0,
+        const std::vector<Eigen::Matrix<T, M, N, A>,
+                          Eigen::aligned_allocator<Eigen::Matrix<T, M, N, A>>>&
+                v1,
+        double threshold = THRESHOLD_1E_6) {
+    EXPECT_EQ(v0.size(), v1.size());
+    for (size_t i = 0; i < v0.size(); i++) ExpectEQ(v0[i], v1[i], threshold);
 }
 
 // Less than or Equal test.
@@ -78,13 +92,13 @@ void ExpectLE(const Eigen::Matrix<T, M, N, A>& v0,
 template <class T, int M, int N, int A>
 void ExpectLE(const Eigen::Matrix<T, M, N, A>& v0,
               const std::vector<Eigen::Matrix<T, M, N, A>>& v1) {
-    for (int i = 0; i < v0.size(); i++) ExpectLE(v0, v1[i]);
+    for (size_t i = 0; i < v1.size(); i++) ExpectLE(v0, v1[i]);
 }
 template <class T, int M, int N, int A>
 void ExpectLE(const std::vector<Eigen::Matrix<T, M, N, A>>& v0,
               const std::vector<Eigen::Matrix<T, M, N, A>>& v1) {
     EXPECT_EQ(v0.size(), v1.size());
-    for (int i = 0; i < v0.size(); i++) ExpectLE(v0[i], v1[i]);
+    for (size_t i = 0; i < v0.size(); i++) ExpectLE(v0[i], v1[i]);
 }
 
 // Greater than or Equal test.
@@ -97,13 +111,13 @@ void ExpectGE(const Eigen::Matrix<T, M, N, A>& v0,
 template <class T, int M, int N, int A>
 void ExpectGE(const Eigen::Matrix<T, M, N, A>& v0,
               const std::vector<Eigen::Matrix<T, M, N, A>>& v1) {
-    for (int i = 0; i < v1.size(); i++) ExpectGE(v0, v1[i]);
+    for (size_t i = 0; i < v1.size(); i++) ExpectGE(v0, v1[i]);
 }
 template <class T, int M, int N, int A>
 void ExpectGE(const std::vector<Eigen::Matrix<T, M, N, A>>& v0,
               const std::vector<Eigen::Matrix<T, M, N, A>>& v1) {
     EXPECT_EQ(v0.size(), v1.size());
-    for (int i = 0; i < v0.size(); i++) ExpectGE(v0[i], v1[i]);
+    for (size_t i = 0; i < v0.size(); i++) ExpectGE(v0[i], v1[i]);
 }
 
 // Test equality of two arrays of uint8_t.

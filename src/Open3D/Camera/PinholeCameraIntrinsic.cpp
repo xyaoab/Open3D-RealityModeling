@@ -24,11 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PinholeCameraIntrinsic.h"
+#include "Open3D/Camera/PinholeCameraIntrinsic.h"
 
-#include <Eigen/Dense>
 #include <json/json.h>
-#include <Open3D/Utility/Console.h>
+#include <Eigen/Dense>
+
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace camera {
@@ -67,7 +68,7 @@ bool PinholeCameraIntrinsic::ConvertToJsonValue(Json::Value &value) const {
 
 bool PinholeCameraIntrinsic::ConvertFromJsonValue(const Json::Value &value) {
     if (value.isObject() == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraParameters read JSON failed: unsupported json "
                 "format.\n");
         return false;
@@ -76,7 +77,7 @@ bool PinholeCameraIntrinsic::ConvertFromJsonValue(const Json::Value &value) {
     height_ = value.get("height", -1).asInt();
     if (EigenMatrix3dFromJsonArray(intrinsic_matrix_,
                                    value["intrinsic_matrix"]) == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "PinholeCameraParameters read JSON failed: wrong format.\n");
         return false;
     }

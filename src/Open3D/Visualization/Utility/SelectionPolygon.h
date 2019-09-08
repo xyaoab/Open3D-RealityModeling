@@ -26,11 +26,12 @@
 
 #pragma once
 
-#include <vector>
-#include <memory>
 #include <Eigen/Core>
-#include <Open3D/Geometry/Geometry2D.h>
-#include <Open3D/Geometry/Image.h>
+#include <memory>
+#include <vector>
+
+#include "Open3D/Geometry/Geometry2D.h"
+#include "Open3D/Geometry/Image.h"
 
 namespace open3d {
 
@@ -61,7 +62,7 @@ public:
     ~SelectionPolygon() override {}
 
 public:
-    void Clear() override;
+    SelectionPolygon &Clear() override;
     bool IsEmpty() const override;
     Eigen::Vector2d GetMinBound() const final;
     Eigen::Vector2d GetMaxBound() const final;

@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include <Open3D/Visualization/Visualizer/ViewControl.h>
+#include "Open3D/Visualization/Visualizer/ViewControl.h"
 
 namespace open3d {
 namespace visualization {
@@ -44,6 +44,8 @@ public:
     };
 
 public:
+    virtual ~ViewControlWithEditing() {}
+
     void Reset() override;
     void ChangeFieldOfView(double step) override;
     void Scale(double scale) override;

@@ -1,5 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# This script is used by CI only
 
 ./util/scripts/install-deps-ubuntu.sh
-./util/scripts/make-documentation.sh
-./util/scripts/install-gtest.sh

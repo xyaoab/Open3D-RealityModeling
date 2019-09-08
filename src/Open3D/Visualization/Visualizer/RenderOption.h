@@ -28,7 +28,7 @@
 
 #include <Eigen/Core>
 
-#include <Open3D/Utility/IJsonConvertible.h>
+#include "Open3D/Utility/IJsonConvertible.h"
 
 namespace open3d {
 namespace visualization {
@@ -188,7 +188,8 @@ public:
     double line_width_ = LINE_WIDTH_DEFAULT;
 
     // Image options
-    ImageStretchOption image_stretch_option_ = ImageStretchOption::OriginalSize;
+    ImageStretchOption image_stretch_option_ =
+            ImageStretchOption::StretchKeepRatio;
     int image_max_depth_ = 3000;
 
     // Coordinate frame

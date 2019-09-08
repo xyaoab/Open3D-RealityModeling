@@ -2,7 +2,7 @@
 # The MIT License (MIT)
 # See license file or visit www.open3d.org for details
 
-# examples/Python/Tutorial/Utility/file.py
+# examples/Python/Utility/file.py
 
 from os import listdir, makedirs
 from os.path import exists, isfile, join, splitext
@@ -20,8 +20,11 @@ def get_file_list(path, extension=None):
     if extension is None:
         file_list = [path + f for f in listdir(path) if isfile(join(path, f))]
     else:
-        file_list = [path + f for f in listdir(path)
-                if isfile(join(path, f)) and splitext(f)[1] == extension]
+        file_list = [
+            path + f
+            for f in listdir(path)
+            if isfile(join(path, f)) and splitext(f)[1] == extension
+        ]
     file_list = sorted_alphanum(file_list)
     return file_list
 
@@ -61,3 +64,17 @@ def check_folder_structure(path_dataset):
             "Path %s is not exist!" % path_depth
     assert exists(path_color), \
             "Path %s is not exist!" % path_color
+
+
+def write_poses_to_log(filename, poses):
+    with open(filename, 'w') as f:
+        for i, pose in enumerate(poses):
+            f.write('{} {} {}\n'.format(i, i, i + 1))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[0, 0], pose[0, 1], pose[0, 2], pose[0, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[1, 0], pose[1, 1], pose[1, 2], pose[1, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[2, 0], pose[2, 1], pose[2, 2], pose[2, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[3, 0], pose[3, 1], pose[3, 2], pose[3, 3]))

@@ -24,15 +24,15 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Registration.h"
+#include "Open3D/Registration/Registration.h"
 
 #include <cstdlib>
 #include <ctime>
 
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/KDTreeFlann.h>
-#include <Open3D/Registration/Feature.h>
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Registration/Feature.h"
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 
@@ -47,7 +47,7 @@ RegistrationResult GetRegistrationResultAndCorrespondences(
         const Eigen::Matrix4d &transformation) {
     RegistrationResult result(transformation);
     if (max_correspondence_distance <= 0.0) {
-        return std::move(result);
+        return result;
     }
 
     double error2 = 0.0;
@@ -94,7 +94,7 @@ RegistrationResult GetRegistrationResultAndCorrespondences(
         result.fitness_ = (double)corres_number / (double)source.points_.size();
         result.inlier_rmse_ = std::sqrt(error2 / (double)corres_number);
     }
-    return std::move(result);
+    return result;
 }
 
 RegistrationResult EvaluateRANSACBasedOnCorrespondence(
@@ -154,14 +154,14 @@ RegistrationResult RegistrationICP(
         const ICPConvergenceCriteria
                 &criteria /* = ICPConvergenceCriteria()*/) {
     if (max_correspondence_distance <= 0.0) {
-        utility::PrintError("Error: Invalid max_correspondence_distance.\n");
+        utility::LogWarning("Invalid max_correspondence_distance.\n");
         return RegistrationResult(init);
     }
     if (estimation.GetTransformationEstimationType() ==
                 TransformationEstimationType::PointToPlane &&
         (!source.HasNormals() || !target.HasNormals())) {
-        utility::PrintError(
-                "Error: TransformationEstimationPointToPlane requires "
+        utility::LogWarning(
+                "TransformationEstimationPointToPlane requires "
                 "pre-computed normal vectors.\n");
         return RegistrationResult(init);
     }
@@ -177,8 +177,8 @@ RegistrationResult RegistrationICP(
     result = GetRegistrationResultAndCorrespondences(
             pcd, target, kdtree, max_correspondence_distance, transformation);
     for (int i = 0; i < criteria.max_iteration_; i++) {
-        utility::PrintDebug("ICP Iteration #%d: Fitness %.4f, RMSE %.4f\n", i,
-                            result.fitness_, result.inlier_rmse_);
+        utility::LogDebug("ICP Iteration #{:d}: Fitness {:.4f}, RMSE {:.4f}\n",
+                          i, result.fitness_, result.inlier_rmse_);
         Eigen::Matrix4d update = estimation.ComputeTransformation(
                 pcd, target, result.correspondence_set_);
         transformation = update * transformation;
@@ -234,8 +234,8 @@ RegistrationResult RegistrationRANSACBasedOnCorrespondence(
             result = this_result;
         }
     }
-    utility::PrintDebug("RANSAC: Fitness %.4f, RMSE %.4f\n", result.fitness_,
-                        result.inlier_rmse_);
+    utility::LogDebug("RANSAC: Fitness {:.4f}, RMSE {:.4f}\n", result.fitness_,
+                      result.inlier_rmse_);
     return result;
 }
 
@@ -365,9 +365,9 @@ RegistrationResult RegistrationRANSACBasedOnFeatureMatching(
 #ifdef _OPENMP
     }
 #endif
-    utility::PrintDebug("total_validation : %d\n", total_validation);
-    utility::PrintDebug("RANSAC: Fitness %.4f, RMSE %.4f\n", result.fitness_,
-                        result.inlier_rmse_);
+    utility::LogDebug("total_validation : {:d}\n", total_validation);
+    utility::LogDebug("RANSAC: Fitness {:.4f}, RMSE {:.4f}\n", result.fitness_,
+                      result.inlier_rmse_);
     return result;
 }
 
@@ -389,17 +389,17 @@ Eigen::Matrix6d GetInformationMatrixFromPointClouds(
     // write q^*
     // see http://redwood-data.org/indoor/registration.html
     // note: I comes first in this implementation
-    Eigen::Matrix6d GTG = Eigen::Matrix6d::Identity();
+    Eigen::Matrix6d GTG = Eigen::Matrix6d::Zero();
 #ifdef _OPENMP
 #pragma omp parallel
     {
 #endif
-        Eigen::Matrix6d GTG_private = Eigen::Matrix6d::Identity();
+        Eigen::Matrix6d GTG_private = Eigen::Matrix6d::Zero();
         Eigen::Vector6d G_r_private = Eigen::Vector6d::Zero();
 #ifdef _OPENMP
 #pragma omp for nowait
 #endif
-        for (auto c = 0; c < result.correspondence_set_.size(); c++) {
+        for (int c = 0; c < int(result.correspondence_set_.size()); c++) {
             int t = result.correspondence_set_[c](1);
             double x = target.points_[t](0);
             double y = target.points_[t](1);
@@ -427,7 +427,7 @@ Eigen::Matrix6d GetInformationMatrixFromPointClouds(
 #ifdef _OPENMP
     }
 #endif
-    return std::move(GTG);
+    return GTG;
 }
 
 }  // namespace registration

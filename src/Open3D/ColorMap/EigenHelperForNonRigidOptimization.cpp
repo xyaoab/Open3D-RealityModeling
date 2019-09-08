@@ -24,9 +24,9 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "EigenHelperForNonRigidOptimization.h"
+#include "Open3D/ColorMap/EigenHelperForNonRigidOptimization.h"
 
-#include <Open3D/Utility/Console.h>
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace color_map {
@@ -84,8 +84,8 @@ std::tuple<MatOutType, VecOutType, double> ComputeJTJandJTrNonRigid(
     }
 #endif
     if (verbose) {
-        utility::PrintDebug("Residual : %.2e (# of elements : %d)\n",
-                            r2_sum / (double)iteration_num, iteration_num);
+        utility::LogDebug("Residual : {:.2e} (# of elements : {:d})\n",
+                          r2_sum / (double)iteration_num, iteration_num);
     }
     return std::make_tuple(std::move(JTJ), std::move(JTr), r2_sum);
 }

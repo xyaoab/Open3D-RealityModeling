@@ -24,13 +24,13 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "ImageShader.h"
+#include "Open3D/Visualization/Shader/ImageShader.h"
 
 #include <algorithm>
 
-#include <Open3D/Geometry/Image.h>
-#include <Open3D/Visualization/Shader/Shader.h>
-#include <Open3D/Visualization/Utility/ColorMap.h>
+#include "Open3D/Geometry/Image.h"
+#include "Open3D/Visualization/Shader/Shader.h"
+#include "Open3D/Visualization/Utility/ColorMap.h"
 
 namespace open3d {
 namespace visualization {
@@ -214,7 +214,7 @@ bool ImageShaderForImage::PrepareBinding(const geometry::Geometry &geometry,
     if (image.num_of_channels_ == 3 && image.bytes_per_channel_ == 1) {
         render_image = image;
     } else {
-        render_image.PrepareImage(image.width_, image.height_, 3, 1);
+        render_image.Prepare(image.width_, image.height_, 3, 1);
         if (image.num_of_channels_ == 1 && image.bytes_per_channel_ == 1) {
             // grayscale image
             for (int i = 0; i < image.height_ * image.width_; i++) {

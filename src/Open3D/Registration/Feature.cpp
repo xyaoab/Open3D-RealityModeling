@@ -24,12 +24,13 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Feature.h"
+#include "Open3D/Registration/Feature.h"
 
 #include <Eigen/Dense>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/KDTreeFlann.h>
+
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 
@@ -120,7 +121,7 @@ std::shared_ptr<Feature> ComputeFPFHFeature(
     auto feature = std::make_shared<Feature>();
     feature->Resize(33, (int)input.points_.size());
     if (input.HasNormals() == false) {
-        utility::PrintDebug(
+        utility::LogWarning(
                 "[ComputeFPFHFeature] Failed because input point cloud has no "
                 "normal.\n");
         return feature;

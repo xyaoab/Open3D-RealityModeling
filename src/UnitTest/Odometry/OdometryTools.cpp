@@ -24,7 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "OdometryTools.h"
+#include "UnitTest/Odometry/OdometryTools.h"
 
 using namespace open3d;
 using namespace std;
@@ -43,7 +43,7 @@ shared_ptr<geometry::Image> odometry_tools::GenerateImage(
         const int& seed) {
     shared_ptr<geometry::Image> image = make_shared<geometry::Image>();
 
-    image->PrepareImage(width, height, num_of_channels, bytes_per_channel);
+    image->Prepare(width, height, num_of_channels, bytes_per_channel);
 
     float* const depthData = Cast<float>(&image->data_[0]);
     Rand(depthData, width * height, vmin, vmax, seed);
@@ -58,8 +58,8 @@ void odometry_tools::ShiftLeft(shared_ptr<geometry::Image> image,
                                const int& step) {
     int width = image->width_;
     int height = image->height_;
-    int num_of_channels = image->num_of_channels_;
-    int bytes_per_channel = image->bytes_per_channel_;
+    // int num_of_channels = image->num_of_channels_;
+    // int bytes_per_channel = image->bytes_per_channel_;
 
     float* const float_data = Cast<float>(&image->data_[0]);
     for (int h = 0; h < height; h++)
@@ -75,8 +75,8 @@ void odometry_tools::ShiftUp(shared_ptr<geometry::Image> image,
                              const int& step) {
     int width = image->width_;
     int height = image->height_;
-    int num_of_channels = image->num_of_channels_;
-    int bytes_per_channel = image->bytes_per_channel_;
+    // int num_of_channels = image->num_of_channels_;
+    // int bytes_per_channel = image->bytes_per_channel_;
 
     float* const float_data = Cast<float>(&image->data_[0]);
     for (int h = 0; h < height; h++)
@@ -98,7 +98,7 @@ shared_ptr<geometry::Image> odometry_tools::CorrespondenceMap(const int& width,
 
     shared_ptr<geometry::Image> image = make_shared<geometry::Image>();
 
-    image->PrepareImage(width, height, num_of_channels, bytes_per_channel);
+    image->Prepare(width, height, num_of_channels, bytes_per_channel);
 
     int* const int_data = Cast<int>(&image->data_[0]);
     size_t image_size = image->data_.size() / sizeof(int);
@@ -120,7 +120,7 @@ shared_ptr<geometry::Image> odometry_tools::DepthBuffer(const int& width,
 
     shared_ptr<geometry::Image> image = make_shared<geometry::Image>();
 
-    image->PrepareImage(width, height, num_of_channels, bytes_per_channel);
+    image->Prepare(width, height, num_of_channels, bytes_per_channel);
 
     float* const float_data = Cast<float>(&image->data_[0]);
     size_t image_size = image->data_.size() / sizeof(float);

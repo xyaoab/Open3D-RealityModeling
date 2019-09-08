@@ -24,14 +24,14 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "DrawGeometry.h"
+#include "Open3D/Visualization/Utility/DrawGeometry.h"
 
-#include <Open3D/Visualization/Visualizer/Visualizer.h>
-#include <Open3D/Visualization/Visualizer/VisualizerWithCustomAnimation.h>
-#include <Open3D/Visualization/Visualizer/VisualizerWithKeyCallback.h>
-#include <Open3D/Visualization/Visualizer/VisualizerWithEditing.h>
-#include <Open3D/Visualization/Visualizer/ViewControlWithCustomAnimation.h>
-#include <Open3D/Visualization/Visualizer/ViewControlWithEditing.h>
+#include "Open3D/Visualization/Visualizer/ViewControlWithCustomAnimation.h"
+#include "Open3D/Visualization/Visualizer/ViewControlWithEditing.h"
+#include "Open3D/Visualization/Visualizer/Visualizer.h"
+#include "Open3D/Visualization/Visualizer/VisualizerWithCustomAnimation.h"
+#include "Open3D/Visualization/Visualizer/VisualizerWithEditing.h"
+#include "Open3D/Visualization/Visualizer/VisualizerWithKeyCallback.h"
 
 namespace open3d {
 namespace visualization {
@@ -46,14 +46,13 @@ bool DrawGeometries(const std::vector<std::shared_ptr<const geometry::Geometry>>
     Visualizer visualizer;
     if (visualizer.CreateVisualizerWindow(window_name, width, height, left,
                                           top) == false) {
-        utility::PrintWarning(
-                "[DrawGeometries] Failed creating OpenGL window.\n");
+        utility::LogError("[DrawGeometries] Failed creating OpenGL window.\n");
         return false;
     }
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning("[DrawGeometries] Failed adding geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning("[DrawGeometries] Failed adding geometry.\n");
+            utility::LogWarning(
                     "[DrawGeometries] Possibly due to bad geometry or wrong "
                     "geometry type.\n");
             return false;
@@ -76,17 +75,17 @@ bool DrawGeometriesWithCustomAnimation(
     VisualizerWithCustomAnimation visualizer;
     if (visualizer.CreateVisualizerWindow(window_name, width, height, left,
                                           top) == false) {
-        utility::PrintWarning(
+        utility::LogError(
                 "[DrawGeometriesWithCustomAnimation] Failed creating OpenGL "
                 "window.\n");
         return false;
     }
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithCustomAnimation] Failed adding "
                     "geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithCustomAnimation] Possibly due to bad "
                     "geometry or wrong geometry type.\n");
             return false;
@@ -96,10 +95,10 @@ bool DrawGeometriesWithCustomAnimation(
             (ViewControlWithCustomAnimation &)visualizer.GetViewControl();
     if (json_filename.empty() == false) {
         if (view_control.LoadTrajectoryFromJsonFile(json_filename) == false) {
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithCustomAnimation] Failed loading json "
                     "file.\n");
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithCustomAnimation] Possibly due to bad "
                     "file or file does not contain trajectory.\n");
             return false;
@@ -123,17 +122,17 @@ bool DrawGeometriesWithAnimationCallback(
     Visualizer visualizer;
     if (visualizer.CreateVisualizerWindow(window_name, width, height, left,
                                           top) == false) {
-        utility::PrintWarning(
+        utility::LogError(
                 "[DrawGeometriesWithAnimationCallback] Failed creating OpenGL "
                 "window.\n");
         return false;
     }
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithAnimationCallback] Failed adding "
                     "geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithAnimationCallback] Possibly due to bad "
                     "geometry or wrong geometry type.\n");
             return false;
@@ -157,17 +156,17 @@ bool DrawGeometriesWithKeyCallbacks(
     VisualizerWithKeyCallback visualizer;
     if (visualizer.CreateVisualizerWindow(window_name, width, height, left,
                                           top) == false) {
-        utility::PrintWarning(
+        utility::LogError(
                 "[DrawGeometriesWithKeyCallbacks] Failed creating OpenGL "
                 "window.\n");
         return false;
     }
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithKeyCallbacks] Failed adding "
                     "geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithKeyCallbacks] Possibly due to bad "
                     "geometry or wrong geometry type.\n");
             return false;
@@ -193,15 +192,15 @@ bool DrawGeometriesWithEditing(
     VisualizerWithEditing visualizer;
     if (visualizer.CreateVisualizerWindow(window_name, width, height, left,
                                           top) == false) {
-        utility::PrintWarning(
+        utility::LogError(
                 "[DrawGeometriesWithEditing] Failed creating OpenGL window.\n");
         return false;
     }
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithEditing] Failed adding geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning(
                     "[DrawGeometriesWithEditing] Possibly due to bad geometry "
                     "or wrong geometry type.\n");
             return false;

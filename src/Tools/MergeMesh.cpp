@@ -24,21 +24,21 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include <Open3D/Open3D.h>
+#include "Open3D/Open3D.h"
 
 void PrintHelp() {
     using namespace open3d;
     PrintOpen3DVersion();
     // clang-format off
-    utility::PrintInfo("Usage:\n");
-    utility::PrintInfo("    > MergeMesh source_directory target_file [option]\n");
-    utility::PrintInfo("      Merge mesh files under <source_directory>.\n");
-    utility::PrintInfo("\n");
-    utility::PrintInfo("Options (listed in the order of execution priority):\n");
-    utility::PrintInfo("    --help, -h                : Print help information.\n");
-    utility::PrintInfo("    --verbose n               : Set verbose level (0-4).\n");
-    utility::PrintInfo("    --purge                   : Clear duplicated and non-manifold vertices and\n");
-    utility::PrintInfo("                                triangles.\n");
+    utility::LogInfo("Usage:\n");
+    utility::LogInfo("    > MergeMesh source_directory target_file [option]\n");
+    utility::LogInfo("      Merge mesh files under <source_directory>.\n");
+    utility::LogInfo("\n");
+    utility::LogInfo("Options (listed in the order of execution priority):\n");
+    utility::LogInfo("    --help, -h                : Print help information.\n");
+    utility::LogInfo("    --verbose n               : Set verbose level (0-4).\n");
+    utility::LogInfo("    --purge                   : Clear duplicated and unreferenced vertices and\n");
+    utility::LogInfo("                                triangles.\n");
     // clang-format on
 }
 
@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
     using namespace open3d;
     using namespace open3d::utility::filesystem;
 
-    utility::SetVerbosityLevel(utility::VerbosityLevel::VerboseAlways);
+    utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
     if (argc <= 2 || utility::ProgramOptionExists(argc, argv, "--help")) {
         PrintHelp();
         return 0;
@@ -67,7 +67,10 @@ int main(int argc, char **argv) {
     }
 
     if (utility::ProgramOptionExists(argc, argv, "--purge")) {
-        merged_mesh_ptr->Purge();
+        merged_mesh_ptr->RemoveDuplicatedVertices();
+        merged_mesh_ptr->RemoveDuplicatedTriangles();
+        merged_mesh_ptr->RemoveUnreferencedVertices();
+        merged_mesh_ptr->RemoveDegenerateTriangles();
     }
     io::WriteTriangleMesh(argv[2], *merged_mesh_ptr);
 

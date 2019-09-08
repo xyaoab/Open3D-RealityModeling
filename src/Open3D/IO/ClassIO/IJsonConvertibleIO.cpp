@@ -24,11 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "IJsonConvertibleIO.h"
+#include "Open3D/IO/ClassIO/IJsonConvertibleIO.h"
 
 #include <unordered_map>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Utility/FileSystem.h>
+
+#include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/FileSystem.h"
 
 namespace open3d {
 
@@ -59,7 +60,7 @@ bool ReadIJsonConvertible(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read utility::IJsonConvertible failed: unknown file "
                 "extension.\n");
         return false;
@@ -67,7 +68,7 @@ bool ReadIJsonConvertible(const std::string &filename,
     auto map_itr =
             file_extension_to_ijsonconvertible_read_function.find(filename_ext);
     if (map_itr == file_extension_to_ijsonconvertible_read_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read utility::IJsonConvertible failed: unknown file "
                 "extension.\n");
         return false;
@@ -80,7 +81,7 @@ bool WriteIJsonConvertible(const std::string &filename,
     std::string filename_ext =
             utility::filesystem::GetFileExtensionInLowerCase(filename);
     if (filename_ext.empty()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write utility::IJsonConvertible failed: unknown file "
                 "extension.\n");
         return false;
@@ -88,7 +89,7 @@ bool WriteIJsonConvertible(const std::string &filename,
     auto map_itr = file_extension_to_ijsonconvertible_write_function.find(
             filename_ext);
     if (map_itr == file_extension_to_ijsonconvertible_write_function.end()) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write utility::IJsonConvertible failed: unknown file "
                 "extension.\n");
         return false;

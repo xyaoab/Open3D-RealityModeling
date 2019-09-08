@@ -24,80 +24,69 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "PointCloud.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/BoundingVolume.h"
 
 #include <Eigen/Dense>
-#include <Open3D/Utility/Console.h>
-#include <Open3D/Geometry/KDTreeFlann.h>
+#include <numeric>
+
+#include "Open3D/Geometry/KDTreeFlann.h"
+#include "Open3D/Geometry/Qhull.h"
+#include "Open3D/Utility/Console.h"
 
 namespace open3d {
 namespace geometry {
 
-void PointCloud::Clear() {
+PointCloud &PointCloud::Clear() {
     points_.clear();
     normals_.clear();
     colors_.clear();
+    return *this;
 }
 
 bool PointCloud::IsEmpty() const { return !HasPoints(); }
 
 Eigen::Vector3d PointCloud::GetMinBound() const {
-    if (!HasPoints()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    auto itr_x = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(0) < b(0);
-            });
-    auto itr_y = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(1) < b(1);
-            });
-    auto itr_z = std::min_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(2) < b(2);
-            });
-    return Eigen::Vector3d((*itr_x)(0), (*itr_y)(1), (*itr_z)(2));
+    return ComputeMinBound(points_);
 }
 
 Eigen::Vector3d PointCloud::GetMaxBound() const {
-    if (!HasPoints()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    auto itr_x = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(0) < b(0);
-            });
-    auto itr_y = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(1) < b(1);
-            });
-    auto itr_z = std::max_element(
-            points_.begin(), points_.end(),
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a(2) < b(2);
-            });
-    return Eigen::Vector3d((*itr_x)(0), (*itr_y)(1), (*itr_z)(2));
+    return ComputeMaxBound(points_);
 }
 
-void PointCloud::Transform(const Eigen::Matrix4d &transformation) {
-    for (auto &point : points_) {
-        Eigen::Vector4d new_point =
-                transformation *
-                Eigen::Vector4d(point(0), point(1), point(2), 1.0);
-        point = new_point.block<3, 1>(0, 0);
-    }
-    for (auto &normal : normals_) {
-        Eigen::Vector4d new_normal =
-                transformation *
-                Eigen::Vector4d(normal(0), normal(1), normal(2), 0.0);
-        normal = new_normal.block<3, 1>(0, 0);
-    }
+Eigen::Vector3d PointCloud::GetCenter() const { return ComputeCenter(points_); }
+
+AxisAlignedBoundingBox PointCloud::GetAxisAlignedBoundingBox() const {
+    return AxisAlignedBoundingBox::CreateFromPoints(points_);
+}
+
+OrientedBoundingBox PointCloud::GetOrientedBoundingBox() const {
+    return OrientedBoundingBox::CreateFromPoints(points_);
+}
+
+PointCloud &PointCloud::Transform(const Eigen::Matrix4d &transformation) {
+    TransformPoints(transformation, points_);
+    TransformNormals(transformation, normals_);
+    return *this;
+}
+
+PointCloud &PointCloud::Translate(const Eigen::Vector3d &translation,
+                                  bool relative) {
+    TranslatePoints(translation, points_, relative);
+    return *this;
+}
+
+PointCloud &PointCloud::Scale(const double scale, bool center) {
+    ScalePoints(scale, points_, center);
+    return *this;
+}
+
+PointCloud &PointCloud::Rotate(const Eigen::Vector3d &rotation,
+                               bool center,
+                               RotationType type) {
+    RotatePoints(rotation, points_, center, type);
+    RotateNormals(rotation, normals_, center, type);
+    return *this;
 }
 
 PointCloud &PointCloud::operator+=(const PointCloud &cloud) {
@@ -131,19 +120,19 @@ PointCloud PointCloud::operator+(const PointCloud &cloud) const {
     return (PointCloud(*this) += cloud);
 }
 
-std::vector<double> ComputePointCloudToPointCloudDistance(
-        const PointCloud &source, const PointCloud &target) {
-    std::vector<double> distances(source.points_.size());
+std::vector<double> PointCloud::ComputePointCloudDistance(
+        const PointCloud &target) {
+    std::vector<double> distances(points_.size());
     KDTreeFlann kdtree;
     kdtree.SetGeometry(target);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
-    for (int i = 0; i < (int)source.points_.size(); i++) {
+    for (int i = 0; i < (int)points_.size(); i++) {
         std::vector<int> indices(1);
         std::vector<double> dists(1);
-        if (kdtree.SearchKNN(source.points_[i], 1, indices, dists) == 0) {
-            utility::PrintDebug(
+        if (kdtree.SearchKNN(points_[i], 1, indices, dists) == 0) {
+            utility::LogDebug(
                     "[ComputePointCloudToPointCloudDistance] Found a point "
                     "without neighbors.\n");
             distances[i] = 0.0;
@@ -154,15 +143,44 @@ std::vector<double> ComputePointCloudToPointCloudDistance(
     return distances;
 }
 
-std::tuple<Eigen::Vector3d, Eigen::Matrix3d> ComputePointCloudMeanAndCovariance(
-        const PointCloud &input) {
-    if (input.IsEmpty()) {
+PointCloud &PointCloud::RemoveNoneFinitePoints(bool remove_nan,
+                                               bool remove_infinite) {
+    bool has_normal = HasNormals();
+    bool has_color = HasColors();
+    size_t old_point_num = points_.size();
+    size_t k = 0;                                 // new index
+    for (size_t i = 0; i < old_point_num; i++) {  // old index
+        bool is_nan = remove_nan &&
+                      (std::isnan(points_[i](0)) || std::isnan(points_[i](1)) ||
+                       std::isnan(points_[i](2)));
+        bool is_infinite = remove_infinite && (std::isinf(points_[i](0)) ||
+                                               std::isinf(points_[i](1)) ||
+                                               std::isinf(points_[i](2)));
+        if (!is_nan && !is_infinite) {
+            points_[k] = points_[i];
+            if (has_normal) normals_[k] = normals_[i];
+            if (has_color) colors_[k] = colors_[i];
+            k++;
+        }
+    }
+    points_.resize(k);
+    if (has_normal) normals_.resize(k);
+    if (has_color) colors_.resize(k);
+    utility::LogDebug(
+            "[RemoveNoneFinitePoints] {:d} nan points have been removed.\n",
+            (int)(old_point_num - k));
+    return *this;
+}
+
+std::tuple<Eigen::Vector3d, Eigen::Matrix3d>
+PointCloud::ComputeMeanAndCovariance() const {
+    if (IsEmpty()) {
         return std::make_tuple(Eigen::Vector3d::Zero(),
                                Eigen::Matrix3d::Identity());
     }
     Eigen::Matrix<double, 9, 1> cumulants;
     cumulants.setZero();
-    for (const auto &point : input.points_) {
+    for (const auto &point : points_) {
         cumulants(0) += point(0);
         cumulants(1) += point(1);
         cumulants(2) += point(2);
@@ -173,7 +191,7 @@ std::tuple<Eigen::Vector3d, Eigen::Matrix3d> ComputePointCloudMeanAndCovariance(
         cumulants(7) += point(1) * point(2);
         cumulants(8) += point(2) * point(2);
     }
-    cumulants /= (double)input.points_.size();
+    cumulants /= (double)points_.size();
     Eigen::Vector3d mean;
     Eigen::Matrix3d covariance;
     mean(0) = cumulants(0);
@@ -191,35 +209,33 @@ std::tuple<Eigen::Vector3d, Eigen::Matrix3d> ComputePointCloudMeanAndCovariance(
     return std::make_tuple(mean, covariance);
 }
 
-std::vector<double> ComputePointCloudMahalanobisDistance(
-        const PointCloud &input) {
-    std::vector<double> mahalanobis(input.points_.size());
+std::vector<double> PointCloud::ComputeMahalanobisDistance() const {
+    std::vector<double> mahalanobis(points_.size());
     Eigen::Vector3d mean;
     Eigen::Matrix3d covariance;
-    std::tie(mean, covariance) = ComputePointCloudMeanAndCovariance(input);
+    std::tie(mean, covariance) = ComputeMeanAndCovariance();
     Eigen::Matrix3d cov_inv = covariance.inverse();
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
-    for (int i = 0; i < (int)input.points_.size(); i++) {
-        Eigen::Vector3d p = input.points_[i] - mean;
+    for (int i = 0; i < (int)points_.size(); i++) {
+        Eigen::Vector3d p = points_[i] - mean;
         mahalanobis[i] = std::sqrt(p.transpose() * cov_inv * p);
     }
     return mahalanobis;
 }
 
-std::vector<double> ComputePointCloudNearestNeighborDistance(
-        const PointCloud &input) {
-    std::vector<double> nn_dis(input.points_.size());
-    KDTreeFlann kdtree(input);
+std::vector<double> PointCloud::ComputeNearestNeighborDistance() const {
+    std::vector<double> nn_dis(points_.size());
+    KDTreeFlann kdtree(*this);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
-    for (int i = 0; i < (int)input.points_.size(); i++) {
+    for (int i = 0; i < (int)points_.size(); i++) {
         std::vector<int> indices(2);
         std::vector<double> dists(2);
-        if (kdtree.SearchKNN(input.points_[i], 2, indices, dists) <= 1) {
-            utility::PrintDebug(
+        if (kdtree.SearchKNN(points_[i], 2, indices, dists) <= 1) {
+            utility::LogDebug(
                     "[ComputePointCloudNearestNeighborDistance] Found a point "
                     "without neighbors.\n");
             nn_dis[i] = 0.0;
@@ -228,6 +244,10 @@ std::vector<double> ComputePointCloudNearestNeighborDistance(
         }
     }
     return nn_dis;
+}
+
+std::shared_ptr<TriangleMesh> PointCloud::ComputeConvexHull() const {
+    return Qhull::ComputeConvexHull(points_);
 }
 
 }  // namespace geometry

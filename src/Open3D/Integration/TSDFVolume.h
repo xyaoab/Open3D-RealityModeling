@@ -26,10 +26,10 @@
 
 #pragma once
 
-#include <Open3D/Geometry/RGBDImage.h>
-#include <Open3D/Geometry/PointCloud.h>
-#include <Open3D/Geometry/TriangleMesh.h>
-#include <Open3D/Camera/PinholeCameraIntrinsic.h>
+#include "Open3D/Camera/PinholeCameraIntrinsic.h"
+#include "Open3D/Geometry/PointCloud.h"
+#include "Open3D/Geometry/RGBDImage.h"
+#include "Open3D/Geometry/TriangleMesh.h"
 
 namespace open3d {
 namespace integration {
@@ -66,8 +66,7 @@ public:
                            const camera::PinholeCameraIntrinsic &intrinsic,
                            const Eigen::Matrix4d &extrinsic) = 0;
 
-    /// Function to extract a point cloud with normals, using the marching cubes
-    /// algorithm (https://en.wikipedia.org/wiki/Marching_cubes)
+    /// Function to extract a point cloud with normals
     virtual std::shared_ptr<geometry::PointCloud> ExtractPointCloud() = 0;
 
     /// Function to extract a triangle mesh, using the marching cubes algorithm

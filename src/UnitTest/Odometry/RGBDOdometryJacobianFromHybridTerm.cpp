@@ -24,11 +24,10 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "TestUtility/UnitTest.h"
-#include "OdometryTools.h"
-
 #include "Open3D/Geometry/RGBDImage.h"
 #include "Open3D/Odometry/RGBDOdometryJacobian.h"
+#include "TestUtility/UnitTest.h"
+#include "UnitTest/Odometry/OdometryTools.h"
 
 using namespace Eigen;
 using namespace odometry_tools;
@@ -76,8 +75,8 @@ TEST(RGBDOdometryJacobianFromHybridTerm, ComputeJacobianAndResidual) {
 
     int width = 10;
     int height = 10;
-    int num_of_channels = 1;
-    int bytes_per_channel = 4;
+    // int num_of_channels = 1;
+    // int bytes_per_channel = 4;
 
     auto srcColor = GenerateImage(width, height, 1, 4, 0.0f, 1.0f, 1);
     auto srcDepth = GenerateImage(width, height, 1, 4, 0.0f, 1.0f, 0);
