@@ -28,3 +28,6 @@
 [submodule "3rdparty/libjpeg-turbo/libjpeg-turbo"]
 	path = 3rdparty/libjpeg-turbo/libjpeg-turbo
 	url = https://github.com/libjpeg-turbo/libjpeg-turbo.git
+[submodule "3rdparty/Eigen"]
+	path = 3rdparty/Eigen
+	url = https://github.com/eigenteam/eigen-git-mirror.git
