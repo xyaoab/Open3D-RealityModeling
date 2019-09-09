@@ -153,7 +153,7 @@ std::tuple<bool, Eigen::Matrix4d> PoseEstimationPnP(
     cv::imshow("out", out);
     cv::waitKey(-1);
 
-    utility::LogDebug("Matches %d: PnP: %d, Inliers: %d\n",
+    utility::LogDebug("Matches {}: PnP: {}, Inliers: {}\n",
                matches.size(), pts3d_source.size(), inliers.size());
     return std::make_tuple(true, transform);
 }

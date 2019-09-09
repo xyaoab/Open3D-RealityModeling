@@ -47,7 +47,7 @@ void DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
     cv::Ptr<cv::ORB> orb = cv::ORB::create(100);
 
     for (int s = begin; s < end; ++s) {
-        LogInfo("s: %d\n", s);
+        LogInfo("s: {}\n", s);
         Image depth, color;
 
         ReadImage(config.depth_files_[s], depth);
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
                     config.n_frames_per_fragment_);
 
     for (int i = 19; i < 20; ++i) {
-        LogInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
+        LogInfo("Processing fragment {} / {}\n", i, num_fragments - 1);
         DebugOdometryForFragment(i, config);
     }
 }

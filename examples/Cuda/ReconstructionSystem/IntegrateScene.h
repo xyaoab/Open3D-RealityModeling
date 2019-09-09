@@ -35,7 +35,7 @@ void IntegrateFragment(
                              (int) config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         geometry::Image depth, color;
         ReadImage(config.depth_files_[i], depth);

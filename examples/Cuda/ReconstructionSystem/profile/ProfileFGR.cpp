@@ -71,7 +71,7 @@ void ProfileFGR(DatasetConfig &config, bool use_cuda) {
             double time = fgr_timer.GetDuration();
             fgr_times.push_back(time);
 
-            LogInfo("Fragment %d - %d takes %f ms\n", s, t, time);
+            LogInfo("Fragment {} - {} takes %f ms\n", s, t, time);
         }
     }
 

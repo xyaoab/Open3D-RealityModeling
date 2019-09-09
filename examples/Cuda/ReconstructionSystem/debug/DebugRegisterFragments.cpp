@@ -45,7 +45,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
             registration.transform_source_to_target_;
         match.information = registration.ComputeInformationMatrix();
         match.success = true;
-        utility::LogDebug("Pair (%d %d) odometry computed.\n",
+        utility::LogDebug("Pair ({} {}) odometry computed.\n",
                             match.s,
                             match.t);
         matches.push_back(match);

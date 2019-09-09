@@ -85,7 +85,7 @@ void ProfileRegistration(DatasetConfig &config, bool use_cuda) {
                                     edge.transformation_,
                                     config.voxel_size_, use_cuda);
         times.push_back(time);
-        LogInfo("Fragment %d - %d takes %f ms\n", match.s, match.t, time);
+        LogInfo("Fragment {} - {} takes %f ms\n", match.s, match.t, time);
     }
 
     double mean, std;

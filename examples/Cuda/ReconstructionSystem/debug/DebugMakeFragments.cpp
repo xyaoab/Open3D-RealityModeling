@@ -48,7 +48,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
     cv::Ptr<cv::ORB> orb = cv::ORB::create(100);
 
     for (int s = begin; s < end; ++s) {
-        LogInfo("s: %d\n", s);
+        LogInfo("s: {}\n", s);
         Image depth, color;
 
         ReadImage(config.depth_files_[s], depth);
@@ -109,7 +109,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
             for (int j = i + 1; j < keyframe_infos.size(); ++j) {
                 int s = keyframe_infos[i].idx;
                 int t = keyframe_infos[j].idx;
-                LogInfo("matching (%d %d)\n", s, t);
+                LogInfo("matching ({} {})\n", s, t);
 
                 bool is_success;
                 Eigen::Matrix4d trans_source_to_target;
@@ -144,7 +144,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
                         Eigen::Matrix6d
                             information = odometry.ComputeInformationMatrix();
 
-                        LogInfo("Add edge (%d %d)\n", s, t);
+                        LogInfo("Add edge ({} {})\n", s, t);
                         std::cout << trans << "\n" << information << "\n";
                         pose_graph.edges_.emplace_back(PoseGraphEdge(
                             s - begin, t - begin, trans, information, true));
@@ -199,7 +199,7 @@ void IntegrateForFragment(int fragment_id, PoseGraph &pose_graph,
                        (int) config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -251,7 +251,7 @@ int main(int argc, char **argv) {
                     config.n_frames_per_fragment_);
 
     for (int i = 19; i < 20; ++i) {
-        LogInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
+        LogInfo("Processing fragment {} / {}\n", i, num_fragments - 1);
         auto pose_graph = DebugOdometryForFragment(i, config);
 //        auto pose_graph_prunned = OptimizePoseGraphForFragment(i, pose_graph,
 //            config);

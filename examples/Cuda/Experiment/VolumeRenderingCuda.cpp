@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 
 
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
-        utility::LogInfo("%d\n", i);
+        utility::LogInfo("{}\n", i);
         ReadAndVolumeRendering(i, config, writer);
     }
 }

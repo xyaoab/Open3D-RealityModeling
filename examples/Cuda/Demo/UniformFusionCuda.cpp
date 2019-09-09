@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     visualizer.AddGeometry(mesh);
 
     for (int i = 0; i < 1200; ++i) {
-        LogDebug("Processing frame %d ...\n", i);
+        LogDebug("Processing frame {} ...\n", i);
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);

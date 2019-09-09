@@ -23,10 +23,10 @@ std::shared_ptr<open3d::geometry::RGBDImage> ReadRGBDImage(
     io::ReadImage(depth_filename, depth);
 
     utility::LogDebug("Reading RGBD image : \n");
-    utility::LogDebug("     Color : %d x %d x %d (%d bits per channel)\n",
+    utility::LogDebug("     Color : {} x {} x {} ({} bits per channel)\n",
                         color.width_, color.height_,
                         color.num_of_channels_, color.bytes_per_channel_ * 8);
-    utility::LogDebug("     Depth : %d x %d x %d (%d bits per channel)\n",
+    utility::LogDebug("     Depth : {} x {} x {} ({} bits per channel)\n",
                         depth.width_, depth.height_,
                         depth.num_of_channels_, depth.bytes_per_channel_ * 8);
 

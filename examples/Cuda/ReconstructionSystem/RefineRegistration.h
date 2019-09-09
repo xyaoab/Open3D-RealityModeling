@@ -70,7 +70,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
         std::tie(match.trans_source_to_target, match.information) =
             MultiScaleICP(*source, *target, edge.transformation_, config.voxel_size_);
 
-        LogInfo("Point cloud odometry (%d %d)\n", match.s, match.t);
+        LogInfo("Point cloud odometry ({} {})\n", match.s, match.t);
 
         matches.push_back(match);
     }

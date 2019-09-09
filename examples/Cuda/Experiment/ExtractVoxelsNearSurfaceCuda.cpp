@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
 
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
-        utility::LogInfo("%d\n", i);
+        utility::LogInfo("{}\n", i);
         ReadAndComputeGradient(i, config);
     }
 }

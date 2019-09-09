@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
             valid_count++;
         }
     }
-    LogInfo("Valid features: %f (%d / %d)\n",
+    LogInfo("Valid features: %f ({} / {})\n",
               (float) valid_count / source_feature_cpu->Num(),
               valid_count, source_feature_cpu->Num());
 
@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
             valid_count++;
         }
     }
-    LogInfo("Valid matchings: %f (%d / %d)\n",
+    LogInfo("Valid matchings: %f ({} / {})\n",
               (float) valid_count / source_feature_cpu->Num(),
               valid_count, source_feature_cpu->Num());
 

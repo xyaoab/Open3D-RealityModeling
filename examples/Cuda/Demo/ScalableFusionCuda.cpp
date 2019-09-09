@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
     Timer timer;
     for (int i = 0; i < rgbd_filenames.size() - 1; ++i) {
-        LogDebug("Processing frame %d ...\n", index);
+        LogDebug("Processing frame {} ...\n", index);
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);

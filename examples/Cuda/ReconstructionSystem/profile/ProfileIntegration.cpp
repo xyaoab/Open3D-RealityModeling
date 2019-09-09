@@ -59,7 +59,7 @@ void IntegrateFragmentCuda(
         timer.Stop();
 
         double time = timer.GetDuration();
-        LogInfo("Integrate %d takes %f ms\n", i, time);
+        LogInfo("Integrate {} takes %f ms\n", i, time);
         times.push_back(time);
     }
 }
@@ -102,7 +102,7 @@ void IntegrateFragmentCPU(
 
         double time = timer.GetDuration();
         if (i % 100 == 0) {
-            LogInfo("Integrate %d takes %f ms\n", i, time);
+            LogInfo("Integrate {} takes %f ms\n", i, time);
         }
         times.push_back(time);
     }

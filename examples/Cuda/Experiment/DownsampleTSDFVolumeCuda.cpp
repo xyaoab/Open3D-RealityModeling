@@ -42,7 +42,7 @@ void IntegrateForMultiResSubvolume(int fragment_id,
     Timer timer;
     timer.Start();
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -59,11 +59,11 @@ void IntegrateForMultiResSubvolume(int fragment_id,
     }
 
     tsdf_volume.GetAllSubvolumes();
-    utility::LogInfo("Total subvolumes: %d\n", tsdf_volume.active_subvolume_entry_array_.size());
+    utility::LogInfo("Total subvolumes: {}\n", tsdf_volume.active_subvolume_entry_array_.size());
     tsdf_volume_2.GetAllSubvolumes();
-    utility::LogInfo("Total subvolumes: %d\n", tsdf_volume_2.active_subvolume_entry_array_.size());
+    utility::LogInfo("Total subvolumes: {}\n", tsdf_volume_2.active_subvolume_entry_array_.size());
     tsdf_volume_4.GetAllSubvolumes();
-    utility::LogInfo("Total subvolumes: %d\n", tsdf_volume_4.active_subvolume_entry_array_.size());
+    utility::LogInfo("Total subvolumes: {}\n", tsdf_volume_4.active_subvolume_entry_array_.size());
 
     timer.Stop();
     utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
@@ -102,7 +102,7 @@ void IntegrateForOriginResolution(int fragment_id,
     Timer timer;
     timer.Start();
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -117,7 +117,7 @@ void IntegrateForOriginResolution(int fragment_id,
     }
 
     tsdf_volume.GetAllSubvolumes();
-    utility::LogInfo("Total subvolumes: %d\n", tsdf_volume.active_subvolume_entry_array_.size());
+    utility::LogInfo("Total subvolumes: {}\n", tsdf_volume.active_subvolume_entry_array_.size());
 
 
     timer.Stop();
@@ -161,7 +161,7 @@ void IntegrateForCoarseSubvolume(int fragment_id,
     Timer timer;
     timer.Start();
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -176,7 +176,7 @@ void IntegrateForCoarseSubvolume(int fragment_id,
     }
 
     tsdf_volume.GetAllSubvolumes();
-    utility::LogInfo("Total subvolumes: %d\n", tsdf_volume.active_subvolume_entry_array_.size());
+    utility::LogInfo("Total subvolumes: {}\n", tsdf_volume.active_subvolume_entry_array_.size());
 
     timer.Stop();
     utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
@@ -216,7 +216,7 @@ void ReadAndDownsampleFragment(int fragment_id, DatasetConfig &config) {
     utility::LogInfo("Downsample takes %f ms\n", timer.GetDuration());
 
     tsdf_volume_down_4.GetAllSubvolumes();
-    utility::LogInfo("tsdf_volume_down.active: %d\n",
+    utility::LogInfo("tsdf_volume_down.active: {}\n",
         tsdf_volume_down_4.active_subvolume_entry_array_.size());
 
     cuda::ScalableMeshVolumeCuda mesher(
@@ -236,7 +236,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
 
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
-        utility::LogInfo("%d\n", i);
+        utility::LogInfo("{}\n", i);
         IntegrateForMultiResSubvolume(i, config);
         IntegrateForOriginResolution(i, config);
         IntegrateForCoarseSubvolume(i, config, 3);

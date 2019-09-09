@@ -33,7 +33,7 @@ int main(int argc, char **argv) {
     int idx = 0;
     visualizer.RegisterKeyCallback(GLFW_KEY_SPACE, [&](Visualizer *vis) {
         idx = (idx + 1) % 2;
-        printf("%d\n", idx);
+        printf("{}\n", idx);
         *mesh_ptr = *meshes[idx];
         vis->UpdateGeometry();
         return true;

@@ -48,7 +48,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                     registration.transform_source_to_target_;
                 match.information = registration.ComputeInformationMatrix();
                 match.success = true;
-                LogInfo("Point cloud odometry (%d %d)\n", match.s,
+                LogInfo("Point cloud odometry ({} {})\n", match.s,
                                    match.t);
             }
 
@@ -67,10 +67,10 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                         std::min(source->points_.size(),
                                  target->points_.size()) >= 0.3;
                 if (match.success) {
-                    LogInfo("Global registration (%d %d) computed\n",
+                    LogInfo("Global registration ({} {}) computed\n",
                                        match.s, match.t);
                 } else {
-                    LogInfo("Skip (%d %d).\n", match.s, match.t);
+                    LogInfo("Skip ({} {}).\n", match.s, match.t);
                 }
             }
             matches.push_back(match);

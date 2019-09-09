@@ -36,7 +36,7 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
     Timer timer;
     timer.Start();
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame {} ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
 
     for (int i = 1; i < 2; ++i) {//config.fragment_files_.size(); ++i) {
-        utility::LogInfo("%d\n", i);
+        utility::LogInfo("{}\n", i);
         IntegrateAndWriteFragment(i, config);
         ReadFragment(i, config);
     }
