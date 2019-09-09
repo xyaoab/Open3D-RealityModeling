@@ -18,16 +18,16 @@ bool CompressAndWrite(std::vector<uchar> &compressed_buf,
     if (Z_OK != compress2(compressed_buf.data(), &compressed_len,
                           (uchar *)src.data(), src.size() * sizeof(T),
                           Z_BEST_SPEED)) {
-        utility::PrintWarning("Compressing %s failed\n", msg.c_str());
+        utility::LogWarning("Compressing %s failed\n", msg.c_str());
     }
     if (fwrite(&compressed_len, sizeof(size_t), 1, fid) < 1) {
-        utility::PrintWarning("Write BIN failed: unable to write %s bytes\n",
+        utility::LogWarning("Write BIN failed: unable to write %s bytes\n",
                               msg.c_str());
         return false;
     }
     if (fwrite(compressed_buf.data(), sizeof(uchar), compressed_len, fid) <
         compressed_len) {
-        utility::PrintWarning("Write BIN failed: unable to write %s data\n",
+        utility::LogWarning("Write BIN failed: unable to write %s data\n",
                               msg.c_str());
         return false;
     }
@@ -38,7 +38,7 @@ bool CompressAndWrite(std::vector<uchar> &compressed_buf,
 template <typename T>
 bool Write(const std::vector<T> &src, FILE *&fid, const std::string &msg) {
     if (fwrite(src.data(), sizeof(T), src.size(), fid) < src.size()) {
-        utility::PrintWarning("Write BIN failed: unable to write %s\n",
+        utility::LogWarning("Write BIN failed: unable to write %s\n",
                               msg.c_str());
         return false;
     }
@@ -48,7 +48,7 @@ bool Write(const std::vector<T> &src, FILE *&fid, const std::string &msg) {
 template <typename T>
 bool Read(std::vector<T> &dst, FILE *&fid, const std::string &msg) {
     if (fread(dst.data(), sizeof(T), dst.size(), fid) < dst.size()) {
-        utility::PrintWarning("Read BIN failed: unable to read %s\n",
+        utility::LogWarning("Read BIN failed: unable to read %s\n",
                               msg.c_str());
         return false;
     }
@@ -62,13 +62,13 @@ bool ReadAndUncompress(std::vector<uchar> &compressed_buf,
                        const std::string &msg) {
     size_t compressed_len;
     if (fread(&compressed_len, sizeof(size_t), 1, fid) < 1) {
-        utility::PrintWarning("Read BIN failed: unable to read %s bytes\n",
+        utility::LogWarning("Read BIN failed: unable to read %s bytes\n",
                               msg.c_str());
         return false;
     }
     if (fread(compressed_buf.data(), sizeof(uchar), compressed_len, fid) <
         compressed_len) {
-        utility::PrintWarning("Read BIN failed: unable to read %s data\n",
+        utility::LogWarning("Read BIN failed: unable to read %s data\n",
                               msg.c_str());
         return false;
     }
@@ -76,7 +76,7 @@ bool ReadAndUncompress(std::vector<uchar> &compressed_buf,
     size_t uncompressed_len = dst.size() * sizeof(float);
     if (Z_OK != uncompress((uchar *)dst.data(), &uncompressed_len,
                            compressed_buf.data(), compressed_len)) {
-        utility::PrintWarning("Uncompressing %s failed\n", msg.c_str());
+        utility::LogWarning("Uncompressing %s failed\n", msg.c_str());
         return false;
     }
 

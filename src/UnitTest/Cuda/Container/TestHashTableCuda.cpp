@@ -63,16 +63,16 @@ TEST(HashTableCuda, HashTableProfiling) {
     for (int i = 0; i < downloaded_keys.size(); ++i) {
         EXPECT_EQ(pairs[downloaded_keys[i]], downloaded_values[i]);
     }
-    PrintInfo("Uploading passed, %d / %d entries uploaded.\n",
+    LogInfo("Uploading passed, %d / %d entries uploaded.\n",
               downloaded_keys.size(), keys.size());
 
     auto profile = table.Profile();
     std::vector<int> array_entry_count = std::get<0>(profile);
     std::vector<int> list_entry_count = std::get<1>(profile);
-    PrintInfo("Profiling occupied array entries and linked list entries "
+    LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     for (int i = 0; i < array_entry_count.size(); ++i) {
-        PrintInfo("> %d: %d %d\n", i,
+        LogInfo("> %d: %d %d\n", i,
             array_entry_count[i], list_entry_count[i]);
     }
 
@@ -86,16 +86,16 @@ TEST(HashTableCuda, HashTableProfiling) {
     downloaded = table.DownloadKeyValuePairs();
     downloaded_keys = std::get<0>(downloaded);
     downloaded_values = std::get<1>(downloaded);
-    PrintInfo("Deletion passed, %d entries remains.\n",
+    LogInfo("Deletion passed, %d entries remains.\n",
               downloaded_keys.size());
 
     profile = table.Profile();
     array_entry_count = std::get<0>(profile);
     list_entry_count = std::get<1>(profile);
-    PrintInfo("Profiling occupied array entries and linked list entries "
+    LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     for (int i = 0; i < array_entry_count.size(); ++i) {
-        PrintInfo("> %d: d %d\n", i,
+        LogInfo("> %d: d %d\n", i,
             array_entry_count[i], list_entry_count[i]);
     }
 
@@ -144,19 +144,19 @@ TEST(HashTableCuda, HashTableInsertionAndDelete) {
     auto downloaded = table.DownloadKeyValuePairs();
     std::vector<Vector3i> downloaded_keys = std::get<0>(downloaded);
     std::vector<int> downloaded_values = std::get<1>(downloaded);
-    PrintInfo("Uploading passed, %d / %d entries uploaded.\n",
+    LogInfo("Uploading passed, %d / %d entries uploaded.\n",
               downloaded_keys.size(), keys.size());
     auto profile = table.Profile();
     std::vector<int> array_entry_count = std::get<0>(profile);
     std::vector<int> list_entry_count = std::get<1>(profile);
-    PrintInfo("Profiling occupied array entries and linked list entries "
+    LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     int array_entry_cnt = 0, list_entry_cnt = 0;
     for (int i = 0; i < (int) array_entry_count.size(); ++i) {
         array_entry_cnt += array_entry_count[i];
         list_entry_cnt += list_entry_count[i];
     }
-    PrintInfo("Average %.2f entries per array, %.2f entries per linked "
+    LogInfo("Average %.2f entries per array, %.2f entries per linked "
               "list\n",
               array_entry_cnt / (float) bucket_count,
               list_entry_cnt / (float) bucket_count
@@ -172,13 +172,13 @@ TEST(HashTableCuda, HashTableInsertionAndDelete) {
     downloaded = table.DownloadKeyValuePairs();
     downloaded_keys = std::get<0>(downloaded);
     downloaded_values = std::get<1>(downloaded);
-    PrintInfo("Delete passed, %d entries remains.\n",
+    LogInfo("Delete passed, %d entries remains.\n",
               downloaded_keys.size());
 
     profile = table.Profile();
     array_entry_count = std::get<0>(profile);
     list_entry_count = std::get<1>(profile);
-    PrintInfo("Profiling occupied array entries and linked list entries "
+    LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     array_entry_cnt = 0;
     list_entry_cnt = 0;
@@ -186,7 +186,7 @@ TEST(HashTableCuda, HashTableInsertionAndDelete) {
         array_entry_cnt += array_entry_count[i];
         list_entry_cnt += list_entry_count[i];
     }
-    PrintInfo("Average %.2f entries per array, %.2f entries per linked "
+    LogInfo("Average %.2f entries per array, %.2f entries per linked "
               "list\n",
               array_entry_cnt / (float) bucket_count,
               list_entry_cnt / (float) bucket_count

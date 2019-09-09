@@ -30,7 +30,7 @@ TEST(NN, NNSearch) {
     timer.Start();
     nn.BruteForceNN(qr, reference);
     timer.Stop();
-    PrintInfo("NNSearch takes: %f\n", timer.GetDuration());
+    LogInfo("NNSearch takes: %f\n", timer.GetDuration());
 
     auto result = nn.nn_idx_.Download();
     for (int i = 0; i < size; ++i) {

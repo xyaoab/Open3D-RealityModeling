@@ -48,7 +48,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                     registration.transform_source_to_target_;
                 match.information = registration.ComputeInformationMatrix();
                 match.success = true;
-                PrintInfo("Point cloud odometry (%d %d)\n", match.s,
+                LogInfo("Point cloud odometry (%d %d)\n", match.s,
                                    match.t);
             }
 
@@ -67,10 +67,10 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                         std::min(source->points_.size(),
                                  target->points_.size()) >= 0.3;
                 if (match.success) {
-                    PrintInfo("Global registration (%d %d) computed\n",
+                    LogInfo("Global registration (%d %d) computed\n",
                                        match.s, match.t);
                 } else {
-                    PrintInfo("Skip (%d %d).\n", match.s, match.t);
+                    LogInfo("Skip (%d %d).\n", match.s, match.t);
                 }
             }
             matches.push_back(match);
@@ -141,7 +141,7 @@ int Run(DatasetConfig &config) {
 
     bool is_success = config.GetThumbnailFragmentFiles();
     if (!is_success) {
-        PrintError("Unable to get thumbnail fragment files\n");
+        LogError("Unable to get thumbnail fragment files\n");
         return -1;
     }
 
@@ -149,7 +149,7 @@ int Run(DatasetConfig &config) {
     MakePoseGraphForScene(matches, config);
     OptimizePoseGraphForScene(config);
     timer.Stop();
-    PrintInfo("RegisterFragments takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("RegisterFragments takes %.3f s\n", timer.GetDuration() * 1e-3);
     return 0;
 }
 };

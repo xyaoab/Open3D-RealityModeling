@@ -34,8 +34,8 @@ TEST(RGBDImageCuda, Reuse) {
         timer.Stop();
         time_uploading += timer.GetDuration();
     }
-    PrintInfo("Average reading time: %.4f ms\n", time_reading / iters);
-    PrintInfo("Average uploading time: %.4f ms\n", time_uploading / iters);
+    LogInfo("Average reading time: %.4f ms\n", time_reading / iters);
+    LogInfo("Average uploading time: %.4f ms\n", time_uploading / iters);
 }
 
 int main(int argc, char **argv) {

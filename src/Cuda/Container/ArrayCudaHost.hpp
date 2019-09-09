@@ -75,7 +75,7 @@ void ArrayCuda<T>::Create(int max_capacity) {
     assert(max_capacity > 0);
 
     if (device_ != nullptr) {
-        utility::PrintError("[ArrayCuda]: Already created, abort!\n");
+        utility::LogError("[ArrayCuda]: Already created, abort!\n");
         return;
     }
 
@@ -105,7 +105,7 @@ void ArrayCuda<T>::CopyFromDeviceArray(const T *array, int size) {
     if (device_ == nullptr) {
         Create(size);
     } else if (device_->max_capacity_ < size) {
-        utility::PrintError("[ArrayCuda]: max capacity %d < %d, abort!\n",
+        utility::LogError("[ArrayCuda]: max capacity %d < %d, abort!\n",
                    max_capacity_, size);
         return;
     }
@@ -124,7 +124,7 @@ void ArrayCuda<T>::CopyTo(ArrayCuda<T> &other) const {
     if (other.device_ == nullptr) {
         other.Create(max_capacity_);
     } else if (other.max_capacity_ < max_capacity_) {
-        utility::PrintError("[ArrayCuda]: other.max_capacity %d < %d, abort!\n",
+        utility::LogError("[ArrayCuda]: other.max_capacity %d < %d, abort!\n",
                    max_capacity_, other.max_capacity_);
         return;
     }

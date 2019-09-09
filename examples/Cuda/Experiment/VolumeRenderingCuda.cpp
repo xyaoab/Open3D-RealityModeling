@@ -31,7 +31,7 @@ void ReadAndComputeGradient(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     timer.Stop();
-    utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
 
     cuda::PinholeCameraIntrinsicCuda intrinsic(config.intrinsic_);
     for (int i = 0; i < pose_graph.nodes_.size(); ++i) {
@@ -63,7 +63,7 @@ void ReadAndVolumeRendering(int fragment_id, DatasetConfig &config, cv::VideoWri
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     timer.Stop();
-    utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
 
     cuda::PinholeCameraIntrinsicCuda intrinsic(config.intrinsic_);
     for (int i = 0; i < pose_graph.nodes_.size(); ++i) {
@@ -93,7 +93,7 @@ int main(int argc, char **argv) {
 
 
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
-        utility::PrintInfo("%d\n", i);
+        utility::LogInfo("%d\n", i);
         ReadAndVolumeRendering(i, config, writer);
     }
 }

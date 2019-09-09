@@ -55,7 +55,7 @@ public:
         std::string association_file_name = path_dataset_ +
             "/depth_rgb_association.txt";
         if (!utility::filesystem::FileExists(association_file_name)) {
-            utility::PrintError("Data association file not found for %s\n",
+            utility::LogError("Data association file not found for %s\n",
                        path_dataset_.c_str());
             return false;
         }
@@ -85,7 +85,7 @@ public:
             }
         }
 
-        utility::PrintError("No color image folder found in directory %s\n",
+        utility::LogError("No color image folder found in directory %s\n",
                    path_dataset_.c_str());
         return false;
     }
@@ -93,7 +93,7 @@ public:
     bool GetDepthFiles() {
         std::string depth_directory = path_dataset_ + "/depth";
         if (!utility::filesystem::DirectoryExists(depth_directory)) {
-            utility::PrintError("No depth image folder found in directory %s\n",
+            utility::LogError("No depth image folder found in directory %s\n",
                        depth_directory.c_str());
             return false;
         }
@@ -108,7 +108,7 @@ public:
     bool GetFragmentFiles() {
         std::string fragment_directory = path_dataset_ + "/fragments_cuda";
         if (!utility::filesystem::DirectoryExists(fragment_directory)) {
-            utility::PrintError("No fragment folder found in directory %s\n",
+            utility::LogError("No fragment folder found in directory %s\n",
                        fragment_directory.c_str());
             return false;
         }
@@ -125,7 +125,7 @@ public:
         std::string fragment_directory =
             path_dataset_ + "/fragments_cuda/thumbnails";
         if (!utility::filesystem::DirectoryExists(fragment_directory)) {
-            utility::PrintError("No fragment thumbnail folder found in "
+            utility::LogError("No fragment thumbnail folder found in "
                                "directory %s\n",
                        fragment_directory.c_str());
             return false;
@@ -211,7 +211,7 @@ public:
 
     bool ConvertFromJsonValue(const Json::Value &value) override {
         if (!value.isObject()) {
-            utility::PrintWarning("DatasetConfig read JSON failed: unsupported "
+            utility::LogWarning("DatasetConfig read JSON failed: unsupported "
                               "json "
                          "format.\n");
             return false;
@@ -247,7 +247,7 @@ public:
             bool is_success = io::ReadIJsonConvertible(path_intrinsic_,
                 intrinsic_);
             if (!is_success) {
-                utility::PrintError("Unable to read camera intrinsics: %s!\n",
+                utility::LogError("Unable to read camera intrinsics: %s!\n",
                            path_intrinsic_.c_str());
             }
         }

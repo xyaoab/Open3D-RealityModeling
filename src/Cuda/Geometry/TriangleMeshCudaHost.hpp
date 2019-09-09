@@ -64,7 +64,7 @@ TriangleMeshCuda::~TriangleMeshCuda() {
 void TriangleMeshCuda::Reset() {
     /** No need to clear data **/
     if (type_ == VertexTypeUnknown) {
-        utility::PrintError("Unknown vertex type!\n");
+        utility::LogError("Unknown vertex type!\n");
     }
 
     vertices_.set_iterator(0);
@@ -82,12 +82,12 @@ void TriangleMeshCuda::Create(
     VertexType type, int max_vertices, int max_triangles) {
     assert(max_vertices > 0 && max_triangles > 0);
     if (device_ != nullptr) {
-        utility::PrintError("[TriangleMeshCuda] Already created, abort!\n");
+        utility::LogError("[TriangleMeshCuda] Already created, abort!\n");
         return;
     }
 
     if (type == VertexTypeUnknown) {
-        utility::PrintError("[TriangleMeshCuda] Unknown vertex type, abort!\n");
+        utility::LogError("[TriangleMeshCuda] Unknown vertex type, abort!\n");
         return;
     }
 
@@ -149,7 +149,7 @@ void TriangleMeshCuda::Upload(geometry::TriangleMesh &mesh) {
     std::vector<Vector3f> vertex_colors;
 
     if (!mesh.HasVertices() || !mesh.HasTriangles()) {
-        utility::PrintError("Empty mesh!\n");
+        utility::LogError("Empty mesh!\n");
         return;
     }
 
@@ -267,8 +267,9 @@ bool TriangleMeshCuda::HasVertexColors() const {
     return vertices_size > 0 && vertices_size == vertex_colors_.size();
 }
 
-void TriangleMeshCuda::Clear() {
+TriangleMeshCuda& TriangleMeshCuda::Clear() {
     Reset();
+    return *this;
 }
 
 bool TriangleMeshCuda::IsEmpty() const {
@@ -307,16 +308,17 @@ Eigen::Vector3d TriangleMeshCuda::GetMaxBound() const {
     return max_bound[0].ToEigen();
 }
 
-void TriangleMeshCuda::Transform(const Eigen::Matrix4d &transformation) {
-    if (device_ == nullptr) return;
+TriangleMeshCuda& TriangleMeshCuda::Transform(const Eigen::Matrix4d &transformation) {
+    if (device_ == nullptr) return *this;
 
     const int num_vertices = vertices_.size();
-    if (num_vertices == 0) return;
+    if (num_vertices == 0) return *this;
 
     TransformCuda transformation_cuda;
     transformation_cuda.FromEigen(transformation);
 
     TriangleMeshCudaKernelCaller::Transform(*this, transformation_cuda);
+    return *this;
 }
 } // cuda
 } // open3d

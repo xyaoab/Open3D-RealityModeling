@@ -42,7 +42,7 @@ using namespace open3d::visualization;
 
 
 int main(int argc, char *argv[]) {
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
     assert(argc > 2);
     std::string input_bin = argv[1];
 

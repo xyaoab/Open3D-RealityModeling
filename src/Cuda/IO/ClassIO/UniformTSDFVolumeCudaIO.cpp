@@ -11,7 +11,7 @@ namespace io {
 bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
                                  cuda::UniformTSDFVolumeCuda &volume,
                                  bool use_zlib) {
-    utility::PrintInfo("Writing volume...\n");
+    utility::LogInfo("Writing volume...\n");
 
     std::vector<float> tsdf;
     std::vector<uchar> weight;
@@ -20,19 +20,19 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
 
     FILE *fid = fopen(filename.c_str(), "wb");
     if (fid == NULL) {
-        utility::PrintWarning("Write BIN failed: unable to open file: %s\n",
+        utility::LogWarning("Write BIN failed: unable to open file: %s\n",
                               filename.c_str());
         return false;
     }
 
     /** metadata **/
     if (fwrite(&volume.N_, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write BIN failed: unable to write volume resolution\n");
         return false;
     }
     if (fwrite(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Write BIN failed: unable to write voxel size\n");
         return false;
     }
@@ -41,7 +41,7 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
         for (int j = 0; j < 4; ++j) {
             float vij = float(grid_to_world(i, j));
             if (fwrite(&vij, sizeof(float), 1, fid) < 1) {
-                utility::PrintWarning(
+                utility::LogWarning(
                         "Write BIN failed: unable to write transform[%d, %d]\n",
                         i, j);
                 return false;
@@ -86,11 +86,11 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
 bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
                                   cuda::UniformTSDFVolumeCuda &volume,
                                   bool use_zlib) {
-    utility::PrintInfo("Reading volume...\n");
+    utility::LogInfo("Reading volume...\n");
 
     FILE *fid = fopen(filename.c_str(), "rb");
     if (fid == NULL) {
-        utility::PrintWarning("Read BIN failed: unable to open file: %s\n",
+        utility::LogWarning("Read BIN failed: unable to open file: %s\n",
                               filename.c_str());
         return false;
     }
@@ -98,7 +98,7 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
     /** metadata **/
     int volume_resolution;
     if (fread(&volume_resolution, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning("Read BIN failed: unable to read num volumes\n");
+        utility::LogWarning("Read BIN failed: unable to read num volumes\n");
         return false;
     }
     assert(volume_resolution == volume.N_);
@@ -106,7 +106,7 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
     int NNN = N * N * N;
 
     if (fread(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
-        utility::PrintWarning(
+        utility::LogWarning(
                 "Read BIN failed: unable to read voxel size\n");
         return false;
     }
@@ -115,7 +115,7 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (fread(&vij, sizeof(float), 1, fid) < 1) {
-                utility::PrintWarning(
+                utility::LogWarning(
                         "Read BIN failed: unable to read transform[%d, %d]\n",
                         i, j);
                 return false;

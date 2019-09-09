@@ -49,7 +49,7 @@ TEST(TransformCuda, Transform) {
             (transform_cuda * v_cuda).ToEigen()).norm();
         EXPECT_LE(vector_norm, 1e-6);
     }
-    PrintInfo("Transform tests passed\n");
+    LogInfo("Transform tests passed\n");
 
     Vector1f v;
     v(0) = 1.0f;

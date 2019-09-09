@@ -59,7 +59,7 @@ void IntegrateFragmentCuda(
         timer.Stop();
 
         double time = timer.GetDuration();
-        PrintInfo("Integrate %d takes %f ms\n", i, time);
+        LogInfo("Integrate %d takes %f ms\n", i, time);
         times.push_back(time);
     }
 }
@@ -102,7 +102,7 @@ void IntegrateFragmentCPU(
 
         double time = timer.GetDuration();
         if (i % 100 == 0) {
-            PrintInfo("Integrate %d takes %f ms\n", i, time);
+            LogInfo("Integrate %d takes %f ms\n", i, time);
         }
         times.push_back(time);
     }
@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     if (!is_success) return 1;
     is_success = config.GetFragmentFiles();
     if (!is_success) {
-        PrintError("Unable to get fragment files\n");
+        LogError("Unable to get fragment files\n");
         return -1;
     }
 
@@ -150,14 +150,14 @@ int main(int argc, char **argv) {
 
 
 //    std::tie(mean, std) = ComputeStatistics(times_gpu);
-//    PrintInfo("gpu time: avg = %f, std = %f\n", mean, std);
+//    LogInfo("gpu time: avg = %f, std = %f\n", mean, std);
 
 //    std::vector<double> times_cpu;
 //    for (int i = 0; i < config.fragment_files_.size(); ++i) {
 //        IntegrateFragmentCPU(i, tsdf_volume_cpu, config, times_cpu);
 //    }
 //    std::tie(mean, std) = ComputeStatistics(times_cpu);
-//    PrintInfo("cpu time: avg = %f, std = %f\n", mean, std);
+//    LogInfo("cpu time: avg = %f, std = %f\n", mean, std);
 
     return 0;
 }

@@ -23,7 +23,7 @@ int RegistrationForRGBDFrames(
     const std::string &target_color,
     const std::string &target_depth) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     PinholeCameraIntrinsic intrinsic = PinholeCameraIntrinsic(
         PinholeCameraIntrinsicParameters::PrimeSenseDefault);
@@ -32,13 +32,15 @@ int RegistrationForRGBDFrames(
     auto rgbd_source = ReadRGBDImage(source_color, source_depth, intrinsic, depth_scale);
     auto rgbd_target = ReadRGBDImage(target_color, target_depth, intrinsic, depth_scale);
 
-    auto source_origin = CreatePointCloudFromRGBDImage(*rgbd_source, intrinsic);
-    auto target_origin = CreatePointCloudFromRGBDImage(*rgbd_target, intrinsic);
-    EstimateNormals(*source_origin);
-    EstimateNormals(*target_origin);
+    std::shared_ptr<geometry::PointCloud> source_origin, target_origin;
+    source_origin->CreateFromRGBDImage(*rgbd_source, intrinsic);
+    source_origin->EstimateNormals();
 
-    auto source_down = VoxelDownSample(*source_origin, 0.02);
-    auto target_down = VoxelDownSample(*target_origin, 0.02);
+    target_origin->CreateFromRGBDImage(*rgbd_target, intrinsic);
+    target_origin->EstimateNormals();
+
+    auto source_down = source_origin->VoxelDownSample(0.02);
+    auto target_down = target_origin->VoxelDownSample(0.02);
 
     /** Load data **/
     cuda::RegistrationCuda registration(TransformationEstimationType::ColoredICP);
@@ -47,7 +49,7 @@ int RegistrationForRGBDFrames(
     /** Prepare visualizer **/
     VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("ColoredICP", 640, 480, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();

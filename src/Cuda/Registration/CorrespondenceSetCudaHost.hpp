@@ -36,7 +36,7 @@ CorrespondenceSetCuda::~CorrespondenceSetCuda() {
 
 void CorrespondenceSetCuda::Create(int max_rows, int max_cols) {
     if (device_ != nullptr) {
-        utility::PrintError("[CorrespondenceSetCuda] Already created, abort"
+        utility::LogError("[CorrespondenceSetCuda] Already created, abort"
                             ".\n");
         return;
     }

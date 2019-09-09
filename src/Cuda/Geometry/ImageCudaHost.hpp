@@ -22,14 +22,14 @@ template<typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::ImageCuda()
     : width_(-1), height_(-1), pitch_(-1), device_(nullptr) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("Default ImageCuda constructor.\n");
+    LogInfo("Default ImageCuda constructor.\n");
 #endif
 }
 
 template<typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::ImageCuda(const ImageCuda<Scalar, Channel> &other) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("ImageCuda copy constructor.\n");
+    LogInfo("ImageCuda copy constructor.\n");
 #endif
     device_ = other.device_;
 
@@ -38,7 +38,7 @@ ImageCuda<Scalar, Channel>::ImageCuda(const ImageCuda<Scalar, Channel> &other) {
     pitch_ = other.pitch_;
 
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("Ref count after copy construction: %d\n", device_.use_count());
+    LogInfo("Ref count after copy construction: %d\n", device_.use_count());
 #endif
 }
 
@@ -52,7 +52,7 @@ ImageCuda<Scalar, Channel> &ImageCuda<Scalar,
                                       Channel>::operator=(const ImageCuda<Scalar,
                                                                           Channel> &other) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("ImageCuda assignment operator.\n");
+    LogInfo("ImageCuda assignment operator.\n");
 #endif
     if (this != &other) {
         Release();
@@ -63,7 +63,7 @@ ImageCuda<Scalar, Channel> &ImageCuda<Scalar,
         pitch_ = other.pitch_;
 
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-        PrintInfo("Ref count after copy construction: %d\n", device_.use_count());
+        LogInfo("Ref count after copy construction: %d\n", device_.use_count());
 #endif
     }
 
@@ -73,7 +73,7 @@ ImageCuda<Scalar, Channel> &ImageCuda<Scalar,
 template<typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::~ImageCuda() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("Destructor.\n");
+    LogInfo("Destructor.\n");
 #endif
     Release();
 }
@@ -84,7 +84,7 @@ bool ImageCuda<Scalar, Channel>::Create(int width, int height) {
 
     if (device_ != nullptr) {
         if (width_ != width || height_ != height) {
-            utility::PrintError("[ImageCuda] Incompatible image size, "
+            utility::LogError("[ImageCuda] Incompatible image size, "
                                 "@Create aborted.\n");
             return false;
         }
@@ -92,7 +92,7 @@ bool ImageCuda<Scalar, Channel>::Create(int width, int height) {
     }
 
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
-    PrintInfo("Creating.\n");
+    LogInfo("Creating.\n");
 #endif
     device_ = std::make_shared<ImageCudaDevice<Scalar, Channel>>();
 
@@ -113,7 +113,7 @@ template<typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Release() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     if (device_ != nullptr) {
-        PrintInfo("ref count before releasing: %d\n", device_.use_count());
+        LogInfo("ref count before releasing: %d\n", device_.use_count());
     }
 #endif
 
@@ -168,7 +168,7 @@ void ImageCuda<Scalar, Channel>::Upload(geometry::Image &image) {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         assert(image.bytes_per_channel_ == 4 && image.num_of_channels_ == 1);
     } else {
-        utility::PrintWarning("[ImageCuda] Unsupported format %d,"
+        utility::LogWarning("[ImageCuda] Unsupported format %d,"
                               "@Upload aborted.\n");
         return;
     }
@@ -190,25 +190,25 @@ std::shared_ptr<geometry::Image> ImageCuda<Scalar, Channel>::DownloadImage() {
     std::shared_ptr<geometry::Image> image =
         std::make_shared<geometry::Image>();
     if (device_ == nullptr) {
-        utility::PrintWarning("[ImageCuda] not initialized, "
+        utility::LogWarning("[ImageCuda] not initialized, "
                               "@DownloadImage aborted.\n");
         return image;
     }
 
     if (typeid(Scalar) == typeid(int) && Channel == 1) {
-        image->PrepareImage(width_, height_, 1, 4);
+        image->Prepare(width_, height_, 1, 4);
     } else if (typeid(Scalar) == typeid(ushort) && Channel == 1) {
-        image->PrepareImage(width_, height_, 1, 2);
+        image->Prepare(width_, height_, 1, 2);
     } else if (typeid(Scalar) == typeid(uchar) && Channel == 3) {
-        image->PrepareImage(width_, height_, 3, 1);
+        image->Prepare(width_, height_, 3, 1);
     } else if (typeid(Scalar) == typeid(uchar) && Channel == 1) {
-        image->PrepareImage(width_, height_, 1, 1);
+        image->Prepare(width_, height_, 1, 1);
     } else if (typeid(Scalar) == typeid(float) && Channel == 3) {
-        image->PrepareImage(width_, height_, 3, 4);
+        image->Prepare(width_, height_, 3, 4);
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
-        image->PrepareImage(width_, height_, 1, 4);
+        image->Prepare(width_, height_, 1, 4);
     } else {
-        utility::PrintWarning("[ImageCuda] Unsupported format %d,"
+        utility::LogWarning("[ImageCuda] Unsupported format %d,"
                               "@DownloadImage aborted.\n");
         return image;
     }
@@ -385,7 +385,7 @@ void ImageCuda<Scalar, Channel>::Upload(cv::Mat &m) {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         assert(m.type() == CV_32FC1);
     } else {
-        utility::PrintWarning("[ImageCuda] Unsupported format %d,"
+        utility::LogWarning("[ImageCuda] Unsupported format %d,"
                               "@Upload aborted.\n", m.type());
         return;
     }
@@ -404,7 +404,7 @@ template<typename Scalar, size_t Channel>
 cv::Mat ImageCuda<Scalar, Channel>::DownloadMat() {
     cv::Mat m;
     if (device_ == nullptr) {
-        utility::PrintWarning("[ImageCuda] Not initialized, "
+        utility::LogWarning("[ImageCuda] Not initialized, "
                               "@DownloadMat aborted.\n");
         return m;
     }
@@ -426,7 +426,7 @@ cv::Mat ImageCuda<Scalar, Channel>::DownloadMat() {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         m = cv::Mat(height_, width_, CV_32FC1);
     } else {
-        utility::PrintWarning("[ImageCuda] Unsupported format %d,"
+        utility::LogWarning("[ImageCuda] Unsupported format %d,"
                               "@DownloadMat aborted.\n");
         return m;
     }

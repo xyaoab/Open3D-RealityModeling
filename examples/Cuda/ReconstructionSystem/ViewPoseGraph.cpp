@@ -72,7 +72,7 @@ std::shared_ptr<LineSet> VisualizePoseGraph(PoseGraph &pose_graph) {
 }
 
 int main(int argc, char **argv) {
-    SetVerbosityLevel(utility::VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
     DatasetConfig config;
 

@@ -36,7 +36,7 @@ TEST(ArrayCuda, ArrayFill) {
         EXPECT_EQ(val, kFilledValue);
     }
     timer.Stop();
-    utility::PrintInfo("> ArrayCuda.Fill() passed in %.2f seconds.\n",
+    utility::LogInfo("> ArrayCuda.Fill() passed in %.2f seconds.\n",
               timer.GetDuration() * 0.001f);
 }
 
@@ -66,7 +66,7 @@ TEST(ArrayCuda, ArrayUploadAndDownload) {
         EXPECT_EQ(random_vec[i], downloaded[i]);
     }
     timer.Stop();
-    utility::PrintInfo("ArrayCuda.Upload() and ArrayCuda.Download() "
+    utility::LogInfo("ArrayCuda.Upload() and ArrayCuda.Download() "
               "passed in %.2f seconds.\n",
               timer.GetDuration() * 0.001f);
 }
@@ -99,7 +99,7 @@ TEST(ArrayCuda, ArrayResize) {
         EXPECT_EQ(random_vec[i], downloaded[i]);
     }
     timer.Stop();
-    utility::PrintInfo("ArrayCuda.Upload(), Resize(), and ArrayCuda.Download() "
+    utility::LogInfo("ArrayCuda.Upload(), Resize(), and ArrayCuda.Download() "
               "passed in %.2f seconds.\n",
               timer.GetDuration() * 0.001f);
 }

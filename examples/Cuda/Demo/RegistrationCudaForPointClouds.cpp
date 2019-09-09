@@ -21,18 +21,18 @@ int RegistrationForPointClouds(
     const std::string &target_ply_path,
     const TransformationEstimationType &type) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     auto source_origin = CreatePointCloudFromFile(source_ply_path);
     auto target_origin = CreatePointCloudFromFile(target_ply_path);
 
     if (type == TransformationEstimationType::ColoredICP
     && (! source_origin->HasColors() || ! target_origin->HasColors())) {
-        PrintError("Point cloud does not have color, abort.\n");
+        LogError("Point cloud does not have color, abort.\n");
         return -1;
     }
-    auto source_down = VoxelDownSample(*source_origin, 0.03);
-    auto target_down = VoxelDownSample(*target_origin, 0.03);
+    auto source_down = source_origin->VoxelDownSample(0.03);
+    auto target_down = target_origin->VoxelDownSample(0.03);
 
     /** Load data **/
     cuda::RegistrationCuda registration(type);
@@ -41,7 +41,7 @@ int RegistrationForPointClouds(
     /** Prepare visualizer **/
     VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("ColoredICP", 640, 480, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();
@@ -88,12 +88,12 @@ int main(int argc, char **argv) {
         } else if (str_type == "ColoredICP") { /* Default */
             type = TransformationEstimationType ::ColoredICP;
         } else {
-            PrintError("Unknown type, abort.\n");
+            LogError("Unknown type, abort.\n");
             return -1;
         }
-        PrintInfo("Using registration type: %s.\n", str_type.c_str());
+        LogInfo("Using registration type: %s.\n", str_type.c_str());
     } else {
-        PrintInfo("Using default registration type: ColoredICP.\n");
+        LogInfo("Using default registration type: ColoredICP.\n");
         type = TransformationEstimationType ::ColoredICP;
     }
 

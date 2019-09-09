@@ -39,22 +39,22 @@ TEST(Console, DISABLED_GetVerbosityLevel) { unit_test::NotImplemented(); }
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
-TEST(Console, DISABLED_PrintError) { unit_test::NotImplemented(); }
+TEST(Console, DISABLED_LogError) { unit_test::NotImplemented(); }
 
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
-TEST(Console, DISABLED_PrintWarning) { unit_test::NotImplemented(); }
+TEST(Console, DISABLED_LogWarning) { unit_test::NotImplemented(); }
 
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
-TEST(Console, DISABLED_PrintInfo) { unit_test::NotImplemented(); }
+TEST(Console, DISABLED_LogInfo) { unit_test::NotImplemented(); }
 
 // ----------------------------------------------------------------------------
 //
 // ----------------------------------------------------------------------------
-TEST(Console, DISABLED_PrintDebug) { unit_test::NotImplemented(); }
+TEST(Console, DISABLED_LogDebug) { unit_test::NotImplemented(); }
 
 // ----------------------------------------------------------------------------
 //

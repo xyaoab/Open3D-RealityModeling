@@ -31,9 +31,9 @@ void ReadAndComputeGradient(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN("target.bin", tsdf_volume);
     timer.Stop();
-    utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
 
-    utility::SetVerbosityLevel(utility::VerbosityLevel::VerboseDebug);
+    utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
     tsdf_volume.GetAllSubvolumes();
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
 
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
-        utility::PrintInfo("%d\n", i);
+        utility::LogInfo("%d\n", i);
         ReadAndComputeGradient(i, config);
     }
 }

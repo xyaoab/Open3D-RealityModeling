@@ -48,7 +48,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
     cv::Ptr<cv::ORB> orb = cv::ORB::create(100);
 
     for (int s = begin; s < end; ++s) {
-        PrintInfo("s: %d\n", s);
+        LogInfo("s: %d\n", s);
         Image depth, color;
 
         ReadImage(config.depth_files_[s], depth);
@@ -103,13 +103,13 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
     }
 
     /** Add Loop closures **/
-    PrintInfo("Loop closure\n");
+    LogInfo("Loop closure\n");
     if (config.with_opencv_) {
         for (int i = 0; i < keyframe_infos.size() - 1; ++i) {
             for (int j = i + 1; j < keyframe_infos.size(); ++j) {
                 int s = keyframe_infos[i].idx;
                 int t = keyframe_infos[j].idx;
-                PrintInfo("matching (%d %d)\n", s, t);
+                LogInfo("matching (%d %d)\n", s, t);
 
                 bool is_success;
                 Eigen::Matrix4d trans_source_to_target;
@@ -144,7 +144,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
                         Eigen::Matrix6d
                             information = odometry.ComputeInformationMatrix();
 
-                        PrintInfo("Add edge (%d %d)\n", s, t);
+                        LogInfo("Add edge (%d %d)\n", s, t);
                         std::cout << trans << "\n" << information << "\n";
                         pose_graph.edges_.emplace_back(PoseGraphEdge(
                             s - begin, t - begin, trans, information, true));
@@ -161,7 +161,7 @@ PoseGraph DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
 PoseGraph OptimizePoseGraphForFragment(int fragment_id, PoseGraph &pose_graph,
                                   DatasetConfig &config) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     GlobalOptimizationConvergenceCriteria criteria;
     GlobalOptimizationOption option(
@@ -199,7 +199,7 @@ void IntegrateForFragment(int fragment_id, PoseGraph &pose_graph,
                        (int) config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        PrintDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame %d ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -242,7 +242,7 @@ int main(int argc, char **argv) {
     bool is_success = ReadIJsonConvertible(config_path, config);
     if (!is_success) return 1;
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
     filesystem::MakeDirectory(config.path_dataset_ + "/fragments_cuda");
 
     config.with_opencv_ = false;
@@ -251,12 +251,12 @@ int main(int argc, char **argv) {
                     config.n_frames_per_fragment_);
 
     for (int i = 19; i < 20; ++i) {
-        PrintInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
+        LogInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
         auto pose_graph = DebugOdometryForFragment(i, config);
 //        auto pose_graph_prunned = OptimizePoseGraphForFragment(i, pose_graph,
 //            config);
         IntegrateForFragment(i, pose_graph, config);
     }
     timer.Stop();
-    PrintInfo("MakeFragment takes %.3f s\n", timer.GetDuration() / 1000.0f);
+    LogInfo("MakeFragment takes %.3f s\n", timer.GetDuration() / 1000.0f);
 }

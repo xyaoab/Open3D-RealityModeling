@@ -22,13 +22,13 @@ int main(int argc, char **argv) {
         target_path = test_data_path + "/cloud_bin_1.pcd";
     }
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     auto source_origin = CreatePointCloudFromFile(source_path);
     auto target_origin = CreatePointCloudFromFile(target_path);
 
-    auto source = VoxelDownSample(*source_origin, 0.05);
-    auto target = VoxelDownSample(*target_origin, 0.05);
+    auto source = source_origin->VoxelDownSample(0.05);
+    auto target = target_origin->VoxelDownSample(0.05);
 
     auto source_feature_cpu = PreprocessPointCloud(*source);
     auto target_feature_cpu = PreprocessPointCloud(*target);
@@ -49,13 +49,12 @@ int main(int argc, char **argv) {
     int valid_count = 0;
     for (int i = 0; i < source_feature_cpu->Num(); ++i) {
         float norm = (
-            source_feature_cpu->data_.col(i).cast<float>()
-                - source_feature_cuda.col(i)).norm();
+            source_feature_cpu->data_.col(i).cast<float>() - source_feature_cuda.col(i)).norm();
         if (norm < 0.01f * source_feature_cpu->Dimension()) {
             valid_count++;
         }
     }
-    PrintInfo("Valid features: %f (%d / %d)\n",
+    LogInfo("Valid features: %f (%d / %d)\n",
               (float) valid_count / source_feature_cpu->Num(),
               valid_count, source_feature_cpu->Num());
 
@@ -84,7 +83,7 @@ int main(int argc, char **argv) {
             valid_count++;
         }
     }
-    PrintInfo("Valid matchings: %f (%d / %d)\n",
+    LogInfo("Valid matchings: %f (%d / %d)\n",
               (float) valid_count / source_feature_cpu->Num(),
               valid_count, source_feature_cpu->Num());
 

@@ -45,7 +45,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
             registration.transform_source_to_target_;
         match.information = registration.ComputeInformationMatrix();
         match.success = true;
-        utility::PrintDebug("Pair (%d %d) odometry computed.\n",
+        utility::LogDebug("Pair (%d %d) odometry computed.\n",
                             match.s,
                             match.t);
         matches.push_back(match);
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
     bool is_success = io::ReadIJsonConvertible(config_path, config);
     if (!is_success) return 1;
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     Timer timer;
     timer.Start();
@@ -76,13 +76,13 @@ int main(int argc, char **argv) {
 
     is_success = config.GetThumbnailFragmentFiles();
     if (!is_success) {
-        PrintError("Unable to get fragment files\n");
+        LogError("Unable to get fragment files\n");
         return -1;
     }
 
     auto matches = MatchFragments(config);
     timer.Stop();
 
-    PrintInfo("RegisterFragments takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("RegisterFragments takes %.3f s\n", timer.GetDuration() * 1e-3);
     return 0;
 }

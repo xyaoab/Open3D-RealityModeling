@@ -88,7 +88,7 @@ void HashTableCuda<Key, Value, Hasher>::Create(
     assert(bucket_count > 0 && value_capacity > 0);
 
     if (device_ != nullptr) {
-        utility::PrintError("[HashTableCuda] Already created, abort!\n");
+        utility::LogError("[HashTableCuda] Already created, abort!\n");
         return;
     }
 

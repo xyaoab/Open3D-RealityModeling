@@ -46,7 +46,7 @@ std::shared_ptr<Image> ConvertImageFromFloatImage(const Image &image) {
         return uimage;
     }
 
-    uimage->PrepareImage(image.width_, image.height_, image.num_of_channels_,
+    uimage->Prepare(image.width_, image.height_, image.num_of_channels_,
                          1);
 
     int num_pixels = image.height_ * image.width_;
@@ -67,7 +67,7 @@ std::shared_ptr<Image> ConvertImageFromFloatImage(const Image &image) {
 }
 
 int main(int argc, char *argv[]) {
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     std::string base_path = "/home/dongw1/Workspace/data/stanford/copyroom/";
     auto camera_trajectory = CreatePinholeCameraTrajectoryFromFile(
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
 
     VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("UniformFusion", 640, 480, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return 0;
     }
     visualizer.BuildUtilities();
@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     visualizer.AddGeometry(mesh);
 
     for (int i = 0; i < 1200; ++i) {
-        PrintDebug("Processing frame %d ...\n", i);
+        LogDebug("Processing frame %d ...\n", i);
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);

@@ -11,6 +11,9 @@
 #include <Cuda/Container/ArrayCuda.h>
 
 #include <Open3D/Geometry/TriangleMesh.h>
+#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Geometry/KDTreeSearchParam.h"
+#include <Open3D/Geometry/BoundingVolume.h>
 
 #include <memory>
 
@@ -64,11 +67,22 @@ public:
     std::shared_ptr<geometry::TriangleMesh> Download();
 
 public:
-    void Clear() override;
+    TriangleMeshCuda& Clear() override;
     bool IsEmpty() const override;
     Eigen::Vector3d GetMinBound() const override;
     Eigen::Vector3d GetMaxBound() const override;
-    void Transform(const Eigen::Matrix4d &transformation) override;
+    TriangleMeshCuda& Transform(const Eigen::Matrix4d &transformation) override;
+
+    /* Temp */
+    Eigen::Vector3d GetCenter() const override {return Eigen::Vector3d(0, 0, 0);};
+    geometry::AxisAlignedBoundingBox GetAxisAlignedBoundingBox() const override { return GetAxisAlignedBoundingBox(); };
+    geometry::OrientedBoundingBox GetOrientedBoundingBox() const override { return GetOrientedBoundingBox(); };
+    TriangleMeshCuda &Translate(const Eigen::Vector3d &translation,
+                              bool relative = true) override {return *this;} ;
+    TriangleMeshCuda &Scale(const double scale, bool center = true) override {return *this;};
+    TriangleMeshCuda &Rotate(const Eigen::Vector3d &rotation,
+                           bool center = true,
+                           RotationType type = RotationType::XYZ) override { return *this; };
 };
 
 class TriangleMeshCudaKernelCaller {

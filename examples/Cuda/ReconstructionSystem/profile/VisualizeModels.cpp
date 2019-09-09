@@ -15,7 +15,7 @@ const std::string &path = "/media/wei/TOSHIBA EXT/IROS-2019/bundlefusion/";
 int main(int argc, char **argv) {
     VisualizerWithKeyCallback visualizer;
     if (!visualizer.CreateVisualizerWindow("RGBDOdometry", 1280, 960, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();

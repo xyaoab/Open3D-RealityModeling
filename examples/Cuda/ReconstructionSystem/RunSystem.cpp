@@ -67,13 +67,13 @@ int main(int argc, char **argv) {
     timer_total.Stop();
     std::string total_time = SecondsToHMS(timer_total.GetDuration() * 1e-3);
 
-    PrintInfo("================================\n");
-    PrintInfo(" - Make fragment      : %s\n", make_fragment_time.c_str());
-    PrintInfo(" - Register fragments : %s\n", register_fragments_time.c_str());
-    PrintInfo(" - Refine registration: %s\n", refine_registration_time.c_str());
-    PrintInfo(" - Intergate scene    : %s\n", integrate_scene_time.c_str());
-    PrintInfo(" - Total              : %s\n", total_time.c_str());
-    PrintInfo("================================\n");
+    LogInfo("================================\n");
+    LogInfo(" - Make fragment      : %s\n", make_fragment_time.c_str());
+    LogInfo(" - Register fragments : %s\n", register_fragments_time.c_str());
+    LogInfo(" - Refine registration: %s\n", refine_registration_time.c_str());
+    LogInfo(" - Intergate scene    : %s\n", integrate_scene_time.c_str());
+    LogInfo(" - Total              : %s\n", total_time.c_str());
+    LogInfo("================================\n");
 
     auto mesh = io::CreateMeshFromFile(config.GetReconstructedSceneFile());
     visualization::DrawGeometries({mesh});

@@ -47,7 +47,7 @@ void DebugOdometryForFragment(int fragment_id, DatasetConfig &config) {
     cv::Ptr<cv::ORB> orb = cv::ORB::create(100);
 
     for (int s = begin; s < end; ++s) {
-        PrintInfo("s: %d\n", s);
+        LogInfo("s: %d\n", s);
         Image depth, color;
 
         ReadImage(config.depth_files_[s], depth);
@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
     bool is_success = ReadIJsonConvertible(config_path, config);
     if (!is_success) return 1;
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
     filesystem::MakeDirectory(config.path_dataset_ + "/fragments_cuda");
 
     config.with_opencv_ = true;
@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
                     config.n_frames_per_fragment_);
 
     for (int i = 19; i < 20; ++i) {
-        PrintInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
+        LogInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
         DebugOdometryForFragment(i, config);
     }
 }

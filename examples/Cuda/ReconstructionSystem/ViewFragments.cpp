@@ -10,7 +10,7 @@ using namespace open3d::io;
 using namespace open3d::utility;
 
 int main(int argc, char **argv) {
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     DatasetConfig config;
 
@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
     for (auto &ply_filename : config.fragment_files_) {
         auto pcl = CreatePointCloudFromFile(ply_filename);
-        PrintInfo("%s\n", ply_filename.c_str());
+        LogInfo("%s\n", ply_filename.c_str());
         visualization::DrawGeometries({pcl});
     }
     return 0;

@@ -56,7 +56,7 @@ bool RGBDImageCuda::Create(int width, int height) {
 
     if (device_ != nullptr) {
         if (width_ != width || height_ != height) {
-            utility::PrintError("[RGBDImageCuda] Incompatible image size,"
+            utility::LogError("[RGBDImageCuda] Incompatible image size,"
                        "@Create aborted.\n");
             return false;
         }

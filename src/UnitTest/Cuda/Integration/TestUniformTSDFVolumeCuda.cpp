@@ -99,7 +99,7 @@ TEST(UniformTSDFVolumeCuda, RayCasting) {
         volume.RayCasting(raycaster, intrinsics, extrinsics);
     }
     timer.Stop();
-    PrintInfo("Average raycasting time: %f milliseconds\n",
+    LogInfo("Average raycasting time: %f milliseconds\n",
               timer.GetDuration() / iteration_times);
 
     cv::Mat imraycaster = raycaster.DownloadMat();

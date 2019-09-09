@@ -54,7 +54,7 @@ void LinkedListCuda<T>::Create(int max_capacity,
                                MemoryHeapCuda<LinkedListNodeCuda<T>> &memory_heap) {
     assert(max_capacity > 0 && max_capacity < memory_heap.max_capacity_);
     if (device_ != nullptr) {
-        utility::PrintError("[LinkedListCuda] Already created, abort!\n");
+        utility::LogError("[LinkedListCuda] Already created, abort!\n");
         return;
     }
 

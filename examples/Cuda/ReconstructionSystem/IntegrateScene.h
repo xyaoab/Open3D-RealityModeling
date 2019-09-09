@@ -35,7 +35,7 @@ void IntegrateFragment(
                              (int) config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        PrintDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame %d ...\n", i);
 
         geometry::Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -53,7 +53,7 @@ void IntegrateFragment(
 }
 
 int Run(DatasetConfig &config) {
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     Timer timer;
     timer.Start();
@@ -68,7 +68,7 @@ int Run(DatasetConfig &config) {
 
     bool is_success = config.GetFragmentFiles();
     if (!is_success) {
-        utility::PrintError("Unable to get fragment files\n");
+        utility::LogError("Unable to get fragment files\n");
         return -1;
     }
     for (int i = 0; i < config.fragment_files_.size(); ++i) {
@@ -87,7 +87,7 @@ int Run(DatasetConfig &config) {
 
     WriteTriangleMeshToPLY(config.GetReconstructedSceneFile(), *mesh);
     timer.Stop();
-    PrintInfo("IntegrateScene takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("IntegrateScene takes %.3f s\n", timer.GetDuration() * 1e-3);
 
     return 0;
 }

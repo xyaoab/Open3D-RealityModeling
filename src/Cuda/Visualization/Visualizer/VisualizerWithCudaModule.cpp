@@ -18,23 +18,23 @@ bool VisualizerWithCudaModule::AddGeometry(
             if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
                 return false;
             }
-            geometry_renderer_ptrs_.push_back(renderer_ptr);
+            geometry_renderer_ptrs_.emplace(renderer_ptr);
         } else if (geometry_ptr->GetGeometryType() ==
             geometry::Geometry::GeometryType::PointCloudCuda) {
             auto renderer_ptr = std::make_shared<glsl::PointCloudCudaRenderer>();
             if (renderer_ptr->AddGeometry(geometry_ptr) == false) {
                 return false;
             }
-            geometry_renderer_ptrs_.push_back(renderer_ptr);
+            geometry_renderer_ptrs_.emplace(renderer_ptr);
         }
     }
 
-    geometry_ptrs_.push_back(geometry_ptr);
+    geometry_ptrs_.emplace(geometry_ptr);
     view_control_ptr_->FitInGeometry(*geometry_ptr);
     ResetViewPoint();
-    utility::PrintDebug(
+    utility::LogDebug(
         "Add geometry and update bounding box to %s\n",
-        view_control_ptr_->GetBoundingBox().GetPrintInfo().c_str());
+        view_control_ptr_->GetBoundingBox().GetLogInfo().c_str());
     return UpdateGeometry();
 }
 }

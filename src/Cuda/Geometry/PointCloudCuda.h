@@ -7,6 +7,9 @@
 #include "ImageCuda.h"
 #include "RGBDImageCuda.h"
 
+#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Geometry/KDTreeSearchParam.h"
+
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Cuda/Common/TransformCuda.h>
 
@@ -16,6 +19,7 @@
 #include <Open3D/Geometry/PointCloud.h>
 
 #include <memory>
+#include <Open3D/Geometry/BoundingVolume.h>
 
 namespace open3d {
 namespace cuda {
@@ -79,15 +83,26 @@ public:
     std::shared_ptr<geometry::PointCloud> Download();
 
 public:
-    void Clear() override;
+    PointCloudCuda &Clear() override;
     bool IsEmpty() const override;
     Eigen::Vector3d GetMinBound() const override;
     Eigen::Vector3d GetMaxBound() const override;
-    void Transform(const Eigen::Matrix4d &transformation) override;
+    PointCloudCuda& Transform(const Eigen::Matrix4d &transformation) override;
+
+    /* Temp */
+    Eigen::Vector3d GetCenter() const override { return ComputeMean(); };
+    geometry::AxisAlignedBoundingBox GetAxisAlignedBoundingBox() const override { return GetAxisAlignedBoundingBox(); };
+    geometry::OrientedBoundingBox GetOrientedBoundingBox() const override { return GetOrientedBoundingBox(); };
+    PointCloudCuda &Translate(const Eigen::Vector3d &translation,
+                          bool relative = true) override {return *this;} ;
+    PointCloudCuda &Scale(const double scale, bool center = true) override {return *this;};
+    PointCloudCuda &Rotate(const Eigen::Vector3d &rotation,
+                           bool center = true,
+                           RotationType type = RotationType::XYZ) override { return *this; };
 
     std::tuple<Eigen::Vector3d, double> Normalize();
 
-    Eigen::Vector3d ComputeMean();
+    Eigen::Vector3d ComputeMean() const;
     double SubMeanAndGetMaxScale(Eigen::Vector3d &mean);
     void Rescale(double scale);
 };
@@ -99,7 +114,7 @@ public:
     static void GetMaxBound(const PointCloudCuda &pcl,
                             ArrayCuda<Vector3f> &max_bound);
 
-    static void ComputeSum(PointCloudCuda &pcl, ArrayCuda<Vector3f> &sum);
+    static void ComputeSum(const PointCloudCuda &pcl, ArrayCuda<Vector3f> &sum);
     static void Normalize(PointCloudCuda &pcl, const Vector3f &mean,
                           ArrayCuda<float> &max_scale);
     static void Rescale(PointCloudCuda &pcl, float scale);

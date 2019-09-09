@@ -47,7 +47,7 @@ int RegistrationForTSDFVolumes(
     const Eigen::Matrix4d &init_source_to_target,
     DatasetConfig &config) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     auto source = ReadTSDFVolume(source_path, config);
     auto target = ReadTSDFVolume(target_path, config);
@@ -67,12 +67,12 @@ int RegistrationForTSDFVolumes(
 //        registration.DoSingleIteration(i);
 //    }
     timer.Stop();
-    utility::PrintInfo("Registration takes %.3f ms\n", timer.GetDuration());
+    utility::LogInfo("Registration takes %.3f ms\n", timer.GetDuration());
 
     /** Prepare visualizer **/
     visualization::VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("TSDF-2-TSDF", 640, 480, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();

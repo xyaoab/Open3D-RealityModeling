@@ -42,7 +42,7 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
     if (device_ != nullptr) {
         if (source_depth_[0].width_ != width
         || source_depth_[0].height_ != height) {
-            utility::PrintError("[RGBDOdometryCuda] Incompatible image size, "
+            utility::LogError("[RGBDOdometryCuda] Incompatible image size, "
                        "width: %d vs %d, height: %d vs %d, "
                        "@Create aborted.\n",
                        source_depth_[0].width_, width,
@@ -188,7 +188,7 @@ void RGBDOdometryCuda<N>::Initialize(
 
     bool success = Create(source.width_, source.height_);
     if (!success) {
-        utility::PrintError("[RGBDOdometryCuda] create failed, "
+        utility::LogError("[RGBDOdometryCuda] create failed, "
                    "@PrepareData aborted.\n");
         return;
     }
@@ -258,7 +258,7 @@ RGBDOdometryCuda<N>::DoSingleIteration(size_t level, int iter) {
     Eigen::Vector6d Jtr;
     float loss, inliers;
     ExtractResults(results, JtJ, Jtr, loss, inliers);
-    utility::PrintDebug("> Level %d, iter %d: loss = %f, avg loss = %f, "
+    utility::LogDebug("> Level %d, iter %d: loss = %f, avg loss = %f, "
                         "inliers = %"
                 ".0f\n",
                level, iter, loss, loss / inliers, inliers);
@@ -292,7 +292,7 @@ RGBDOdometryCuda<N>::ComputeMultiScale() {
             losses_on_level.emplace_back(loss);
 
             if (!is_success) {
-                utility::PrintWarning("[ComputeOdometry] no solution!\n");
+                utility::LogWarning("[ComputeOdometry] no solution!\n");
                 return std::make_tuple(
                     false, Eigen::Matrix4d::Identity(),
                     losses);

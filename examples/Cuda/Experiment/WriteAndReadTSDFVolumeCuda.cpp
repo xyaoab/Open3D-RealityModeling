@@ -36,7 +36,7 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
     Timer timer;
     timer.Start();
     for (int i = begin; i < end; ++i) {
-        PrintDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame %d ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -52,13 +52,13 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
 
     tsdf_volume.GetAllSubvolumes();
     timer.Stop();
-    utility::PrintInfo("Integration takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
 
     timer.Start();
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::WriteScalableTSDFVolumeToBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
-    utility::PrintInfo("Write TSDF takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Write TSDF takes %f ms\n", timer.GetDuration());
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -76,7 +76,7 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
 //    timer.Start();
 //    WritePointCloudToPLY("test.ply", pcl);
 //    timer.Stop();
-//    utility::PrintInfo("Write ply takes %f ms\n", timer.GetDuration());
+//    utility::LogInfo("Write ply takes %f ms\n", timer.GetDuration());
 }
 
 void ReadFragment(int fragment_id, DatasetConfig &config) {
@@ -97,7 +97,7 @@ void ReadFragment(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
-    utility::PrintInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
 
     tsdf_volume.GetAllSubvolumes();
     cuda::ScalableMeshVolumeCuda mesher(
@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
     config.GetFragmentFiles();
 
     for (int i = 1; i < 2; ++i) {//config.fragment_files_.size(); ++i) {
-        utility::PrintInfo("%d\n", i);
+        utility::LogInfo("%d\n", i);
         IntegrateAndWriteFragment(i, config);
         ReadFragment(i, config);
     }

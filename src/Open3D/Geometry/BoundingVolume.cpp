@@ -283,7 +283,7 @@ AxisAlignedBoundingBox& AxisAlignedBoundingBox::Rotate(
     return *this;
 }
 
-std::string AxisAlignedBoundingBox::GetPrintInfo() const {
+std::string AxisAlignedBoundingBox::GetLogInfo() const {
     return fmt::format("[({:.4f}, {:.4f}, {:.4f}) - ({:.4f}, {:.4f}, {:.4f})]",
                        min_bound_(0), min_bound_(1), min_bound_(2),
                        max_bound_(0), max_bound_(1), max_bound_(2));

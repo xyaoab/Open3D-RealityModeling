@@ -69,7 +69,7 @@ TEST(ReductionCuda, SumInt) {
         }
         time_v3 /= test_cases;
 
-        PrintInfo(">>> Average running time (ms) \n"
+        LogInfo(">>> Average running time (ms) \n"
                   "> InfiniTAM: %.4f\n"
                   "> ElasticFusion: %.4f\n"
                   "> atomicAdd: %.4f\n",
@@ -141,7 +141,7 @@ TEST(ReductionCuda, SumFloat) {
         }
         time_v3 /= test_cases;
 
-        PrintInfo(">>> Average running time (ms) \n"
+        LogInfo(">>> Average running time (ms) \n"
                   "> InfiniTAM: %.4f\n"
                   "> ElasticFusion: %.4f\n"
                   "> atomicAdd: %.4f\n",

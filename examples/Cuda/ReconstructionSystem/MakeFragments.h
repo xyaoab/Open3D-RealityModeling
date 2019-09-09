@@ -85,7 +85,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
         ReadImage(config.color_files_[t], color);
         rgbd_target.Upload(depth, color);
 
-        PrintInfo("RGBD Odometry between (%d %d)\n", s, t);
+        LogInfo("RGBD Odometry between (%d %d)\n", s, t);
         odometry.transform_source_to_target_ = Eigen::Matrix4d::Identity();
         odometry.Initialize(rgbd_source, rgbd_target);
         odometry.ComputeMultiScale();
@@ -111,7 +111,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             for (int j = i + 1; j < keyframe_infos.size(); ++j) {
                 int s = keyframe_infos[i].idx;
                 int t = keyframe_infos[j].idx;
-                PrintInfo("RGBD Loop closure between (%d %d)\n", s, t);
+                LogInfo("RGBD Loop closure between (%d %d)\n", s, t);
 
                 bool is_success;
                 Eigen::Matrix4d trans_source_to_target;
@@ -203,7 +203,7 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
                        (int) config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        PrintDebug("Integrating frame %d ...\n", i);
+        LogDebug("Integrating frame %d ...\n", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -235,7 +235,7 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     WritePointCloudToPLY(config.GetPlyFileForFragment(fragment_id), pcl);
 
     /** Write downsampled thumbnail fragments **/
-    auto pcl_downsampled = VoxelDownSample(pcl, config.voxel_size_);
+    auto pcl_downsampled = pcl.VoxelDownSample(config.voxel_size_);
     WritePointCloudToPLY(config.GetThumbnailPlyFileForFragment(fragment_id),
                          *pcl_downsampled);
 }
@@ -252,12 +252,12 @@ static int Run(DatasetConfig &config) {
                     config.n_frames_per_fragment_);
 
     for (int i = 0; i < num_fragments; ++i) {
-        PrintInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
+        LogInfo("Processing fragment %d / %d\n", i, num_fragments - 1);
         MakePoseGraphForFragment(i, config);
         OptimizePoseGraphForFragment(i, config);
         IntegrateForFragment(i, config);
     }
     timer.Stop();
-    PrintInfo("MakeFragment takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("MakeFragment takes %.3f s\n", timer.GetDuration() * 1e-3);
 }
 };

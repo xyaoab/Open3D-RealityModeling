@@ -83,7 +83,7 @@ void ScalableTSDFVolumeCuda::Create(
     assert(bucket_count > 0 && value_capacity > 0);
 
     if (device_ != nullptr) {
-        utility::PrintError("[ScalableTSDFVolumeCuda] Already created, "
+        utility::LogError("[ScalableTSDFVolumeCuda] Already created, "
                             "abort!\n");
         return;
     }
@@ -244,7 +244,7 @@ std::vector<int> ScalableTSDFVolumeCuda::UploadKeys(
             }
         }
 
-        utility::PrintInfo("%d / %d subvolume info uploaded\n",
+        utility::LogInfo("%d / %d subvolume info uploaded\n",
                            keys_to_attempt.size() - new_keys_to_attempt.size(),
                            keys_to_attempt.size());
 
@@ -257,7 +257,7 @@ std::vector<int> ScalableTSDFVolumeCuda::UploadKeys(
     }
 
     if (attempt == kTotalAttempt) {
-        utility::PrintWarning("Reach maximum attempts, "
+        utility::LogWarning("Reach maximum attempts, "
                               "%d subvolumes may fail to be inserted!\n",
                               keys_to_attempt.size());
     }

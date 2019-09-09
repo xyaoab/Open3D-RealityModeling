@@ -59,7 +59,7 @@ void MemoryHeapCuda<T>::Create(int max_capacity) {
     assert(max_capacity > 0);
 
     if (device_ != nullptr) {
-        utility::PrintError("[MemoryHeapCuda] Already created, abort!\n");
+        utility::LogError("[MemoryHeapCuda] Already created, abort!\n");
         return;
     }
 

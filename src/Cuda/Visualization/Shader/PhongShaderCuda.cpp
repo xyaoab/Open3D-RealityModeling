@@ -175,7 +175,7 @@ void PhongShaderCuda::SetLighting(const ViewControl &view,
     light_color_data_.setOnes();
     for (int i = 0; i < 4; i++) {
         light_position_world_data_.block<3, 1>(0, i) =
-            box.GetCenter().cast<GLfloat>() + (float) box.GetSize() * (
+            box.GetCenter().cast<GLfloat>() + (float) box.GetMaxExtend() * (
                 (float) option.light_position_relative_[i](0) * view.GetRight()
                     + (float) option.light_position_relative_[i](1)
                         * view.GetUp()

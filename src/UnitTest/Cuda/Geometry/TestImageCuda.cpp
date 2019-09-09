@@ -23,17 +23,17 @@ void CheckUploadAndDownloadConsistency(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
 
     timer.Start();
     image_cuda_copy.CopyFrom(image_cuda);
     timer.Stop();
-    PrintInfo("Copy finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Copy finished in %.3f milliseconds...\n", timer.GetDuration());
 
     timer.Start();
     cv::Mat downloaded_image = image_cuda.DownloadMat();
     timer.Stop();
-    PrintInfo("Download finished in %.3f milliseconds...\n",
+    LogInfo("Download finished in %.3f milliseconds...\n",
               timer.GetDuration());
     cv::Mat downloaded_image_copy = image_cuda_copy.DownloadMat();
 
@@ -55,11 +55,11 @@ void CheckUploadAndDownloadConsistency(const std::string &path) {
                 EXPECT_EQ(image.at<uchar>(i, j),
                           downloaded_image_copy.at<uchar>(i, j));
             } else {
-                PrintInfo("Unsupported image type %d\n", image.type());
+                LogInfo("Unsupported image type %d\n", image.type());
             }
         }
     }
-    PrintInfo("Consistency check passed.\n");
+    LogInfo("Consistency check passed.\n");
 }
 
 template<typename T, size_t N>
@@ -73,17 +73,17 @@ void CheckDownsampling(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
 
     timer.Start();
     image_cuda_low = image_cuda.Downsample(BoxFilter);
     timer.Stop();
-    PrintInfo("Downsample finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Downsample finished in %.3f milliseconds...\n", timer.GetDuration());
 
     timer.Start();
     cv::Mat downloaded = image_cuda_low.DownloadMat();
     timer.Stop();
-    PrintInfo("Download finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Download finished in %.3f milliseconds...\n", timer.GetDuration());
 
     cv::imshow("downsampled", downloaded);
     cv::waitKey(10);
@@ -101,12 +101,12 @@ void CheckGaussian(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
 
     timer.Start();
     ImageCuda<T, N> image_cuda_blurred = image_cuda.Gaussian(Gaussian3x3);
     timer.Stop();
-    PrintInfo("Gaussian3x3 finished in %.3f milliseconds...\n",
+    LogInfo("Gaussian3x3 finished in %.3f milliseconds...\n",
               timer.GetDuration());
 
     cv::Mat downloaded = image_cuda_blurred.DownloadMat();
@@ -116,7 +116,7 @@ void CheckGaussian(const std::string &path) {
     timer.Start();
     image_cuda_blurred = image_cuda.Gaussian(Gaussian5x5);
     timer.Stop();
-    PrintInfo("Gaussian5x5 finished in %.3f milliseconds...\n",
+    LogInfo("Gaussian5x5 finished in %.3f milliseconds...\n",
               timer.GetDuration());
 
     downloaded = image_cuda_blurred.DownloadMat();
@@ -126,7 +126,7 @@ void CheckGaussian(const std::string &path) {
     timer.Start();
     image_cuda_blurred = image_cuda.Gaussian(Gaussian7x7);
     timer.Stop();
-    PrintInfo("Gaussian7x7 finished in %.3f milliseconds...\n",
+    LogInfo("Gaussian7x7 finished in %.3f milliseconds...\n",
               timer.GetDuration());
 
     downloaded = image_cuda_blurred.DownloadMat();
@@ -146,7 +146,7 @@ void CheckBilateral(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
 
     float val_sigma = 20;
     timer.Start();
@@ -154,7 +154,7 @@ void CheckBilateral(const std::string &path) {
     timer.Stop();
 
     cv::Mat downloaded = filtered_image_cuda.DownloadMat();
-    PrintInfo("Sigma: %.3f in  %.3f milliseconds\n",
+    LogInfo("Sigma: %.3f in  %.3f milliseconds\n",
               val_sigma, timer.GetDuration());
     cv::imshow("Bilateral", downloaded);
     cv::waitKey(10);
@@ -171,7 +171,7 @@ void CheckToFloatConversion(const std::string &path, float scale, float offset) 
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer.GetDuration());
 
     int iter = 100;
     timer.Start();
@@ -179,7 +179,7 @@ void CheckToFloatConversion(const std::string &path, float scale, float offset) 
         imagef_cuda = image_cuda.ConvertToFloat(scale, offset);
     }
     timer.Stop();
-    PrintInfo("Conversion finished in %.3f milliseconds...\n",
+    LogInfo("Conversion finished in %.3f milliseconds...\n",
               timer.GetDuration() / iter);
 
     cv::Mat downloaded = imagef_cuda.DownloadMat();
@@ -201,7 +201,7 @@ void CheckToFloatConversion(const std::string &path, float scale, float offset) 
                 float converted = downloaded.at<float>(i, j);
                 EXPECT_NEAR(raw * scale + offset, converted, kEpsilon);
             } else {
-                PrintInfo("Unsupported image type %d\n", image.type());
+                LogInfo("Unsupported image type %d\n", image.type());
             }
         }
     }
@@ -221,13 +221,13 @@ void CheckGradient(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer
     .GetDuration());
 
     timer.Start();
     auto gradients = image_cuda.Sobel();
     timer.Stop();
-    PrintInfo("Gradient finished in %.3f milliseconds...\n",
+    LogInfo("Gradient finished in %.3f milliseconds...\n",
               timer.GetDuration());
     auto dx = std::get<0>(gradients);
     auto dy = std::get<1>(gradients);
@@ -250,13 +250,13 @@ void CheckShift(const std::string &path) {
     timer.Start();
     image_cuda.Upload(image);
     timer.Stop();
-    PrintInfo("Upload finished in %.3f milliseconds...\n", timer
+    LogInfo("Upload finished in %.3f milliseconds...\n", timer
     .GetDuration());
 
     timer.Start();
     ImageCuda<T, N> shifted_image = image_cuda.Shift(-120.2f, 135.8f);
     timer.Stop();
-    PrintInfo("Shifting finished in %.3f milliseconds...\n",
+    LogInfo("Shifting finished in %.3f milliseconds...\n",
               timer.GetDuration());
 
     cv::Mat downloaded = shifted_image.DownloadMat();

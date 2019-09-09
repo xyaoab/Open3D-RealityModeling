@@ -69,7 +69,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDownload) {
     EXPECT_EQ(valid_values, value_cnt.size());
 
     timer.Stop();
-    PrintInfo("LinkedListCuda.Insert() and LinkedListCuda.Download() "
+    LogInfo("LinkedListCuda.Insert() and LinkedListCuda.Download() "
               "passed in %.2f seconds.\n",
               timer.GetDuration() * 0.001f);
 
@@ -129,7 +129,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#1 Insertion passed\n");
+    LogInfo("#1 Insertion passed\n");
 
     linked_list1.Insert(insert_values[0]);
     downloaded_values = linked_list1.Download();
@@ -144,7 +144,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#2 Insertion passed\n");
+    LogInfo("#2 Insertion passed\n");
 
     linked_list1.Delete(insert_and_delete_values[0]);
     downloaded_values = linked_list1.Download();
@@ -163,7 +163,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#3 Deletion passed\n");
+    LogInfo("#3 Deletion passed\n");
 
     linked_list1.Insert(insert_and_delete_values[1]);
     linked_list1.Insert(insert_values[1]);
@@ -182,7 +182,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#4 Double Insertion passed\n");
+    LogInfo("#4 Double Insertion passed\n");
 
     linked_list2 = linked_list1;
     downloaded_values = linked_list2.Download();
@@ -194,7 +194,7 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#5 Assignment passed\n");
+    LogInfo("#5 Assignment passed\n");
 
     linked_list1.Delete(insert_and_delete_values[1]);
     downloaded_values = linked_list1.Download();
@@ -213,10 +213,10 @@ TEST(LinkedListCuda, LinkedListInsertAndDelete) {
     for (auto &it : value_cnt) {
         EXPECT_EQ(downloaded_value_cnt[it.first], it.second);
     }
-    PrintInfo("#6 Deletion\n");
+    LogInfo("#6 Deletion\n");
 
     timer.Stop();
-    PrintInfo("LinkedListCuda.Insert() and LinkedListCuda.Download() "
+    LogInfo("LinkedListCuda.Insert() and LinkedListCuda.Download() "
               "complex cases passed in %.2f seconds.\n",
               timer.GetDuration() * 0.001f);
 }

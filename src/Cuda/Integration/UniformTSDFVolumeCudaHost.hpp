@@ -51,7 +51,7 @@ UniformTSDFVolumeCuda::~UniformTSDFVolumeCuda() { Release(); }
 
 void UniformTSDFVolumeCuda::Create(int N) {
     if (device_ != nullptr) {
-        utility::PrintError(
+        utility::LogError(
                 "[UniformTSDFVolumeCuda] Already created, "
                 "abort!\n");
         return;
@@ -128,7 +128,7 @@ UniformTSDFVolumeCuda::DownloadVolume() {
     std::vector<Vector3b> color;
 
     if (device_ == nullptr) {
-        utility::PrintError("Server not available!\n");
+        utility::LogError("Server not available!\n");
         return std::make_tuple(tsdf, weight, color);
     }
 

@@ -19,7 +19,7 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
 
     FILE *fid = fopen(filename.c_str(), "wb");
     if (fid == NULL) {
-        utility::PrintWarning("Write BIN failed: unable to open file: %s\n",
+        utility::LogWarning("Write BIN failed: unable to open file: %s\n",
                               filename.c_str());
         return false;
     }
@@ -27,11 +27,11 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
     /** metadata **/
     int num_volumes = keys.size(), volume_size = volume.N_;
     if (fwrite(&num_volumes, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning("Write BIN failed: unable to write num volumes\n");
+        utility::LogWarning("Write BIN failed: unable to write num volumes\n");
         return false;
     }
     if (fwrite(&volume_size, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning("Write BIN failed: unable to write volume size\n");
+        utility::LogWarning("Write BIN failed: unable to write volume size\n");
         return false;
     }
 
@@ -47,7 +47,7 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
             volume.N_ * volume.N_ * volume.N_ * sizeof(float) * 2);
     }
 
-    utility::PrintInfo("Writing %d subvolumes.\n", keys.size());
+    utility::LogInfo("Writing %d subvolumes.\n", keys.size());
     for (auto &subvolume : values) {
         auto &tsdf = subvolume.tsdf_;
         auto &weight = subvolume.weight_;
@@ -80,7 +80,7 @@ bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
                            int batch_size) {
     FILE *fid = fopen(filename.c_str(), "rb");
     if (fid == NULL) {
-        utility::PrintWarning("Read BIN failed: unable to open file: %s\n",
+        utility::LogWarning("Read BIN failed: unable to open file: %s\n",
                               filename.c_str());
         return false;
     }
@@ -88,11 +88,11 @@ bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
     /** metadata **/
     int num_volumes, volume_size;
     if (fread(&num_volumes, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning("Read BIN failed: unable to read num volumes\n");
+        utility::LogWarning("Read BIN failed: unable to read num volumes\n");
         return false;
     }
     if (fread(&volume_size, sizeof(int), 1, fid) < 1) {
-        utility::PrintWarning("Read BIN failed: unable to read volume size\n");
+        utility::LogWarning("Read BIN failed: unable to read volume size\n");
         return false;
     }
     assert(volume_size == volume.N_);

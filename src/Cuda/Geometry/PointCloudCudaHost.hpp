@@ -68,7 +68,7 @@ PointCloudCuda::~PointCloudCuda() {
 void PointCloudCuda::Reset() {
     /** No need to clear data **/
     if (type_ == VertexTypeUnknown) {
-        utility::PrintError("Unknown vertex type!\n");
+        utility::LogError("Unknown vertex type!\n");
     }
 
     points_.set_iterator(0);
@@ -89,12 +89,12 @@ void PointCloudCuda::Reset() {
 void PointCloudCuda::Create(VertexType type, int max_points) {
     assert(max_points > 0);
     if (device_ != nullptr) {
-        utility::PrintError("[PointCloudCuda] Already created, @Create aborted.\n");
+        utility::LogError("[PointCloudCuda] Already created, @Create aborted.\n");
         return;
     }
 
     if (type == VertexTypeUnknown) {
-        utility::PrintError("[PointCloudCuda] Unknown vertex type, @Create aborted!\n");
+        utility::LogError("[PointCloudCuda] Unknown vertex type, @Create aborted!\n");
         return;
     }
 
@@ -185,7 +185,7 @@ void PointCloudCuda::Upload(geometry::PointCloud &pcl) {
     std::vector<Vector3f> points, normals, colors;
 
     if (!pcl.HasPoints()) {
-        utility::PrintError("[PointCloudCuda] Empty point cloud, @Upload "
+        utility::LogError("[PointCloudCuda] Empty point cloud, @Upload "
                             "aborted.\n");
         return;
     }
@@ -276,8 +276,9 @@ bool PointCloudCuda::HasColors() const {
     return vertices_size > 0 && vertices_size == colors_.size();
 }
 
-void PointCloudCuda::Clear() {
+PointCloudCuda& PointCloudCuda::Clear() {
     Reset();
+    return *this;
 }
 
 bool PointCloudCuda::IsEmpty() const {
@@ -316,17 +317,19 @@ Eigen::Vector3d PointCloudCuda::GetMaxBound() const {
     return max_bound[0].ToEigen();
 }
 
-void PointCloudCuda::Transform(const Eigen::Matrix4d &transformation) {
-    if (device_ == nullptr) return;
+PointCloudCuda& PointCloudCuda::Transform(const Eigen::Matrix4d &transformation) {
+    if (device_ == nullptr) return *this;
 
     const int num_vertices = points_.size();
-    if (num_vertices == 0) return;
+    if (num_vertices == 0) return *this;
 
     TransformCuda transformation_cuda;
     transformation_cuda.FromEigen(transformation);
 
     PointCloudCudaKernelCaller::Transform(
         *this, transformation_cuda);
+
+    return *this;
 }
 
 std::tuple<Eigen::Vector3d, double> PointCloudCuda::Normalize() {
@@ -340,7 +343,7 @@ void PointCloudCuda::Rescale(double scale) {
     PointCloudCudaKernelCaller::Rescale(*this, (float) scale);
 }
 
-Eigen::Vector3d PointCloudCuda::ComputeMean() {
+Eigen::Vector3d PointCloudCuda::ComputeMean() const {
     ArrayCuda<Vector3f> sum;
     sum.Resize(1);
     sum.Memset(0);

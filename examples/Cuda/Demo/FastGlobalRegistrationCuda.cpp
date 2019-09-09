@@ -19,13 +19,13 @@ int FastGlobalRegistrationForPointClouds(
     const std::string &source_ply_path,
     const std::string &target_ply_path) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     auto source = CreatePointCloudFromFile(source_ply_path);
     auto target = CreatePointCloudFromFile(target_ply_path);
 
-    auto source_down = VoxelDownSample(*source, 0.05);
-    auto target_down = VoxelDownSample(*target, 0.05);
+    auto source_down = source->VoxelDownSample(0.05);
+    auto target_down = target->VoxelDownSample(0.05);
 
     auto source_cpu = *source_down;
     auto target_cpu = *target_down;
@@ -38,7 +38,7 @@ int FastGlobalRegistrationForPointClouds(
     VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("Fast Global Registration",
         640, 480,0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();

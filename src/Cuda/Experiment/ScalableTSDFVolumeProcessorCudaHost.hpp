@@ -55,7 +55,7 @@ ScalableTSDFVolumeProcessorCuda::~ScalableTSDFVolumeProcessorCuda() {
 void ScalableTSDFVolumeProcessorCuda::Create(
     int N, int max_subvolumes) {
     if (device_ != nullptr) {
-        utility::PrintError("[ScalableGradientVolumeCuda]: "
+        utility::LogError("[ScalableGradientVolumeCuda]: "
                             "Already created, abort!\n");
         return;
     }
@@ -105,10 +105,10 @@ void ScalableTSDFVolumeProcessorCuda::ComputeGradient(ScalableTSDFVolumeCuda &ts
     assert(device_ != nullptr);
 
     active_subvolumes_ = tsdf_volume.active_subvolume_entry_array_.size();
-    utility::PrintDebug("Active subvolumes: %d\n", active_subvolumes_);
+    utility::LogDebug("Active subvolumes: %d\n", active_subvolumes_);
 
     if (active_subvolumes_ <= 0) {
-        utility::PrintError("Invalid active subvolume numbers: %d !\n",
+        utility::LogError("Invalid active subvolume numbers: %d !\n",
                    active_subvolumes_);
         return;
     }

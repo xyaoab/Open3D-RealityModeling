@@ -75,7 +75,7 @@ void ScalableMeshVolumeCuda::Create(
     VertexType type, int N, int max_subvolumes,
     int max_vertices, int max_triangles) {
     if (device_ != nullptr) {
-        utility::PrintError("[ScalableMeshVolumeCuda]: "
+        utility::LogError("[ScalableMeshVolumeCuda]: "
                             "Already created, abort!\n");
         return;
     }
@@ -147,7 +147,7 @@ void ScalableMeshVolumeCuda::VertexAllocation(
     ScalableMeshVolumeCudaKernelCaller::VertexAllocation(*this, tsdf_volume);
 
     timer.Stop();
-    utility::PrintDebug("Allocation takes %f milliseconds\n", timer.GetDuration());
+    utility::LogDebug("Allocation takes %f milliseconds\n", timer.GetDuration());
 }
 
 
@@ -161,7 +161,7 @@ void ScalableMeshVolumeCuda::VertexExtraction(
     ScalableMeshVolumeCudaKernelCaller::VertexExtraction(*this, tsdf_volume);
 
     timer.Stop();
-    utility::PrintDebug("Extraction takes %f milliseconds\n", timer.GetDuration
+    utility::LogDebug("Extraction takes %f milliseconds\n", timer.GetDuration
     ());
 }
 
@@ -177,7 +177,7 @@ void ScalableMeshVolumeCuda::TriangleExtraction(
         *this, tsdf_volume);
 
     timer.Stop();
-    utility::PrintDebug("Triangulation takes %f milliseconds\n", timer
+    utility::LogDebug("Triangulation takes %f milliseconds\n", timer
     .GetDuration());
 }
 
@@ -188,10 +188,10 @@ void ScalableMeshVolumeCuda::MarchingCubes(
 
     mesh_.Reset();
     active_subvolumes_ = tsdf_volume.active_subvolume_entry_array_.size();
-    utility::PrintDebug("Active subvolumes: %d\n", active_subvolumes_);
+    utility::LogDebug("Active subvolumes: %d\n", active_subvolumes_);
 
     if (active_subvolumes_ <= 0) {
-        utility::PrintError("Invalid active subvolume numbers: %d !\n",
+        utility::LogError("Invalid active subvolume numbers: %d !\n",
                    active_subvolumes_);
         return;
     }

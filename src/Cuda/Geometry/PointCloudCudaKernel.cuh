@@ -219,7 +219,7 @@ void ComputeSumKernel(PointCloudCudaDevice device,
 }
 
 void PointCloudCudaKernelCaller::ComputeSum(
-    PointCloudCuda &pcl, ArrayCuda<Vector3f> &sum) {
+    const PointCloudCuda &pcl, ArrayCuda<Vector3f> &sum) {
 
     const dim3 blocks(DIV_CEILING(pcl.points_.size(), THREAD_1D_UNIT));
     const dim3 threads(THREAD_1D_UNIT);

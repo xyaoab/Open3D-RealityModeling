@@ -20,15 +20,15 @@ bool DrawGeometriesWithCudaModule(
     VisualizerWithCudaModule visualizer;
     if (visualizer.CreateVisualizerWindow(window_name,
         width, height, left, top) == false) {
-        utility::PrintWarning(
+        utility::LogWarning(
             "[DrawGeometries] Failed creating OpenGL window.\n");
         return false;
     }
 
     for (const auto &geometry_ptr : geometry_ptrs) {
         if (visualizer.AddGeometry(geometry_ptr) == false) {
-            utility::PrintWarning("[DrawGeometries] Failed adding geometry.\n");
-            utility::PrintWarning(
+            utility::LogWarning("[DrawGeometries] Failed adding geometry.\n");
+            utility::LogWarning(
                 "[DrawGeometries] Possibly due to bad geometry or wrong "
                 "geometry type.\n");
             return false;

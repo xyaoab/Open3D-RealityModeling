@@ -142,7 +142,7 @@ public:
         return (z - min_bound_(2)) / (max_bound_(2) - min_bound_(2));
     }
 
-    std::string GetPrintInfo() const;
+    std::string GetLogInfo() const;
 
     static AxisAlignedBoundingBox CreateFromPoints(
             const std::vector<Eigen::Vector3d>& points);

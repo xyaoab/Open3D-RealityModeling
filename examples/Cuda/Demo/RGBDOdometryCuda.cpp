@@ -23,7 +23,7 @@ int RGBDOdometry(
     const std::string &target_color_path,
     const std::string &target_depth_path) {
 
-    SetVerbosityLevel(VerbosityLevel::VerboseDebug);
+    SetVerbosityLevel(VerbosityLevel::Debug);
 
     /** Load data **/
     Image source_color, source_depth, target_color, target_depth;
@@ -51,7 +51,7 @@ int RGBDOdometry(
     /** Prepare visualizer **/
     VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("RGBDOdometry", 640, 480, 0, 0)) {
-        utility::PrintWarning("Failed creating OpenGL window.\n");
+        utility::LogWarning("Failed creating OpenGL window.\n");
         return -1;
     }
     visualizer.BuildUtilities();
@@ -107,14 +107,14 @@ int RGBDOdometry(
 
             auto p_src = cuda::Vector2i(c(0), c(1));
             auto X_src = intrinsic.InverseProjectPixel(
-                p_src, *geometry::PointerAt<float>(*src_depth, c(0), c(1)));
+                p_src, *src_depth->PointerAt<float>(c(0), c(1)));
             Eigen::Vector4d X_src_h = odometry.transform_source_to_target_ *
                 Eigen::Vector4d(X_src(0), X_src(1), X_src(2), 1.0);
             lines->points_.emplace_back(X_src_h.hnormalized());
 
             auto p_tgt = cuda::Vector2i(c(2), c(3));
             auto X_tgt = intrinsic.InverseProjectPixel(
-                p_tgt, *geometry::PointerAt<float>(*tgt_depth, c(2), c(3)));
+                p_tgt, *tgt_depth->PointerAt<float>(c(2), c(3)));
             lines->points_.emplace_back(X_tgt(0), X_tgt(1), X_tgt(2));
             lines->colors_.emplace_back(0, 0, 1);
             lines->lines_.emplace_back(Eigen::Vector2i(2 * i + 1, 2 * i));

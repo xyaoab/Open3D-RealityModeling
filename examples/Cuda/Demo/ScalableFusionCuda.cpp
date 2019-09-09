@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
 
     visualization::VisualizerWithCudaModule visualizer;
     if (!visualizer.CreateVisualizerWindow("ScalableFusion", 640, 480, 0, 0)) {
-        PrintWarning("Failed creating OpenGL window.\n");
+        LogWarning("Failed creating OpenGL window.\n");
         return 0;
     }
     visualizer.BuildUtilities();
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
 
     Timer timer;
     for (int i = 0; i < rgbd_filenames.size() - 1; ++i) {
-        PrintDebug("Processing frame %d ...\n", index);
+        LogDebug("Processing frame %d ...\n", index);
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);

@@ -32,8 +32,8 @@ std::tuple<Eigen::Matrix4d, Eigen::Matrix6d>
 
     for (int i = 0; i < iters.size(); ++i) {
         float voxel_size_level = voxel_size / voxel_factors[i];
-        auto source_down = VoxelDownSample(source, voxel_size_level);
-        auto target_down = VoxelDownSample(target, voxel_size_level);
+        auto source_down = source.VoxelDownSample(voxel_size_level);
+        auto target_down = target.VoxelDownSample(voxel_size_level);
 
         cuda::RegistrationCuda registration(TransformationEstimationType::ColoredICP);
         registration.Initialize(*source_down, *target_down,
@@ -70,7 +70,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
         std::tie(match.trans_source_to_target, match.information) =
             MultiScaleICP(*source, *target, edge.transformation_, config.voxel_size_);
 
-        PrintInfo("Point cloud odometry (%d %d)\n", match.s, match.t);
+        LogInfo("Point cloud odometry (%d %d)\n", match.s, match.t);
 
         matches.push_back(match);
     }
@@ -139,7 +139,7 @@ int Run(DatasetConfig &config) {
 
     bool is_success = config.GetFragmentFiles();
     if (! is_success) {
-        PrintError("Unable to get fragment files\n");
+        LogError("Unable to get fragment files\n");
         return -1;
     }
 
@@ -148,7 +148,7 @@ int Run(DatasetConfig &config) {
     OptimizePoseGraphForScene(config);
 
     timer.Stop();
-    PrintInfo("RefineRegistration takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("RefineRegistration takes %.3f s\n", timer.GetDuration() * 1e-3);
     return 0;
 }
 }

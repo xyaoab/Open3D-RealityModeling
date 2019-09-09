@@ -49,7 +49,7 @@ TEST(ScalableTSDFVolumeCuda, TouchSubvolumes) {
 
     auto entry_vector = volume.active_subvolume_entry_array_.Download();
     for (auto &entry : entry_vector) {
-        PrintInfo("%d %d %d %d\n", entry.key(0), entry.key(1), entry.key(2),
+        LogInfo("%d %d %d %d\n", entry.key(0), entry.key(1), entry.key(2),
             entry.internal_addr);
     }
 }
@@ -77,9 +77,9 @@ TEST(ScalableTSDFVolumeCuda, Integration) {
         volume.Integrate(rgbd, intrinsics, extrinsics);
     }
     timer.Stop();
-    PrintInfo("Integrations takes %f milliseconds\n", timer.GetDuration() / 10);
+    LogInfo("Integrations takes %f milliseconds\n", timer.GetDuration() / 10);
 
-    PrintInfo("Downloading volumes: \n");
+    LogInfo("Downloading volumes: \n");
     auto result = volume.DownloadVolumes();
     auto &keys = result.first;
     auto &volumes = result.second;
@@ -90,7 +90,7 @@ TEST(ScalableTSDFVolumeCuda, Integration) {
         for (int k = 0; k < 512; ++k) {
             sum_tsdf += fabsf(tsdf[k]);
         }
-        PrintInfo("%d %d %d %f\n", keys[i](0), keys[i](1), keys[i](2), sum_tsdf);
+        LogInfo("%d %d %d %f\n", keys[i](0), keys[i](1), keys[i](2), sum_tsdf);
     }
 }
 
@@ -142,7 +142,7 @@ TEST(ScalableTSDFVolumeCuda, RayCasting) {
         }
     }
 
-    PrintInfo("Raycasting takes %f milliseconds\n", time / iters);
+    LogInfo("Raycasting takes %f milliseconds\n", time / iters);
 }
 
 int main(int argc, char **argv) {
