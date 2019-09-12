@@ -6,7 +6,7 @@ This is the **unofficial** cuda branch of [Open3D](http://www.open3d.org/), aimi
 Overall, this cuda pipeline can accelerate Open3D by a factor >10 for the scene reconstruction task. For a typical [lounge](http://qianyi.info/scenedata.html) scene, 
 the pipeline can finish reconstruction in 5 minutes (tested on a laptop with an Intel i7 CPU, 1070 GPU). As an offline system, it reaches around 5~10 fps on average.
 
-For details, please refer to this [paper](http://dongwei.info/publications/gpu.pdf) in submission to IROS 2019.
+For details, please refer to this [paper](http://dongwei.info/publications/open3d-gpu.pdf) accepted to IROS 2019.
 
 ## Build
 - Apart from the [official depedencies](http://www.open3d.org/docs/compilation.html), the only additional requirement is [CUDA](https://developer.nvidia.com/cuda-downloads). 
@@ -44,5 +44,15 @@ Since this is only used for ORB feature extraction, I may implement (or import) 
 - To report problems, please use the [Discord channel](https://discordapp.com/invite/D35BGvn). 
 I will try to give some temporary workarounds and mark that as TODO in the official branch. 
 
-## License
+## License and Citation
 This branch follows the [license of the official Open3D](https://github.com/intel-isl/Open3D/blob/master/LICENSE). 
+
+If you find this project useful, please cite our paper (in addition to the original Open3D citation):
+```
+@inproceedings{Dong-et-al-IROS-2019,   
+  title =        {{GPU} Accelerated Robust Scene Reconstruction, 
+  year =         {2019},
+  author =       {Wei Dong and Jaesik Park and Yi Yang and Michael Kaess},   
+  booktitle =    {Proceedings of IEEE/RSJ International Conference on Intelligent Robots and Systems}
+}
+```
