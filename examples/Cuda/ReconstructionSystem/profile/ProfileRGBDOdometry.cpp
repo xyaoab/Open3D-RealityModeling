@@ -119,10 +119,10 @@ int main(int argc, char **argv) {
             config,
             true);
         times[i] = time;
-        LogInfo("Frame {} / {} takes %f ms\n", i, num_odometries, time);
+        LogInfo("Frame {} / {} takes {} ms\n", i, num_odometries, time);
     }
     std::tie(mean, std) = ComputeStatistics(times);
-    LogInfo("gpu time: avg = %f, std = %f\n", mean, std);
+    LogInfo("gpu time: avg = {}, std = {}\n", mean, std);
 
     return 0;
 }

@@ -70,7 +70,7 @@ RegistrationResultCuda ScalableVolumeRegistrationCuda::DoSingleIteration(
 
     delta = BuildAndSolveLinearSystem();
 
-    utility::LogDebug("Iteration %d: inlier rmse = %f, inliers = %f\n",
+    utility::LogDebug("Iteration {}: inlier rmse = {}, inliers = {}\n",
                         iter, delta.inlier_rmse_, delta.fitness_);
 
     trans_source_to_target_ =

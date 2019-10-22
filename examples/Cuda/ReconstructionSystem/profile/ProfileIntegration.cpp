@@ -59,7 +59,7 @@ void IntegrateFragmentCuda(
         timer.Stop();
 
         double time = timer.GetDuration();
-        LogInfo("Integrate {} takes %f ms\n", i, time);
+        LogInfo("Integrate {} takes {} ms\n", i, time);
         times.push_back(time);
     }
 }
@@ -102,7 +102,7 @@ void IntegrateFragmentCPU(
 
         double time = timer.GetDuration();
         if (i % 100 == 0) {
-            LogInfo("Integrate {} takes %f ms\n", i, time);
+            LogInfo("Integrate {} takes {} ms\n", i, time);
         }
         times.push_back(time);
     }
@@ -150,14 +150,14 @@ int main(int argc, char **argv) {
 
 
 //    std::tie(mean, std) = ComputeStatistics(times_gpu);
-//    LogInfo("gpu time: avg = %f, std = %f\n", mean, std);
+//    LogInfo("gpu time: avg = {}, std = {}\n", mean, std);
 
 //    std::vector<double> times_cpu;
 //    for (int i = 0; i < config.fragment_files_.size(); ++i) {
 //        IntegrateFragmentCPU(i, tsdf_volume_cpu, config, times_cpu);
 //    }
 //    std::tie(mean, std) = ComputeStatistics(times_cpu);
-//    LogInfo("cpu time: avg = %f, std = %f\n", mean, std);
+//    LogInfo("cpu time: avg = {}, std = {}\n", mean, std);
 
     return 0;
 }

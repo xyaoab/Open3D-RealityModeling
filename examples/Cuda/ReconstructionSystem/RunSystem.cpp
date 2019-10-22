@@ -4,10 +4,10 @@
 
 #include "DatasetConfig.h"
 
-#include "MakeFragments.h"
-#include "RegisterFragments.h"
-#include "RefineRegistration.h"
 #include "IntegrateScene.h"
+#include "MakeFragments.h"
+#include "RefineRegistration.h"
+#include "RegisterFragments.h"
 
 using namespace open3d;
 using namespace open3d::io;
@@ -20,12 +20,12 @@ std::string SecondsToHMS(double seconds) {
     double seconds_remain = seconds - minutes * 60;
 
     std::stringstream ss;
-    ss << std::setw(2) << std::setfill('0') << hours << ":"
-       << std::setw(2) << std::setfill('0') << (minutes % 60) << ":";
+    ss << std::setw(2) << std::setfill('0') << hours << ":" << std::setw(2)
+       << std::setfill('0') << (minutes % 60) << ":";
 
     ss.setf(std::ios::fixed);
-    ss << std::setw(6) << std::setfill('0')
-       << std::setprecision(3) << seconds_remain;
+    ss << std::setw(6) << std::setfill('0') << std::setprecision(3)
+       << seconds_remain;
 
     return ss.str();
 }
@@ -33,8 +33,8 @@ std::string SecondsToHMS(double seconds) {
 int main(int argc, char **argv) {
     DatasetConfig config;
 
-    std::string config_path = argc > 1 ? argv[1] :
-        kDefaultDatasetConfigDir + "/intel/test.json";
+    std::string config_path =
+            argc > 1 ? argv[1] : kDefaultDatasetConfigDir + "/intel/test.json";
 
     bool is_success = ReadIJsonConvertible(config_path, config);
     if (!is_success) return 1;
@@ -45,19 +45,21 @@ int main(int argc, char **argv) {
     Timer timer;
 
     timer.Start();
-    MakeFragment::Run(config);
+    // MakeFragment::Run(config);
     timer.Stop();
     std::string make_fragment_time = SecondsToHMS(timer.GetDuration() * 1e-3);
 
     timer.Start();
     RegisterFragments::Run(config);
     timer.Stop();
-    std::string register_fragments_time = SecondsToHMS(timer.GetDuration() * 1e-3);
+    std::string register_fragments_time =
+            SecondsToHMS(timer.GetDuration() * 1e-3);
 
     timer.Start();
     RefineRegistration::Run(config);
     timer.Stop();
-    std::string refine_registration_time = SecondsToHMS(timer.GetDuration() * 1e-3);
+    std::string refine_registration_time =
+            SecondsToHMS(timer.GetDuration() * 1e-3);
 
     timer.Start();
     IntegrateScene::Run(config);
@@ -68,11 +70,11 @@ int main(int argc, char **argv) {
     std::string total_time = SecondsToHMS(timer_total.GetDuration() * 1e-3);
 
     LogInfo("================================\n");
-    LogInfo(" - Make fragment      : %s\n", make_fragment_time.c_str());
-    LogInfo(" - Register fragments : %s\n", register_fragments_time.c_str());
-    LogInfo(" - Refine registration: %s\n", refine_registration_time.c_str());
-    LogInfo(" - Intergate scene    : %s\n", integrate_scene_time.c_str());
-    LogInfo(" - Total              : %s\n", total_time.c_str());
+    LogInfo(" - Make fragment      : {}\n", make_fragment_time.c_str());
+    LogInfo(" - Register fragments : {}\n", register_fragments_time.c_str());
+    LogInfo(" - Refine registration: {}\n", refine_registration_time.c_str());
+    LogInfo(" - Intergate scene    : {}\n", integrate_scene_time.c_str());
+    LogInfo(" - Total              : {}\n", total_time.c_str());
     LogInfo("================================\n");
 
     auto mesh = io::CreateMeshFromFile(config.GetReconstructedSceneFile());

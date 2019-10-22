@@ -2,15 +2,15 @@
 // Created by wei on 2/4/19.
 //
 
-#include <vector>
-#include <string>
-#include <sstream>
 #include <cmath>
 #include <iomanip>
+#include <sstream>
+#include <string>
+#include <vector>
 
+#include <Cuda/Open3DCuda.h>
 #include <Open3D/Open3D.h>
 #include <Open3D/Registration/GlobalOptimization.h>
-#include <Cuda/Open3DCuda.h>
 
 #include "DatasetConfig.h"
 #include "ORBPoseEstimation.h"
@@ -24,22 +24,20 @@ using namespace open3d::geometry;
 
 namespace MakeFragment {
 void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
-
     cuda::RGBDOdometryCuda<3> odometry;
     odometry.SetIntrinsics(config.intrinsic_);
-    odometry.SetParameters(OdometryOption({20, 10, 5},
-                                          config.max_depth_diff_,
-                                          config.min_depth_,
-                                          config.max_depth_), 0.968f);
+    odometry.SetParameters(OdometryOption({20, 10, 5}, config.max_depth_diff_,
+                                          config.min_depth_, config.max_depth_),
+                           0.968f);
 
-    cuda::RGBDImageCuda rgbd_source((float) config.max_depth_,
-                                    (float) config.depth_factor_);
-    cuda::RGBDImageCuda rgbd_target((float) config.max_depth_,
-                                    (float) config.depth_factor_);
+    cuda::RGBDImageCuda rgbd_source((float)config.max_depth_,
+                                    (float)config.depth_factor_);
+    cuda::RGBDImageCuda rgbd_target((float)config.max_depth_,
+                                    (float)config.depth_factor_);
 
     const int begin = fragment_id * config.n_frames_per_fragment_;
     const int end = std::min((fragment_id + 1) * config.n_frames_per_fragment_,
-                             (int) config.color_files_.size());
+                             (int)config.color_files_.size());
 
     // world_to_source
     Eigen::Matrix4d trans_odometry = Eigen::Matrix4d::Identity();
@@ -76,7 +74,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             keyframe_info.depth = rgbd_source.depth_.DownloadMat();
             keyframe_infos.emplace_back(keyframe_info);
         }
-#endif // USE_OPENCV
+#endif  // USE_OPENCV
 
         int t = s + 1;
         if (t >= end) break;
@@ -101,7 +99,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
 
         pose_graph.nodes_.emplace_back(PoseGraphNode(trans_odometry_inv));
         pose_graph.edges_.emplace_back(
-            PoseGraphEdge(s - begin, t - begin, trans, information, false));
+                PoseGraphEdge(s - begin, t - begin, trans, information, false));
     }
 
 #ifdef USE_OPENCV
@@ -117,13 +115,13 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
                 Eigen::Matrix4d trans_source_to_target;
 
                 std::tie(is_success, trans_source_to_target) =
-                    ORBPoseEstimation::PoseEstimation(keyframe_infos[i],
-                                                      keyframe_infos[j],
-                                                      config.intrinsic_);
+                        ORBPoseEstimation::PoseEstimation(keyframe_infos[i],
+                                                          keyframe_infos[j],
+                                                          config.intrinsic_);
 
                 if (is_success) {
                     odometry.transform_source_to_target_ =
-                        trans_source_to_target;
+                            trans_source_to_target;
 
                     Image depth, color;
 
@@ -139,50 +137,44 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
                     auto result = odometry.ComputeMultiScale();
 
                     if (std::get<0>(result)) {
-                        Eigen::Matrix4d
-                            trans = odometry.transform_source_to_target_;
-                        Eigen::Matrix6d
-                            information = odometry.ComputeInformationMatrix();
+                        Eigen::Matrix4d trans =
+                                odometry.transform_source_to_target_;
+                        Eigen::Matrix6d information =
+                                odometry.ComputeInformationMatrix();
 
                         pose_graph.edges_.emplace_back(
-                            PoseGraphEdge(s - begin, t - begin,
-                                          trans, information, true));
+                                PoseGraphEdge(s - begin, t - begin, trans,
+                                              information, true));
                     }
                 }
             }
         }
     }
-#endif // USE_OPENCV
+#endif  // USE_OPENCV
     WritePoseGraph(config.GetPoseGraphFileForFragment(fragment_id, false),
                    pose_graph);
 }
 
-void OptimizePoseGraphForFragment(int fragment_id,
-                                  DatasetConfig &config) {
-
+void OptimizePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
     PoseGraph pose_graph;
     ReadPoseGraph(config.GetPoseGraphFileForFragment(fragment_id, false),
                   pose_graph);
 
     GlobalOptimizationConvergenceCriteria criteria;
-    GlobalOptimizationOption option(
-        config.max_depth_diff_,
-        0.25,
-        config.preference_loop_closure_odometry_,
-        0);
+    GlobalOptimizationOption option(config.max_depth_diff_, 0.25,
+                                    config.preference_loop_closure_odometry_,
+                                    0);
     GlobalOptimizationLevenbergMarquardt optimization_method;
-    GlobalOptimization(pose_graph, optimization_method,
-                       criteria, option);
+    GlobalOptimization(pose_graph, optimization_method, criteria, option);
 
-    auto pose_graph_prunned = CreatePoseGraphWithoutInvalidEdges(
-        pose_graph, option);
+    auto pose_graph_prunned =
+            CreatePoseGraphWithoutInvalidEdges(pose_graph, option);
 
     WritePoseGraph(config.GetPoseGraphFileForFragment(fragment_id, true),
                    *pose_graph_prunned);
 }
 
 void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
-
     PoseGraph pose_graph;
     ReadPoseGraph(config.GetPoseGraphFileForFragment(fragment_id, true),
                   pose_graph);
@@ -192,15 +184,14 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     cuda::PinholeCameraIntrinsicCuda intrinsic(config.intrinsic_);
     cuda::TransformCuda trans = cuda::TransformCuda::Identity();
     cuda::ScalableTSDFVolumeCuda tsdf_volume(
-        8, voxel_length, (float) config.tsdf_truncation_, trans);
+            8, voxel_length, (float)config.tsdf_truncation_, trans);
 
-    cuda::RGBDImageCuda rgbd((float) config.max_depth_,
-                             (float) config.depth_factor_);
+    cuda::RGBDImageCuda rgbd((float)config.max_depth_,
+                             (float)config.depth_factor_);
 
     const int begin = fragment_id * config.n_frames_per_fragment_;
-    const int
-        end = std::min((fragment_id + 1) * config.n_frames_per_fragment_,
-                       (int) config.color_files_.size());
+    const int end = std::min((fragment_id + 1) * config.n_frames_per_fragment_,
+                             (int)config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
         LogDebug("Integrating frame {} ...\n", i);
@@ -218,11 +209,12 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     }
 
     tsdf_volume.GetAllSubvolumes();
-    WriteScalableTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id), tsdf_volume);
+    WriteScalableTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id),
+                                 tsdf_volume);
 
     cuda::ScalableMeshVolumeCuda mesher(
-        cuda::VertexWithNormalAndColor, 8,
-        tsdf_volume.active_subvolume_entry_array_.size());
+            cuda::VertexWithNormalAndColor, 8,
+            tsdf_volume.active_subvolume_entry_array_.size());
     mesher.MarchingCubes(tsdf_volume);
     auto mesh = mesher.mesh().Download();
 
@@ -244,12 +236,11 @@ static int Run(DatasetConfig &config) {
     Timer timer;
     timer.Start();
 
-    filesystem::MakeDirectoryHierarchy(
-        config.path_dataset_ + "/fragments_cuda/thumbnails");
+    filesystem::MakeDirectoryHierarchy(config.path_dataset_ +
+                                       "/fragments_cuda/thumbnails");
 
-    const int num_fragments =
-        DIV_CEILING(config.color_files_.size(),
-                    config.n_frames_per_fragment_);
+    const int num_fragments = DIV_CEILING(config.color_files_.size(),
+                                          config.n_frames_per_fragment_);
 
     for (int i = 0; i < num_fragments; ++i) {
         LogInfo("Processing fragment {} / {}\n", i, num_fragments - 1);
@@ -258,6 +249,6 @@ static int Run(DatasetConfig &config) {
         IntegrateForFragment(i, config);
     }
     timer.Stop();
-    LogInfo("MakeFragment takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("MakeFragment takes {} s\n", timer.GetDuration() * 1e-3);
 }
-};
+};  // namespace MakeFragment

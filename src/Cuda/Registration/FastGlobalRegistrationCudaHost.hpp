@@ -159,7 +159,7 @@ RegistrationResultCuda FastGlobalRegistrationCuda::DoSingleIteration(int iter) {
         mean_source_, mean_target_,
         device_->scale_global_);
     result.inlier_rmse_ = rmse;
-    utility::LogDebug("Iteration %d: inlier rmse = %f\n", iter, rmse);
+    utility::LogDebug("Iteration {}: inlier rmse = {}\n", iter, rmse);
 
     if (iter % 4 == 0 && device_->par_ > 0.0f) {
         device_->par_ /= 1.4f;

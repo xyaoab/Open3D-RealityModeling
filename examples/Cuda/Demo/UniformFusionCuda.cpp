@@ -69,7 +69,7 @@ std::shared_ptr<Image> ConvertImageFromFloatImage(const Image &image) {
 int main(int argc, char *argv[]) {
     SetVerbosityLevel(VerbosityLevel::Debug);
 
-    std::string base_path = "/home/dongw1/Workspace/data/stanford/copyroom/";
+    std::string base_path = "/home/wei/Workspace/data/stanford/copyroom/";
     auto camera_trajectory = CreatePinholeCameraTrajectoryFromFile(
             base_path + "/trajectory.log");
     auto rgbd_filenames =
@@ -81,11 +81,11 @@ int main(int argc, char *argv[]) {
     cuda::PinholeCameraIntrinsicCuda intrinsics(
             PinholeCameraIntrinsicParameters::PrimeSenseDefault);
 
-    float voxel_length = 0.08f;
-    int voxel_resolution = 64;
+    float voxel_length = 0.008f;
+    int voxel_resolution = 256;
     float offset = -voxel_length * voxel_resolution / 2;
     cuda::TransformCuda extrinsics = cuda::TransformCuda::Identity();
-    extrinsics.SetTranslation(cuda::Vector3f(offset, offset, 0));
+    extrinsics.SetTranslation(cuda::Vector3f(offset, offset, offset));
     std::cout << extrinsics.ToEigen() << "\n";
     cuda::UniformTSDFVolumeCuda tsdf_volume(voxel_resolution, voxel_length,
                                             3 * voxel_length, extrinsics);
@@ -103,12 +103,13 @@ int main(int argc, char *argv[]) {
     visualizer.BuildUtilities();
     visualizer.UpdateWindowTitle();
 
-    std::shared_ptr<cuda::TriangleMeshCuda> mesh =
-            std::make_shared<cuda::TriangleMeshCuda>();
+    std::shared_ptr<TriangleMesh> mesh = std::make_shared<TriangleMesh>();
     visualizer.AddGeometry(mesh);
 
     for (int i = 0; i < 1200; ++i) {
         LogDebug("Processing frame {} ...\n", i);
+        std::cout << base_path + rgbd_filenames[i].first << "\n";
+        std::cout << base_path + rgbd_filenames[i].second << "\n";
         ReadImage(base_path + rgbd_filenames[i].first, depth);
         ReadImage(base_path + rgbd_filenames[i].second, color);
         rgbd.Upload(depth, color);
@@ -122,13 +123,18 @@ int main(int argc, char *argv[]) {
 
         mesher.MarchingCubes(tsdf_volume);
 
-        *mesh = mesher.mesh();
+        *mesh = *mesher.mesh().Download();
+        std::cout << mesh->vertices_.size() << "\n";
         visualizer.PollEvents();
         visualizer.UpdateGeometry();
         visualizer.GetViewControl().ConvertFromPinholeCameraParameters(
                 camera_trajectory->parameters_[i]);
     }
-    io::WriteUniformTSDFVolumeToBIN("copyroom_uniform_64.bin", tsdf_volume);
+
+    mesher.MarchingCubes(tsdf_volume);
+    *mesh = *mesher.mesh().Download();
+    io::WriteTriangleMesh("copyroom.ply", *mesh);
+    io::WriteUniformTSDFVolumeToBIN("copyroom_uniform.bin", tsdf_volume);
 
 //    io::ReadUniformTSDFVolumeFromBIN("copyroom_uniform_saved.bin", tsdf_volume);
 //    mesher.MarchingCubes(tsdf_volume);

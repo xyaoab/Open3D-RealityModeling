@@ -105,10 +105,10 @@ void ScalableTSDFVolumeProcessorCuda::ComputeGradient(ScalableTSDFVolumeCuda &ts
     assert(device_ != nullptr);
 
     active_subvolumes_ = tsdf_volume.active_subvolume_entry_array_.size();
-    utility::LogDebug("Active subvolumes: %d\n", active_subvolumes_);
+    utility::LogDebug("Active subvolumes: {}\n", active_subvolumes_);
 
     if (active_subvolumes_ <= 0) {
-        utility::LogError("Invalid active subvolume numbers: %d !\n",
+        utility::LogError("Invalid active subvolume numbers: {} !\n",
                    active_subvolumes_);
         return;
     }

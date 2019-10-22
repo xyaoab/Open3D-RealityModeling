@@ -49,7 +49,7 @@ TEST(ScalableTSDFVolumeCuda, TouchSubvolumes) {
 
     auto entry_vector = volume.active_subvolume_entry_array_.Download();
     for (auto &entry : entry_vector) {
-        LogInfo("%d %d %d %d\n", entry.key(0), entry.key(1), entry.key(2),
+        LogInfo("{} {} {} {}\n", entry.key(0), entry.key(1), entry.key(2),
             entry.internal_addr);
     }
 }
@@ -90,7 +90,7 @@ TEST(ScalableTSDFVolumeCuda, Integration) {
         for (int k = 0; k < 512; ++k) {
             sum_tsdf += fabsf(tsdf[k]);
         }
-        LogInfo("%d %d %d %f\n", keys[i](0), keys[i](1), keys[i](2), sum_tsdf);
+        LogInfo("{} {} %d %f\n", keys[i](0), keys[i](1), keys[i](2), sum_tsdf);
     }
 }
 

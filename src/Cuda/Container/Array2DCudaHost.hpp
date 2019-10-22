@@ -95,8 +95,8 @@ void Array2DCuda<T>::CopyTo(Array2DCuda<T> &other) {
     if (other.device_ == nullptr) {
         other.Create(max_rows_, max_cols_);
     } else if (other.max_rows_ < max_rows_ || other.max_cols_ < max_cols_) {
-        utility::LogError("[Array2DCuda]: Dimension mismatch: (%d %d) vs (%d "
-                          "%d)\n",
+        utility::LogError("[Array2DCuda]: Dimension mismatch: ({} {}) vs ({} "
+                          "{})\n",
                    other.max_rows_, other.max_cols_, max_rows_, max_cols_);
         return;
     }

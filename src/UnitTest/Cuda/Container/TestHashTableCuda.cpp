@@ -63,7 +63,7 @@ TEST(HashTableCuda, HashTableProfiling) {
     for (int i = 0; i < downloaded_keys.size(); ++i) {
         EXPECT_EQ(pairs[downloaded_keys[i]], downloaded_values[i]);
     }
-    LogInfo("Uploading passed, %d / %d entries uploaded.\n",
+    LogInfo("Uploading passed, {} / {} entries uploaded.\n",
               downloaded_keys.size(), keys.size());
 
     auto profile = table.Profile();
@@ -72,7 +72,7 @@ TEST(HashTableCuda, HashTableProfiling) {
     LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     for (int i = 0; i < array_entry_count.size(); ++i) {
-        LogInfo("> %d: %d %d\n", i,
+        LogInfo("> {}: {} {}\n", i,
             array_entry_count[i], list_entry_count[i]);
     }
 
@@ -86,7 +86,7 @@ TEST(HashTableCuda, HashTableProfiling) {
     downloaded = table.DownloadKeyValuePairs();
     downloaded_keys = std::get<0>(downloaded);
     downloaded_values = std::get<1>(downloaded);
-    LogInfo("Deletion passed, %d entries remains.\n",
+    LogInfo("Deletion passed, {} entries remains.\n",
               downloaded_keys.size());
 
     profile = table.Profile();
@@ -95,7 +95,7 @@ TEST(HashTableCuda, HashTableProfiling) {
     LogInfo("Profiling occupied array entries and linked list entries "
               "per bucket...\n");
     for (int i = 0; i < array_entry_count.size(); ++i) {
-        LogInfo("> %d: d %d\n", i,
+        LogInfo("> {}: d {}\n", i,
             array_entry_count[i], list_entry_count[i]);
     }
 
@@ -144,7 +144,7 @@ TEST(HashTableCuda, HashTableInsertionAndDelete) {
     auto downloaded = table.DownloadKeyValuePairs();
     std::vector<Vector3i> downloaded_keys = std::get<0>(downloaded);
     std::vector<int> downloaded_values = std::get<1>(downloaded);
-    LogInfo("Uploading passed, %d / %d entries uploaded.\n",
+    LogInfo("Uploading passed, {} / {} entries uploaded.\n",
               downloaded_keys.size(), keys.size());
     auto profile = table.Profile();
     std::vector<int> array_entry_count = std::get<0>(profile);
@@ -172,7 +172,7 @@ TEST(HashTableCuda, HashTableInsertionAndDelete) {
     downloaded = table.DownloadKeyValuePairs();
     downloaded_keys = std::get<0>(downloaded);
     downloaded_values = std::get<1>(downloaded);
-    LogInfo("Delete passed, %d entries remains.\n",
+    LogInfo("Delete passed, {} entries remains.\n",
               downloaded_keys.size());
 
     profile = table.Profile();

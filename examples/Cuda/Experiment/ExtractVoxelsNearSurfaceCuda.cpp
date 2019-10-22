@@ -31,7 +31,7 @@ void ReadAndComputeGradient(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN("target.bin", tsdf_volume);
     timer.Stop();
-    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes {} ms\n", timer.GetDuration());
 
     utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
     tsdf_volume.GetAllSubvolumes();

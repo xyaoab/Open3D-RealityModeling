@@ -42,7 +42,7 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
             float vij = float(grid_to_world(i, j));
             if (fwrite(&vij, sizeof(float), 1, fid) < 1) {
                 utility::LogWarning(
-                        "Write BIN failed: unable to write transform[%d, %d]\n",
+                        "Write BIN failed: unable to write transform[{}, {}]\n",
                         i, j);
                 return false;
             }
@@ -116,7 +116,7 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
         for (int j = 0; j < 4; ++j) {
             if (fread(&vij, sizeof(float), 1, fid) < 1) {
                 utility::LogWarning(
-                        "Read BIN failed: unable to read transform[%d, %d]\n",
+                        "Read BIN failed: unable to read transform[{}, {}]\n",
                         i, j);
                 return false;
             }

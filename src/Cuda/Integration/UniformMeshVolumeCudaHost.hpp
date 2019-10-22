@@ -138,7 +138,7 @@ void UniformMeshVolumeCuda::VertexAllocation(
     UniformMeshVolumeCudaKernelCaller::VertexAllocation(*this, tsdf_volume);
 
     timer.Stop();
-    utility::LogInfo("Allocation takes %f milliseconds\n", timer.GetDuration
+    utility::LogInfo("Allocation takes {} milliseconds\n", timer.GetDuration
     ());
 }
 
@@ -152,7 +152,7 @@ void UniformMeshVolumeCuda::VertexExtraction(
 
     UniformMeshVolumeCudaKernelCaller::VertexExtraction(*this, tsdf_volume);
     timer.Stop();
-    utility::LogInfo("Extraction takes %f milliseconds\n", timer.GetDuration
+    utility::LogInfo("Extraction takes {} milliseconds\n", timer.GetDuration
     ());
 }
 
@@ -166,7 +166,7 @@ void UniformMeshVolumeCuda::TriangleExtraction() {
     UniformMeshVolumeCudaKernelCaller::TriangleExtraction(*this);
 
     timer.Stop();
-    utility::LogInfo("Triangulation takes %f milliseconds\n", timer
+    utility::LogInfo("Triangulation takes {} milliseconds\n", timer
     .GetDuration());
 }
 

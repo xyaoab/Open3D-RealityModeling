@@ -52,13 +52,13 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
 
     tsdf_volume.GetAllSubvolumes();
     timer.Stop();
-    utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Integration takes {} ms\n", timer.GetDuration());
 
     timer.Start();
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::WriteScalableTSDFVolumeToBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
-    utility::LogInfo("Write TSDF takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Write TSDF takes {} ms\n", timer.GetDuration());
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -76,7 +76,7 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
 //    timer.Start();
 //    WritePointCloudToPLY("test.ply", pcl);
 //    timer.Stop();
-//    utility::LogInfo("Write ply takes %f ms\n", timer.GetDuration());
+//    utility::LogInfo("Write ply takes {} ms\n", timer.GetDuration());
 }
 
 void ReadFragment(int fragment_id, DatasetConfig &config) {
@@ -97,7 +97,7 @@ void ReadFragment(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN("target-high.bin", tsdf_volume, false);
     timer.Stop();
-    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes {} ms\n", timer.GetDuration());
 
     tsdf_volume.GetAllSubvolumes();
     cuda::ScalableMeshVolumeCuda mesher(

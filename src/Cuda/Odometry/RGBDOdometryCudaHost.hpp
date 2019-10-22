@@ -43,7 +43,7 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
         if (source_depth_[0].width_ != width
         || source_depth_[0].height_ != height) {
             utility::LogError("[RGBDOdometryCuda] Incompatible image size, "
-                       "width: %d vs %d, height: %d vs %d, "
+                       "width: {} vs {}, height: {} vs {}, "
                        "@Create aborted.\n",
                        source_depth_[0].width_, width,
                        source_depth_[0].height_, height);
@@ -258,7 +258,7 @@ RGBDOdometryCuda<N>::DoSingleIteration(size_t level, int iter) {
     Eigen::Vector6d Jtr;
     float loss, inliers;
     ExtractResults(results, JtJ, Jtr, loss, inliers);
-    utility::LogDebug("> Level %d, iter %d: loss = %f, avg loss = %f, "
+    utility::LogDebug("> Level {}, iter {}: loss = {}, avg loss = {}, "
                         "inliers = %"
                 ".0f\n",
                level, iter, loss, loss / inliers, inliers);

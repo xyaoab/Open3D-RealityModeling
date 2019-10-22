@@ -160,14 +160,14 @@ RegistrationResultCuda RegistrationCuda::DoSingleIteration(int iter) {
     GetCorrespondences();
 
     if (correspondences_.indices_.size() < 10) {
-        utility::LogError("Insufficient correspondences: %d\n",
+        utility::LogError("Insufficient correspondences: {}\n",
                             correspondences_.indices_.size());
         return delta;
     }
 
     delta = BuildAndSolveLinearSystem();
 
-    utility::LogDebug("Iteration %d: inlier rmse = %f, fitness = %f\n",
+    utility::LogDebug("Iteration {}: inlier rmse = {}, fitness = {}\n",
                         iter, delta.inlier_rmse_, delta.fitness_);
 
     TransformSourcePointCloud(delta.transformation_);

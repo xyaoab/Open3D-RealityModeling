@@ -244,7 +244,7 @@ std::vector<int> ScalableTSDFVolumeCuda::UploadKeys(
             }
         }
 
-        utility::LogInfo("%d / %d subvolume info uploaded\n",
+        utility::LogInfo("{} / {} subvolume info uploaded\n",
                            keys_to_attempt.size() - new_keys_to_attempt.size(),
                            keys_to_attempt.size());
 
@@ -258,7 +258,7 @@ std::vector<int> ScalableTSDFVolumeCuda::UploadKeys(
 
     if (attempt == kTotalAttempt) {
         utility::LogWarning("Reach maximum attempts, "
-                              "%d subvolumes may fail to be inserted!\n",
+                              "{} subvolumes may fail to be inserted!\n",
                               keys_to_attempt.size());
     }
 

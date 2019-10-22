@@ -47,7 +47,7 @@ void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry, size_t level) {
         ComputeJtJAndJtr(jacobian_I, jacobian_D, residual_I, residual_D,
                          JtJ, Jtr);
 
-        //        printf("- (%d %d) -> "
+        //        printf("- ({} {}) -> "
 //               "(%f %f %f %f %f %f) - %f "
 //               "(%f %f %f %f %f %f) - %f\n",
 //            x_target, y_target,

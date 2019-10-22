@@ -66,7 +66,7 @@ void IntegrateForMultiResSubvolume(int fragment_id,
     utility::LogInfo("Total subvolumes: {}\n", tsdf_volume_4.active_subvolume_entry_array_.size());
 
     timer.Stop();
-    utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Integration takes {} ms\n", timer.GetDuration());
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -121,7 +121,7 @@ void IntegrateForOriginResolution(int fragment_id,
 
 
     timer.Stop();
-    utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Integration takes {} ms\n", timer.GetDuration());
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -179,7 +179,7 @@ void IntegrateForCoarseSubvolume(int fragment_id,
     utility::LogInfo("Total subvolumes: {}\n", tsdf_volume.active_subvolume_entry_array_.size());
 
     timer.Stop();
-    utility::LogInfo("Integration takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Integration takes {} ms\n", timer.GetDuration());
 
     cuda::ScalableMeshVolumeCuda mesher(
         cuda::VertexWithNormalAndColor, 8,
@@ -207,13 +207,13 @@ void ReadAndDownsampleFragment(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
     timer.Stop();
-    utility::LogInfo("Read takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Read takes {} ms\n", timer.GetDuration());
 
     timer.Start();
     auto tsdf_volume_down_2 = tsdf_volume.DownSample();
     auto tsdf_volume_down_4 = tsdf_volume_down_2.DownSample();
     timer.Stop();
-    utility::LogInfo("Downsample takes %f ms\n", timer.GetDuration());
+    utility::LogInfo("Downsample takes {} ms\n", timer.GetDuration());
 
     tsdf_volume_down_4.GetAllSubvolumes();
     utility::LogInfo("tsdf_volume_down.active: {}\n",

@@ -47,7 +47,7 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
             volume.N_ * volume.N_ * volume.N_ * sizeof(float) * 2);
     }
 
-    utility::LogInfo("Writing %d subvolumes.\n", keys.size());
+    utility::LogInfo("Writing {} subvolumes.\n", keys.size());
     for (auto &subvolume : values) {
         auto &tsdf = subvolume.tsdf_;
         auto &weight = subvolume.weight_;

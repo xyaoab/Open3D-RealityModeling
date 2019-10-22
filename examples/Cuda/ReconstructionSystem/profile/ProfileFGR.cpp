@@ -71,13 +71,13 @@ void ProfileFGR(DatasetConfig &config, bool use_cuda) {
             double time = fgr_timer.GetDuration();
             fgr_times.push_back(time);
 
-            LogInfo("Fragment {} - {} takes %f ms\n", s, t, time);
+            LogInfo("Fragment {} - {} takes {} ms\n", s, t, time);
         }
     }
 
     double mean, std;
     std::tie(mean, std) = ComputeStatistics(fgr_times);
-    LogInfo("total time: avg = %f, std = %f\n", mean, std);
+    LogInfo("total time: avg = {}, std = {}\n", mean, std);
 }
 
 

@@ -2,11 +2,11 @@
 // Created by wei on 2/4/19.
 //
 
-#include <vector>
 #include <string>
+#include <vector>
 
-#include <Open3D/Open3D.h>
 #include <Cuda/Open3DCuda.h>
+#include <Open3D/Open3D.h>
 
 #include "DatasetConfig.h"
 
@@ -18,19 +18,19 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
     std::vector<Match> matches;
 
     for (int s = 0; s < config.thumbnail_fragment_files_.size() - 1; ++s) {
-        auto source = CreatePointCloudFromFile(
-            config.thumbnail_fragment_files_[s]);
+        auto source =
+                CreatePointCloudFromFile(config.thumbnail_fragment_files_[s]);
 
         PoseGraph pose_graph_s;
         ReadPoseGraph(config.GetPoseGraphFileForFragment(s, true),
-                          pose_graph_s);
+                      pose_graph_s);
 
         auto rbegin = pose_graph_s.nodes_.rbegin();
         Eigen::Matrix4d init_source_to_target = rbegin->pose_.inverse();
 
         for (int t = s + 1; t < config.thumbnail_fragment_files_.size(); ++t) {
             auto target = CreatePointCloudFromFile(
-                config.thumbnail_fragment_files_[t]);
+                    config.thumbnail_fragment_files_[t]);
 
             Match match;
             match.s = s;
@@ -39,20 +39,19 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
             /** Colored ICP **/
             if (t == s + 1) {
                 cuda::RegistrationCuda registration(
-                    TransformationEstimationType::ColoredICP);
+                        TransformationEstimationType::ColoredICP);
                 registration.Initialize(*source, *target,
-                                        (float) config.voxel_size_ * 1.4f,
+                                        (float)config.voxel_size_ * 1.4f,
                                         init_source_to_target);
                 registration.ComputeICP();
                 match.trans_source_to_target =
-                    registration.transform_source_to_target_;
+                        registration.transform_source_to_target_;
                 match.information = registration.ComputeInformationMatrix();
                 match.success = true;
-                LogInfo("Point cloud odometry ({} {})\n", match.s,
-                                   match.t);
+                LogInfo("Point cloud odometry ({} {})\n", match.s, match.t);
             }
 
-                /** Fast global registration **/
+            /** Fast global registration **/
             else {
                 cuda::FastGlobalRegistrationCuda fgr;
                 fgr.Initialize(*source, *target);
@@ -60,15 +59,19 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                 auto result = fgr.ComputeRegistration();
                 match.trans_source_to_target = result.transformation_;
 
-                match.information = cuda::RegistrationCuda::ComputeInformationMatrix(
-                    *source, *target, config.voxel_size_ * 1.4f, result.transformation_);
-                match.success = match.trans_source_to_target.trace() != 4.0
-                    && match.information(5, 5) /
-                        std::min(source->points_.size(),
-                                 target->points_.size()) >= 0.3;
+                match.information =
+                        cuda::RegistrationCuda::ComputeInformationMatrix(
+                                *source, *target, config.voxel_size_ * 1.4f,
+                                result.transformation_);
+                match.success =
+                        match.trans_source_to_target.trace() != 4.0 &&
+                        match.information(5, 5) /
+                                        std::min(source->points_.size(),
+                                                 target->points_.size()) >=
+                                0.3;
                 if (match.success) {
-                    LogInfo("Global registration ({} {}) computed\n",
-                                       match.s, match.t);
+                    LogInfo("Global registration ({} {}) computed\n", match.s,
+                            match.t);
                 } else {
                     LogInfo("Skip ({} {}).\n", match.s, match.t);
                 }
@@ -80,8 +83,8 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
     return matches;
 }
 
-void MakePoseGraphForScene(
-    const std::vector<Match> &matches, DatasetConfig &config) {
+void MakePoseGraphForScene(const std::vector<Match> &matches,
+                           DatasetConfig &config) {
     PoseGraph pose_graph;
 
     /* world_to_frag_0 */
@@ -95,19 +98,14 @@ void MakePoseGraphForScene(
             trans_odometry = match.trans_source_to_target * trans_odometry;
             auto trans_odometry_inv = trans_odometry.inverse();
 
-            pose_graph.nodes_.emplace_back(
-                PoseGraphNode(trans_odometry_inv));
-            pose_graph.edges_.emplace_back(
-                PoseGraphEdge(match.s, match.t,
-                    match.trans_source_to_target,
-                    match.information,
-                    false));
+            pose_graph.nodes_.emplace_back(PoseGraphNode(trans_odometry_inv));
+            pose_graph.edges_.emplace_back(PoseGraphEdge(
+                    match.s, match.t, match.trans_source_to_target,
+                    match.information, false));
         } else {
-            pose_graph.edges_.emplace_back(
-                PoseGraphEdge(
-                    match.s, match.t,
-                    match.trans_source_to_target, match.information,
-                    true));
+            pose_graph.edges_.emplace_back(PoseGraphEdge(
+                    match.s, match.t, match.trans_source_to_target,
+                    match.information, true));
         }
     }
 
@@ -115,23 +113,20 @@ void MakePoseGraphForScene(
 }
 
 void OptimizePoseGraphForScene(DatasetConfig &config) {
-
     PoseGraph pose_graph;
     ReadPoseGraph(config.GetPoseGraphFileForScene(false), pose_graph);
 
     GlobalOptimizationConvergenceCriteria criteria;
     GlobalOptimizationOption option(
-        config.voxel_size_ * 1.4, 0.25,
-        config.preference_loop_closure_registration_, 0);
+            config.voxel_size_ * 1.4, 0.25,
+            config.preference_loop_closure_registration_, 0);
     GlobalOptimizationLevenbergMarquardt optimization_method;
-    GlobalOptimization(pose_graph, optimization_method,
-                                     criteria, option);
+    GlobalOptimization(pose_graph, optimization_method, criteria, option);
 
-    auto pose_graph_prunned = CreatePoseGraphWithoutInvalidEdges(
-        pose_graph, option);
+    auto pose_graph_prunned =
+            CreatePoseGraphWithoutInvalidEdges(pose_graph, option);
 
-    WritePoseGraph(config.GetPoseGraphFileForScene(true),
-                   *pose_graph_prunned);
+    WritePoseGraph(config.GetPoseGraphFileForScene(true), *pose_graph_prunned);
 }
 
 int Run(DatasetConfig &config) {
@@ -149,7 +144,7 @@ int Run(DatasetConfig &config) {
     MakePoseGraphForScene(matches, config);
     OptimizePoseGraphForScene(config);
     timer.Stop();
-    LogInfo("RegisterFragments takes %.3f s\n", timer.GetDuration() * 1e-3);
+    LogInfo("RegisterFragments takes {} s\n", timer.GetDuration() * 1e-3);
     return 0;
 }
-};
+};  // namespace RegisterFragments

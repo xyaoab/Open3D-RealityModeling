@@ -85,12 +85,12 @@ void ProfileRegistration(DatasetConfig &config, bool use_cuda) {
                                     edge.transformation_,
                                     config.voxel_size_, use_cuda);
         times.push_back(time);
-        LogInfo("Fragment {} - {} takes %f ms\n", match.s, match.t, time);
+        LogInfo("Fragment {} - {} takes {} ms\n", match.s, match.t, time);
     }
 
     double mean, std;
     std::tie(mean, std) = ComputeStatistics(times);
-    LogInfo("gpu time: avg = %f, std = %f\n", mean, std);
+    LogInfo("gpu time: avg = {}, std = {}\n", mean, std);
 }
 
 int main(int argc, char **argv) {
