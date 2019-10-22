@@ -50,7 +50,7 @@ This branch follows the [license of the official Open3D](https://github.com/inte
 If you find this project useful, please cite our paper (in addition to the original Open3D citation):
 ```
 @inproceedings{Dong-et-al-IROS-2019,   
-  title =        {{GPU} Accelerated Robust Scene Reconstruction, 
+  title =        {{GPU} Accelerated Robust Scene Reconstruction}, 
   year =         {2019},
   author =       {Wei Dong and Jaesik Park and Yi Yang and Michael Kaess},   
   booktitle =    {Proceedings of IEEE/RSJ International Conference on Intelligent Robots and Systems}
