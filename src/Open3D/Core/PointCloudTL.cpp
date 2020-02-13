@@ -24,15 +24,6 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d_pybind/core/container.h"
-#include "open3d_pybind/open3d_pybind.h"
+#include "Open3D/Core/PointCloudTL.h"
 
-void pybind_core(py::module &m) {
-    pybind_cuda_utils(m);
-    pybind_core_dtype(m);
-    pybind_core_device(m);
-    pybind_core_size_vector(m);
-    pybind_core_tensor(m);
-    pybind_core_tensorlist(m);
-    pybind_core_pointcloud_tl(m);
-}
+namespace open3d {}

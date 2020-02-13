@@ -46,6 +46,7 @@ namespace open3d {
 /// - Sparse Voxel Grid: N x 8 x 8 x 8
 class TensorList {
 public:
+    TensorList(){};
     /// Constructor for creating an (empty by default) tensor list.
     /// \param shape: shape for the contained tensors. e.g.
     /// (3) for a list points,

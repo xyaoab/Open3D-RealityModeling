@@ -23,6 +23,7 @@ set (CORE_SRC
     MemoryManagerCUDA.cu
     Tensor.cpp
     TensorList.cpp
+    PointCloudTL.cpp
 )
 
 set (CORE_CUDA_SRC
@@ -30,7 +31,7 @@ set (CORE_CUDA_SRC
 )
 
 if (BUILD_CUDA_MODULE)
-    set (ALL_CORE_SRC
+0    set (ALL_CORE_SRC
         ${CORE_SRC}
         ${CORE_CUDA_SRC}
         ${KERNEL_SRC}

@@ -320,3 +320,7 @@ def test_tensorlist_operations():
 
     e += a
     assert e.size() == 9
+
+def test_pointcloud_tl():
+    pcd = o3d.PointCloudTL().from_point_dict({'points': o3d.Tensor(np.zeros((100, 3), dtype=np.float32))})
+    assert pcd['points'].size() == 100

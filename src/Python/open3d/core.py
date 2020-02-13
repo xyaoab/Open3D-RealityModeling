@@ -242,3 +242,43 @@ class TensorList(open3d_pybind.TensorList):
             device = o3d.Device("CPU:0")
 
         return super(TensorList, TensorList).from_tensors(tensors, device)
+
+class PointCloudTL(open3d_pybind.PointCloudTL):
+    """
+    Open3D PointCloud class. A TensorList is an extendable tensor at the 0-th dimension.
+    It is similar to python list, but uses Open3D's tensor memory management system.
+    """
+
+    def __init__(self):
+        super(PointCloudTL, self).__init__()
+
+    @staticmethod
+    def from_points(points):
+        if not isinstance(points, o3d.Tensor):
+            raise ValueError('points must be a o3d.Tensor')
+
+        return super(PointCloudTL, PointCloudTL).from_points(points)
+
+    @staticmethod
+    def from_point_dict(point_dict):
+        if not isinstance(point_dict, dict):
+            raise ValueError('point_dict must be a dict')
+
+        for k, v in point_dict.items():
+            if not isinstance(k, str) or not isinstance(v, o3d.Tensor):
+                raise ValueError(
+                    'every element of the dict must be a (str, o3d.Tensor) tuple')
+
+        return super(PointCloudTL, PointCloudTL).from_point_dict(point_dict)
+
+    def sync_push_back(self, point_struct):
+        if not isinstance(point_struct, dict):
+            raise ValueError('point_struct must be a dict')
+
+        for k, v in point_struct.items():
+            if not isinstance(k, str) or not isinstance(v, o3d.Tensor):
+                raise ValueError(
+                    'every element of the dict must be a (str, o3d.Tensor) tuple')
+
+        return super(PointCloudTL, self).sync_push_back(point_struct)
+

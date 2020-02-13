@@ -24,15 +24,45 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d_pybind/core/container.h"
-#include "open3d_pybind/open3d_pybind.h"
+#include "Open3D/Core/TensorList.h"
 
-void pybind_core(py::module &m) {
-    pybind_cuda_utils(m);
-    pybind_core_dtype(m);
-    pybind_core_device(m);
-    pybind_core_size_vector(m);
-    pybind_core_tensor(m);
-    pybind_core_tensorlist(m);
-    pybind_core_pointcloud_tl(m);
+#include <vector>
+
+#include "Open3D/Core/Blob.h"
+#include "Open3D/Core/CUDAUtils.h"
+#include "Open3D/Core/Device.h"
+#include "Open3D/Core/Dispatch.h"
+#include "Open3D/Core/Dtype.h"
+#include "Open3D/Core/PointCloudTL.h"
+#include "Open3D/Core/SizeVector.h"
+#include "Open3D/Core/Tensor.h"
+#include "open3d_pybind/core/container.h"
+#include "open3d_pybind/docstring.h"
+#include "open3d_pybind/open3d_pybind.h"
+#include "open3d_pybind/pybind_utils.h"
+using namespace open3d;
+
+void pybind_core_pointcloud_tl(py::module& m) {
+    py::class_<PointCloudTL> pointcloud(
+            m, "PointCloudTL",
+            "A PointCloudTL is an extendable tensor at the 0-th dimension.");
+
+    pointcloud
+            .def(py::init([]() { return PointCloudTL(); }))
+
+            // Construct from existing points
+            .def("from_points",
+                 [](const Tensor& tensor) { return PointCloudTL(tensor); })
+            // Construct from existing points with additional properties
+            .def("from_point_dict",
+                 [](const std::unordered_map<std::string, Tensor>& point_dict) {
+                     return PointCloudTL(point_dict);
+                 })
+            .def("sync_push_back",
+                 [](PointCloudTL& pcd,
+                    const std::unordered_map<std::string, Tensor>&
+                            point_struct) { pcd.SyncPushBack(point_struct); })
+            .def("__getitem__", [](PointCloudTL& pcd, const std::string& key) {
+                return pcd[key];
+            });
 }

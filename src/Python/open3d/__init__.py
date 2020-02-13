@@ -60,6 +60,7 @@ from open3d.open3d_pybind import cuda
 from open3d.core import SizeVector
 from open3d.core import Tensor
 from open3d.core import TensorList
+from open3d.core import PointCloudTL
 
 __version__ = '@PROJECT_VERSION@'
 
