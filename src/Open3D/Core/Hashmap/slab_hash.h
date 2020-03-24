@@ -194,7 +194,8 @@ SlabHash<_Key, _Value, _Hash, _Alloc>::SlabHash(
     slab_list_allocator_ = std::make_shared<SlabAlloc<_Alloc>>();
 
     // allocating initial buckets:
-    bucket_list_head_ = allocator_->template allocate<Slab>(num_buckets_);
+    bucket_list_head_ = static_cast<Slab*>(
+            allocator_->allocate(num_buckets_ * sizeof(Slab)));
     CHECK_CUDA(
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
@@ -206,7 +207,7 @@ SlabHash<_Key, _Value, _Hash, _Alloc>::SlabHash(
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 SlabHash<_Key, _Value, _Hash, _Alloc>::~SlabHash() {
     CHECK_CUDA(cudaSetDevice(device_idx_));
-    allocator_->template deallocate(bucket_list_head_);
+    allocator_->deallocate(bucket_list_head_);
 }
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
@@ -291,8 +292,8 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove_(_Key* keys,
 /* Debug usage */
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 std::vector<int> SlabHash<_Key, _Value, _Hash, _Alloc>::CountElemsPerBucket() {
-    auto elems_per_bucket_buffer =
-            allocator_->template allocate<uint32_t>(num_buckets_);
+    auto elems_per_bucket_buffer = static_cast<uint32_t*>(
+            allocator_->allocate(num_buckets_ * sizeof(uint32_t)));
 
     thrust::device_vector<uint32_t> elems_per_bucket(
             elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);

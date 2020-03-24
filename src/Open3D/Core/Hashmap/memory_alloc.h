@@ -104,12 +104,12 @@ public:
         max_capacity_ = max_capacity;
         gpu_context_.max_capacity_ = max_capacity;
 
-        gpu_context_.heap_counter_ =
-                allocator_->template allocate<int>(size_t(1));
-        gpu_context_.heap_ =
-                allocator_->template allocate<ptr_t>(size_t(max_capacity_));
-        gpu_context_.data_ =
-                allocator_->template allocate<T>(size_t(max_capacity_));
+        gpu_context_.heap_counter_ = static_cast<int *>(
+                allocator_->allocate(size_t(1) * sizeof(int)));
+        gpu_context_.heap_ = static_cast<ptr_t *>(
+                allocator_->allocate(size_t(max_capacity_) * sizeof(ptr_t)));
+        gpu_context_.data_ = static_cast<T *>(
+                allocator_->allocate(size_t(max_capacity_) * sizeof(T)));
 
         const int blocks = (max_capacity_ + 128 - 1) / 128;
         const int threads = 128;
@@ -124,9 +124,9 @@ public:
     }
 
     ~MemoryAlloc() {
-        allocator_->template deallocate<int>(gpu_context_.heap_counter_);
-        allocator_->template deallocate<ptr_t>(gpu_context_.heap_);
-        allocator_->template deallocate<T>(gpu_context_.data_);
+        allocator_->deallocate(gpu_context_.heap_counter_);
+        allocator_->deallocate(gpu_context_.heap_);
+        allocator_->deallocate(gpu_context_.data_);
     }
 
     std::vector<int> DownloadHeap() {

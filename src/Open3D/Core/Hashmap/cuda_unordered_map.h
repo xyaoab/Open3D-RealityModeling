@@ -137,13 +137,18 @@ unordered_map<Key, Value, Hash, Alloc>::unordered_map(
     allocator_ = std::make_shared<Alloc>(cuda_device_idx_);
 
     // allocating key, value arrays to buffer input and output:
-    input_key_buffer_ = allocator_->template allocate<Key>(max_keys_);
-    input_value_buffer_ = allocator_->template allocate<Value>(max_keys_);
-    output_key_buffer_ = allocator_->template allocate<Key>(max_keys_);
-    output_value_buffer_ = allocator_->template allocate<Value>(max_keys_);
-    output_mask_buffer_ = allocator_->template allocate<uint8_t>(max_keys_);
-    output_iterator_buffer_ =
-            allocator_->template allocate<_Iterator<Key, Value>>(max_keys_);
+    input_key_buffer_ =
+            static_cast<Key*>(allocator_->allocate(max_keys_ * sizeof(Key)));
+    input_value_buffer_ = static_cast<Value*>(
+            allocator_->allocate(max_keys_ * sizeof(Value)));
+    output_key_buffer_ =
+            static_cast<Key*>(allocator_->allocate(max_keys_ * sizeof(Key)));
+    output_value_buffer_ = static_cast<Value*>(
+            allocator_->allocate(max_keys_ * sizeof(Value)));
+    output_mask_buffer_ = static_cast<uint8_t*>(
+            allocator_->allocate(max_keys_ * sizeof(uint8_t)));
+    output_iterator_buffer_ = static_cast<_Iterator<Key, Value>*>(
+            allocator_->allocate(max_keys_ * sizeof(_Iterator<Key, Value>)));
 
     // allocate an initialize the allocator:
     slab_hash_ = std::make_shared<SlabHash<Key, Value, Hash, Alloc>>(
@@ -154,14 +159,13 @@ template <typename Key, typename Value, typename Hash, class Alloc>
 unordered_map<Key, Value, Hash, Alloc>::~unordered_map() {
     CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
 
-    allocator_->template deallocate<Key>(input_key_buffer_);
-    allocator_->template deallocate<Value>(input_value_buffer_);
+    allocator_->deallocate(input_key_buffer_);
+    allocator_->deallocate(input_value_buffer_);
 
-    allocator_->template deallocate<Key>(output_key_buffer_);
-    allocator_->template deallocate<Value>(output_value_buffer_);
-    allocator_->template deallocate<uint8_t>(output_mask_buffer_);
-    allocator_->template deallocate<_Iterator<Key, Value>>(
-            output_iterator_buffer_);
+    allocator_->deallocate(output_key_buffer_);
+    allocator_->deallocate(output_value_buffer_);
+    allocator_->deallocate(output_mask_buffer_);
+    allocator_->deallocate(output_iterator_buffer_);
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>

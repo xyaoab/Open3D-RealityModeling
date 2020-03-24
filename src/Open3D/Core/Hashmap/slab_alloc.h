@@ -272,9 +272,9 @@ public:
         allocator_ = std::make_shared<_Alloc>();
         // In the light version, we put num_super_blocks super blocks within
         // a single array
-        super_blocks_ = allocator_->template allocate<uint32_t>(
+        super_blocks_ = static_cast<uint32_t*>(allocator_->allocate(
                 slab_alloc_context_.SUPER_BLOCK_SIZE_ *
-                slab_alloc_context_.num_super_blocks_);
+                slab_alloc_context_.num_super_blocks_ * sizeof(uint32_t)));
 
         for (int i = 0; i < slab_alloc_context_.num_super_blocks_; i++) {
             // setting bitmaps into zeros:
@@ -300,15 +300,15 @@ public:
         // initializing the slab context:
         slab_alloc_context_.Setup(super_blocks_, hash_coef_);
     }
-    ~SlabAlloc() { allocator_->template deallocate<uint32_t>(super_blocks_); }
+    ~SlabAlloc() { allocator_->deallocate(super_blocks_); }
 
     SlabAllocContext& getContext() { return slab_alloc_context_; }
 
     std::vector<int> CountSlabsPerSuperblock() {
         const uint32_t num_super_blocks = slab_alloc_context_.num_super_blocks_;
 
-        auto slabs_per_superblock_buffer =
-                allocator_->template allocate<uint32_t>(num_super_blocks);
+        auto slabs_per_superblock_buffer = static_cast<uint32_t*>(
+                allocator_->allocate(num_super_blocks * sizeof(uint32_t)));
         thrust::device_vector<uint32_t> slabs_per_superblock(
                 slabs_per_superblock_buffer,
                 slabs_per_superblock_buffer + num_super_blocks);
@@ -327,7 +327,7 @@ public:
         std::vector<int> result(num_super_blocks);
         thrust::copy(slabs_per_superblock.begin(), slabs_per_superblock.end(),
                      result.begin());
-        allocator_->template deallocate<uint32_t>(slabs_per_superblock_buffer);
+        allocator_->deallocate(slabs_per_superblock_buffer);
         return std::move(result);
     }
 };
