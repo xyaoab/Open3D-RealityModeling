@@ -50,4 +50,8 @@ set_target_properties(Core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 if (BUILD_CUDA_MODULE)
     target_include_directories(Core PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
+
+    set(CUDA_NVCC_FLAGS -std=c++11)
+    set(CMAKE_CXX_STANDARD 11)
+    cuda_add_executable(test_hashmap Hashmap/test_hashmap.cu)
 endif()
