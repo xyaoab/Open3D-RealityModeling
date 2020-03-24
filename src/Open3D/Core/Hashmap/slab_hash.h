@@ -63,18 +63,6 @@ public:
 
     ~SlabHash();
 
-    /* Simplistic output: no iterators, and success mask is only provided
-     * for search.
-     * All the outputs are READ ONLY: change to these output will NOT change the
-     * internal hash table.
-     */
-    void Insert(_Key* input_keys, _Value* input_values, uint32_t num_keys);
-    void Search(_Key* input_keys,
-                _Value* output_values,
-                uint8_t* output_masks,
-                uint32_t num_keys);
-    void Remove(_Key* input_keys, uint32_t num_keys);
-
     /* Verbose output (similar to std): return success masks for all operations,
 
     * and iterators for insert and search (not for remove operation, as
@@ -117,23 +105,6 @@ private:
     std::shared_ptr<SlabAlloc<_Alloc>> slab_list_allocator_;
     open3d::Device device_;
 };
-
-/** Lite version **/
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void InsertKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* input_keys,
-                             _Value* input_values,
-                             uint32_t num_keys);
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void SearchKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* input_keys,
-                             _Value* output_values,
-                             uint8_t* output_masks,
-                             uint32_t num_keys);
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void RemoveKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* input_keys,
-                             uint32_t num_keys);
 
 /** Verbose version **/
 template <typename _Key, typename _Value, typename _Hash>
@@ -203,40 +174,6 @@ SlabHash<_Key, _Value, _Hash, _Alloc>::~SlabHash() {
 }
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
-void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert(_Key* keys,
-                                                   _Value* values,
-                                                   uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    // calling the kernel for bulk build:
-    InsertKernel<_Key, _Value, _Hash>
-            <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
-}
-
-template <typename _Key, typename _Value, typename _Hash, class _Alloc>
-void SlabHash<_Key, _Value, _Hash, _Alloc>::Search(_Key* keys,
-                                                   _Value* values,
-                                                   uint8_t* founds,
-                                                   uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    SearchKernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, keys, values, founds, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
-}
-
-template <typename _Key, typename _Value, typename _Hash, class _Alloc>
-void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove(_Key* keys,
-                                                   uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    RemoveKernel<_Key, _Value, _Hash>
-            <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
-}
-
-template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert_(
         _Key* keys,
         _Value* values,
@@ -245,7 +182,7 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert_(
         uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     // calling the kernel for bulk build:
-    InsertKernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
+    Insert_Kernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, values, iterators, masks, num_keys);
     CHECK_CUDA(cudaDeviceSynchronize());
     CHECK_CUDA(cudaGetLastError());
@@ -748,101 +685,6 @@ SlabHashContext<_Key, _Value, _Hash>::Remove(uint8_t& to_be_deleted,
     }
 
     return mask;
-}
-
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void SearchKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* keys,
-                             _Value* values,
-                             uint8_t* founds,
-                             uint32_t num_queries) {
-    uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t lane_id = threadIdx.x & 0x1F;
-
-    /* This warp is idle */
-    if ((tid - lane_id) >= num_queries) {
-        return;
-    }
-
-    /* Initialize the memory allocator on each warp */
-    // slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
-
-    uint8_t lane_active = false;
-    uint32_t bucket_id = 0;
-    _Key key;
-
-    if (tid < num_queries) {
-        lane_active = true;
-        key = keys[tid];
-        bucket_id = slab_hash_ctx.ComputeBucket(key);
-    }
-
-    _Pair<ptr_t, uint8_t> result =
-            slab_hash_ctx.Search(lane_active, lane_id, bucket_id, key);
-
-    if (tid < num_queries) {
-        uint8_t found = result.second;
-        founds[tid] = found;
-        values[tid] = found ? slab_hash_ctx.get_pair_alloc_ctx()
-                                      .extract(result.first)
-                                      .second
-                            : _Value(0);
-    }
-}
-
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void InsertKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* keys,
-                             _Value* values,
-                             uint32_t num_keys) {
-    uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t lane_id = threadIdx.x & 0x1F;
-
-    if ((tid - lane_id) >= num_keys) {
-        return;
-    }
-
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
-
-    uint8_t lane_active = false;
-    uint32_t bucket_id = 0;
-    _Key key;
-    _Value value;
-
-    if (tid < num_keys) {
-        lane_active = true;
-        key = keys[tid];
-        value = values[tid];
-        bucket_id = slab_hash_ctx.ComputeBucket(key);
-    }
-
-    slab_hash_ctx.Insert(lane_active, lane_id, bucket_id, key, value);
-}
-
-template <typename _Key, typename _Value, typename _Hash>
-__global__ void RemoveKernel(SlabHashContext<_Key, _Value, _Hash> slab_hash_ctx,
-                             _Key* keys,
-                             uint32_t num_keys) {
-    uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    uint32_t lane_id = threadIdx.x & 0x1F;
-
-    if ((tid - lane_id) >= num_keys) {
-        return;
-    }
-
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
-
-    uint8_t lane_active = false;
-    uint32_t bucket_id = 0;
-    _Key key;
-
-    if (tid < num_keys) {
-        lane_active = true;
-        key = keys[tid];
-        bucket_id = slab_hash_ctx.ComputeBucket(key);
-    }
-
-    slab_hash_ctx.Remove(lane_active, lane_id, bucket_id, key);
 }
 
 template <typename _Key, typename _Value, typename _Hash>

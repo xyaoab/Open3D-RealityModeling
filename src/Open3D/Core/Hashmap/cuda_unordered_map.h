@@ -61,27 +61,6 @@ public:
                   open3d::Device device = open3d::Device("CUDA:0"));
     ~unordered_map();
 
-    /* Minimal output */
-    /* No output for Insert */
-    void Insert(const std::vector<Key>& input_keys,
-                const std::vector<Value>& input_values);
-    void Insert(thrust::device_vector<Key>& input_keys,
-                thrust::device_vector<Value>& input_values);
-    void Insert(Key* input_keys, Value* input_values, int num_keys);
-
-    /* Value and mask output for Search */
-    std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-    Search(const std::vector<Key>& input_keys);
-    std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-    Search(thrust::device_vector<Key>& input_keys);
-    std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-    Search(Key* input_keys, int num_keys);
-
-    /* No output for Remove */
-    void Remove(const std::vector<Key>& input_keys);
-    void Remove(thrust::device_vector<Key>& input_keys);
-    void Remove(Key* input_keys, int num_keys);
-
     /* Detailed output */
     std::pair<thrust::device_vector<_Iterator<Key, Value>>,
               thrust::device_vector<uint8_t>>
@@ -159,121 +138,39 @@ unordered_map<Key, Value, Hash, Alloc>::~unordered_map() {
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Insert(
-        const std::vector<Key>& input_keys,
-        const std::vector<Value>& input_values) {
-    assert(input_values.size() == input_keys.size());
-    assert(input_keys.size() <= max_keys_);
-
-    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
-                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
-
-    Alloc::Memcpy(input_value_buffer_, device_, input_values.data(),
-                  open3d::Device("CPU:0"), sizeof(Value) * input_values.size());
-
-    slab_hash_->Insert(input_key_buffer_, input_value_buffer_,
-                       input_keys.size());
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Insert(
+std::pair<thrust::device_vector<_Iterator<Key, Value>>,
+          thrust::device_vector<uint8_t>>
+unordered_map<Key, Value, Hash, Alloc>::Insert_(
         thrust::device_vector<Key>& input_keys,
         thrust::device_vector<Value>& input_values) {
     assert(input_values.size() == input_keys.size());
     assert(input_keys.size() <= max_keys_);
 
-    slab_hash_->Insert(thrust::raw_pointer_cast(input_keys.data()),
-                       thrust::raw_pointer_cast(input_values.data()),
-                       input_keys.size());
+    slab_hash_->Insert_(thrust::raw_pointer_cast(input_keys.data()),
+                        thrust::raw_pointer_cast(input_values.data()),
+                        output_iterator_buffer_, output_mask_buffer_,
+                        input_keys.size());
+
+    thrust::device_vector<_Iterator<Key, Value>> output_iterators(
+            output_iterator_buffer_,
+            output_iterator_buffer_ + input_keys.size());
+    thrust::device_vector<uint8_t> output_masks(
+            output_mask_buffer_, output_mask_buffer_ + input_keys.size());
+    return std::make_pair(output_iterators, output_masks);
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Insert(Key* input_keys,
-                                                    Value* input_values,
-                                                    int num_keys) {
-    slab_hash_->Insert(input_keys, input_values, num_keys);
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-unordered_map<Key, Value, Hash, Alloc>::Search(
-        const std::vector<Key>& input_keys) {
-    assert(input_keys.size() <= max_keys_);
-
+thrust::device_vector<uint8_t> unordered_map<Key, Value, Hash, Alloc>::Remove_(
+        thrust::device_vector<Key>& input_keys) {
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
                           sizeof(uint8_t) * input_keys.size()));
 
-    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
-                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
+    slab_hash_->Remove_(thrust::raw_pointer_cast(input_keys.data()),
+                        output_mask_buffer_, input_keys.size());
 
-    slab_hash_->Search(input_key_buffer_, output_value_buffer_,
-                       output_mask_buffer_, input_keys.size());
-    CHECK_CUDA(cudaDeviceSynchronize());
-
-    thrust::device_vector<Value> output_values(
-            output_value_buffer_, output_value_buffer_ + input_keys.size());
     thrust::device_vector<uint8_t> output_masks(
             output_mask_buffer_, output_mask_buffer_ + input_keys.size());
-    return std::make_pair(output_values, output_masks);
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-unordered_map<Key, Value, Hash, Alloc>::Search(
-        thrust::device_vector<Key>& input_keys) {
-    assert(input_keys.size() <= max_keys_);
-    CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
-                          sizeof(uint8_t) * input_keys.size()));
-
-    slab_hash_->Search(thrust::raw_pointer_cast(input_keys.data()),
-                       output_value_buffer_, output_mask_buffer_,
-                       input_keys.size());
-    CHECK_CUDA(cudaDeviceSynchronize());
-
-    thrust::device_vector<Value> output_values(
-            output_value_buffer_, output_value_buffer_ + input_keys.size());
-    thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys.size());
-    return std::make_pair(output_values, output_masks);
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
-unordered_map<Key, Value, Hash, Alloc>::Search(Key* input_keys, int num_keys) {
-    assert(num_keys <= max_keys_);
-
-    CHECK_CUDA(cudaMemset(output_mask_buffer_, 0, sizeof(uint8_t) * num_keys));
-
-    slab_hash_->Search(input_keys, output_value_buffer_, output_mask_buffer_,
-                       num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-
-    thrust::device_vector<Value> output_values(output_value_buffer_,
-                                               output_value_buffer_ + num_keys);
-    thrust::device_vector<uint8_t> output_masks(output_mask_buffer_,
-                                                output_mask_buffer_ + num_keys);
-    return std::make_pair(output_values, output_masks);
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Remove(
-        const std::vector<Key>& input_keys) {
-    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
-                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
-    slab_hash_->Remove(input_key_buffer_, input_keys.size());
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Remove(
-        thrust::device_vector<Key>& input_keys) {
-    slab_hash_->Remove(thrust::raw_pointer_cast(input_keys.data()),
-                       input_keys.size());
-}
-
-template <typename Key, typename Value, typename Hash, class Alloc>
-void unordered_map<Key, Value, Hash, Alloc>::Remove(Key* input_keys,
-                                                    int num_keys) {
-    slab_hash_->Remove(input_keys, num_keys);
+    return output_masks;
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
