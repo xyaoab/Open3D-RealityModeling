@@ -119,8 +119,8 @@ public:
         CHECK_CUDA(cudaGetLastError());
 
         int heap_counter = 0;
-        CHECK_CUDA(cudaMemcpy(gpu_context_.heap_counter_, &heap_counter,
-                              sizeof(int), cudaMemcpyHostToDevice));
+        Alloc::Memcpy(gpu_context_.heap_counter_, device_, &heap_counter,
+                      open3d::Device("CPU:0"), sizeof(int));
     }
 
     ~MemoryAlloc() {
@@ -132,25 +132,23 @@ public:
     std::vector<int> DownloadHeap() {
         std::vector<int> ret;
         ret.resize(max_capacity_);
-        CHECK_CUDA(cudaMemcpy(ret.data(), gpu_context_.heap_,
-                              sizeof(int) * max_capacity_,
-                              cudaMemcpyDeviceToHost));
+        Alloc::Memcpy(ret.data(), open3d::Device("CPU:0"), gpu_context_.heap_,
+                      device_, sizeof(int) * max_capacity_);
         return ret;
     }
 
     std::vector<T> DownloadValue() {
         std::vector<T> ret;
         ret.resize(max_capacity_);
-        CHECK_CUDA(cudaMemcpy(ret.data(), gpu_context_.data_,
-                              sizeof(T) * max_capacity_,
-                              cudaMemcpyDeviceToHost));
+        Alloc::Memcpy(ret.data(), open3d::Device("CPU:0"), gpu_context_.data_,
+                      device_, sizeof(T) * max_capacity_);
         return ret;
     }
 
     int heap_counter() {
         int heap_counter;
-        CHECK_CUDA(cudaMemcpy(&heap_counter, gpu_context_.heap_counter_,
-                              sizeof(int), cudaMemcpyDeviceToHost));
+        Alloc::Memcpy(&heap_counter, open3d::Device("CPU:0"),
+                      gpu_context_.heap_counter_, device_, sizeof(int));
         return heap_counter;
     }
 };

@@ -165,12 +165,11 @@ void unordered_map<Key, Value, Hash, Alloc>::Insert(
     assert(input_values.size() == input_keys.size());
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaMemcpy(input_key_buffer_, input_keys.data(),
-                          sizeof(Key) * input_keys.size(),
-                          cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(input_value_buffer_, input_values.data(),
-                          sizeof(Value) * input_values.size(),
-                          cudaMemcpyHostToDevice));
+    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
+                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
+
+    Alloc::Memcpy(input_value_buffer_, device_, input_values.data(),
+                  open3d::Device("CPU:0"), sizeof(Value) * input_values.size());
 
     slab_hash_->Insert(input_key_buffer_, input_value_buffer_,
                        input_keys.size());
@@ -204,10 +203,9 @@ unordered_map<Key, Value, Hash, Alloc>::Search(
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
                           sizeof(uint8_t) * input_keys.size()));
 
-    CHECK_CUDA(cudaMemcpy(input_key_buffer_, input_keys.data(),
-                          sizeof(Key) * input_keys.size(),
+    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
+                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
 
-                          cudaMemcpyHostToDevice));
     slab_hash_->Search(input_key_buffer_, output_value_buffer_,
                        output_mask_buffer_, input_keys.size());
     CHECK_CUDA(cudaDeviceSynchronize());
@@ -260,9 +258,8 @@ unordered_map<Key, Value, Hash, Alloc>::Search(Key* input_keys, int num_keys) {
 template <typename Key, typename Value, typename Hash, class Alloc>
 void unordered_map<Key, Value, Hash, Alloc>::Remove(
         const std::vector<Key>& input_keys) {
-    CHECK_CUDA(cudaMemcpy(input_key_buffer_, input_keys.data(),
-                          sizeof(Key) * input_keys.size(),
-                          cudaMemcpyHostToDevice));
+    Alloc::Memcpy(input_key_buffer_, device_, input_keys.data(),
+                  open3d::Device("CPU:0"), sizeof(Key) * input_keys.size());
     slab_hash_->Remove(input_key_buffer_, input_keys.size());
 }
 
