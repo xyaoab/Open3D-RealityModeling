@@ -19,8 +19,8 @@
 #pragma once
 
 #include <thrust/device_vector.h>
+#include "Open3D/Core/MemoryManager.h"
 #include "slab_hash.h"
-
 /*
  * Default hash function:
  * It treat any kind of input as a concatenation of ints.
@@ -50,7 +50,7 @@ namespace cuda {
 template <typename Key,
           typename Value,
           typename Hash = hash<Key>,
-          class Alloc = CudaAllocator>
+          class Alloc = open3d::MemoryManager>
 class unordered_map {
 public:
     unordered_map(uint32_t max_keys,
@@ -58,7 +58,7 @@ public:
                   uint32_t keys_per_bucket = 10,
                   float expected_occupancy_per_bucket = 0.5,
                   /* CUDA device */
-                  const uint32_t device_idx = 0);
+                  open3d::Device device = open3d::Device("CUDA:0"));
     ~unordered_map();
 
     /* Minimal output */
@@ -102,7 +102,6 @@ public:
 private:
     uint32_t max_keys_;
     uint32_t num_buckets_;
-    uint32_t cuda_device_idx_;
 
     /* Buffer for input cpu data (e.g. from std::vector) */
     Key* input_key_buffer_;
@@ -113,7 +112,7 @@ private:
     uint8_t* output_mask_buffer_;
 
     std::shared_ptr<SlabHash<Key, Value, Hash, Alloc>> slab_hash_;
-    std::shared_ptr<Alloc> allocator_;
+    open3d::Device device_;
 };
 
 template <typename Key, typename Value, typename Hash, class Alloc>
@@ -121,51 +120,42 @@ unordered_map<Key, Value, Hash, Alloc>::unordered_map(
         uint32_t max_keys,
         uint32_t keys_per_bucket,
         float expected_occupancy_per_bucket,
-        const uint32_t device_idx)
-    : max_keys_(max_keys), cuda_device_idx_(device_idx), slab_hash_(nullptr) {
+        open3d::Device device /* = open3d::Device("CUDA:0") */)
+    : max_keys_(max_keys), device_(device), slab_hash_(nullptr) {
     /* Set bucket size */
     uint32_t expected_keys_per_bucket =
             expected_occupancy_per_bucket * keys_per_bucket;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
 
-    /* Set device */
-    int32_t cuda_device_count_ = 0;
-    CHECK_CUDA(cudaGetDeviceCount(&cuda_device_count_));
-    assert(cuda_device_idx_ < cuda_device_count_);
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
-    allocator_ = std::make_shared<Alloc>(cuda_device_idx_);
-
     // allocating key, value arrays to buffer input and output:
     input_key_buffer_ =
-            static_cast<Key*>(allocator_->allocate(max_keys_ * sizeof(Key)));
+            static_cast<Key*>(Alloc::Malloc(max_keys_ * sizeof(Key), device_));
     input_value_buffer_ = static_cast<Value*>(
-            allocator_->allocate(max_keys_ * sizeof(Value)));
+            Alloc::Malloc(max_keys_ * sizeof(Value), device_));
     output_key_buffer_ =
-            static_cast<Key*>(allocator_->allocate(max_keys_ * sizeof(Key)));
+            static_cast<Key*>(Alloc::Malloc(max_keys_ * sizeof(Key), device_));
     output_value_buffer_ = static_cast<Value*>(
-            allocator_->allocate(max_keys_ * sizeof(Value)));
+            Alloc::Malloc(max_keys_ * sizeof(Value), device_));
     output_mask_buffer_ = static_cast<uint8_t*>(
-            allocator_->allocate(max_keys_ * sizeof(uint8_t)));
+            Alloc::Malloc(max_keys_ * sizeof(uint8_t), device_));
     output_iterator_buffer_ = static_cast<_Iterator<Key, Value>*>(
-            allocator_->allocate(max_keys_ * sizeof(_Iterator<Key, Value>)));
+            Alloc::Malloc(max_keys_ * sizeof(_Iterator<Key, Value>), device_));
 
     // allocate an initialize the allocator:
     slab_hash_ = std::make_shared<SlabHash<Key, Value, Hash, Alloc>>(
-            num_buckets_, max_keys_, cuda_device_idx_);
+            num_buckets_, max_keys_, device_);
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
 unordered_map<Key, Value, Hash, Alloc>::~unordered_map() {
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
+    Alloc::Free(input_key_buffer_, device_);
+    Alloc::Free(input_value_buffer_, device_);
 
-    allocator_->deallocate(input_key_buffer_);
-    allocator_->deallocate(input_value_buffer_);
-
-    allocator_->deallocate(output_key_buffer_);
-    allocator_->deallocate(output_value_buffer_);
-    allocator_->deallocate(output_mask_buffer_);
-    allocator_->deallocate(output_iterator_buffer_);
+    Alloc::Free(output_key_buffer_, device_);
+    Alloc::Free(output_value_buffer_, device_);
+    Alloc::Free(output_mask_buffer_, device_);
+    Alloc::Free(output_iterator_buffer_, device_);
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
@@ -175,7 +165,6 @@ void unordered_map<Key, Value, Hash, Alloc>::Insert(
     assert(input_values.size() == input_keys.size());
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     CHECK_CUDA(cudaMemcpy(input_key_buffer_, input_keys.data(),
                           sizeof(Key) * input_keys.size(),
                           cudaMemcpyHostToDevice));
@@ -194,7 +183,6 @@ void unordered_map<Key, Value, Hash, Alloc>::Insert(
     assert(input_values.size() == input_keys.size());
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     slab_hash_->Insert(thrust::raw_pointer_cast(input_keys.data()),
                        thrust::raw_pointer_cast(input_values.data()),
                        input_keys.size());
@@ -204,7 +192,6 @@ template <typename Key, typename Value, typename Hash, class Alloc>
 void unordered_map<Key, Value, Hash, Alloc>::Insert(Key* input_keys,
                                                     Value* input_values,
                                                     int num_keys) {
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     slab_hash_->Insert(input_keys, input_values, num_keys);
 }
 
@@ -214,7 +201,6 @@ unordered_map<Key, Value, Hash, Alloc>::Search(
         const std::vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
                           sizeof(uint8_t) * input_keys.size()));
 
@@ -238,7 +224,6 @@ std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
 unordered_map<Key, Value, Hash, Alloc>::Search(
         thrust::device_vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
                           sizeof(uint8_t) * input_keys.size()));
 
@@ -258,7 +243,7 @@ template <typename Key, typename Value, typename Hash, class Alloc>
 std::pair<thrust::device_vector<Value>, thrust::device_vector<uint8_t>>
 unordered_map<Key, Value, Hash, Alloc>::Search(Key* input_keys, int num_keys) {
     assert(num_keys <= max_keys_);
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
+
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0, sizeof(uint8_t) * num_keys));
 
     slab_hash_->Search(input_keys, output_value_buffer_, output_mask_buffer_,
@@ -275,7 +260,6 @@ unordered_map<Key, Value, Hash, Alloc>::Search(Key* input_keys, int num_keys) {
 template <typename Key, typename Value, typename Hash, class Alloc>
 void unordered_map<Key, Value, Hash, Alloc>::Remove(
         const std::vector<Key>& input_keys) {
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     CHECK_CUDA(cudaMemcpy(input_key_buffer_, input_keys.data(),
                           sizeof(Key) * input_keys.size(),
                           cudaMemcpyHostToDevice));
@@ -285,8 +269,6 @@ void unordered_map<Key, Value, Hash, Alloc>::Remove(
 template <typename Key, typename Value, typename Hash, class Alloc>
 void unordered_map<Key, Value, Hash, Alloc>::Remove(
         thrust::device_vector<Key>& input_keys) {
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
-
     slab_hash_->Remove(thrust::raw_pointer_cast(input_keys.data()),
                        input_keys.size());
 }
@@ -294,7 +276,6 @@ void unordered_map<Key, Value, Hash, Alloc>::Remove(
 template <typename Key, typename Value, typename Hash, class Alloc>
 void unordered_map<Key, Value, Hash, Alloc>::Remove(Key* input_keys,
                                                     int num_keys) {
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     slab_hash_->Remove(input_keys, num_keys);
 }
 
@@ -305,7 +286,6 @@ unordered_map<Key, Value, Hash, Alloc>::Search_(
         thrust::device_vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaSetDevice(cuda_device_idx_));
     CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
                           sizeof(uint8_t) * input_keys.size()));
 

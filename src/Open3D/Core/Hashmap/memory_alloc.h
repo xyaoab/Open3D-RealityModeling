@@ -6,7 +6,7 @@
 
 #include <memory>
 #include <vector>
-#include "allocator.h"
+#include "Open3D/Core/MemoryManager.h"
 
 /**
  * Memory allocation and free are expensive on GPU.
@@ -96,20 +96,20 @@ class MemoryAlloc {
 public:
     int max_capacity_;
     MemoryAllocContext<T> gpu_context_;
-    std::shared_ptr<Alloc> allocator_;
+    open3d::Device device_;
 
 public:
-    MemoryAlloc(int max_capacity) {
-        allocator_ = std::make_shared<Alloc>();
+    MemoryAlloc(int max_capacity, open3d::Device device) {
+        device_ = device;
         max_capacity_ = max_capacity;
         gpu_context_.max_capacity_ = max_capacity;
 
         gpu_context_.heap_counter_ = static_cast<int *>(
-                allocator_->allocate(size_t(1) * sizeof(int)));
+                Alloc::Malloc(size_t(1) * sizeof(int), device_));
         gpu_context_.heap_ = static_cast<ptr_t *>(
-                allocator_->allocate(size_t(max_capacity_) * sizeof(ptr_t)));
+                Alloc::Malloc(size_t(max_capacity_) * sizeof(ptr_t), device_));
         gpu_context_.data_ = static_cast<T *>(
-                allocator_->allocate(size_t(max_capacity_) * sizeof(T)));
+                Alloc::Malloc(size_t(max_capacity_) * sizeof(T), device_));
 
         const int blocks = (max_capacity_ + 128 - 1) / 128;
         const int threads = 128;
@@ -124,9 +124,9 @@ public:
     }
 
     ~MemoryAlloc() {
-        allocator_->deallocate(gpu_context_.heap_counter_);
-        allocator_->deallocate(gpu_context_.heap_);
-        allocator_->deallocate(gpu_context_.data_);
+        Alloc::Free(gpu_context_.heap_counter_, device_);
+        Alloc::Free(gpu_context_.heap_, device_);
+        Alloc::Free(gpu_context_.data_, device_);
     }
 
     std::vector<int> DownloadHeap() {

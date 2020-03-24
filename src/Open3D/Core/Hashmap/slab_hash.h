@@ -20,6 +20,7 @@
 #include <cassert>
 #include <memory>
 
+#include "Open3D/Core/MemoryManager.h"
 #include "memory_alloc.h"
 #include "slab_alloc.h"
 
@@ -58,7 +59,7 @@ class SlabHash {
 public:
     SlabHash(const uint32_t max_bucket_count,
              const uint32_t max_keyvalue_count,
-             uint32_t device_idx);
+             open3d::Device device);
 
     ~SlabHash();
 
@@ -112,11 +113,9 @@ private:
 
     SlabHashContext<_Key, _Value, _Hash> gpu_context_;
 
-    std::shared_ptr<_Alloc> allocator_;
     std::shared_ptr<MemoryAlloc<_Pair<_Key, _Value>, _Alloc>> pair_allocator_;
     std::shared_ptr<SlabAlloc<_Alloc>> slab_list_allocator_;
-
-    uint32_t device_idx_;
+    open3d::Device device_;
 };
 
 /** Lite version **/
@@ -177,25 +176,19 @@ template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 SlabHash<_Key, _Value, _Hash, _Alloc>::SlabHash(
         const uint32_t max_bucket_count,
         const uint32_t max_keyvalue_count,
-        uint32_t device_idx)
+        open3d::Device device)
     : num_buckets_(max_bucket_count),
-      device_idx_(device_idx),
+      device_(device),
       bucket_list_head_(nullptr) {
-    int32_t device_count = 0;
-    CHECK_CUDA(cudaGetDeviceCount(&device_count));
-    assert(device_idx_ < device_count);
-    CHECK_CUDA(cudaSetDevice(device_idx_));
-
     // allocate an initialize the allocator:
-    allocator_ = std::make_shared<_Alloc>(device_idx);
     pair_allocator_ =
             std::make_shared<MemoryAlloc<_Pair<_Key, _Value>, _Alloc>>(
-                    max_keyvalue_count);
-    slab_list_allocator_ = std::make_shared<SlabAlloc<_Alloc>>();
+                    max_keyvalue_count, device_);
+    slab_list_allocator_ = std::make_shared<SlabAlloc<_Alloc>>(device_);
 
     // allocating initial buckets:
     bucket_list_head_ = static_cast<Slab*>(
-            allocator_->allocate(num_buckets_ * sizeof(Slab)));
+            _Alloc::Malloc(num_buckets_ * sizeof(Slab), device_));
     CHECK_CUDA(
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
@@ -206,8 +199,7 @@ SlabHash<_Key, _Value, _Hash, _Alloc>::SlabHash(
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 SlabHash<_Key, _Value, _Hash, _Alloc>::~SlabHash() {
-    CHECK_CUDA(cudaSetDevice(device_idx_));
-    allocator_->deallocate(bucket_list_head_);
+    _Alloc::Free(bucket_list_head_, device_);
 }
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
@@ -216,7 +208,6 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert(_Key* keys,
                                                    uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     // calling the kernel for bulk build:
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     InsertKernel<_Key, _Value, _Hash>
             <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values, num_keys);
     CHECK_CUDA(cudaDeviceSynchronize());
@@ -228,7 +219,6 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Search(_Key* keys,
                                                    _Value* values,
                                                    uint8_t* founds,
                                                    uint32_t num_keys) {
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     SearchKernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, values, founds, num_keys);
@@ -239,7 +229,6 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Search(_Key* keys,
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove(_Key* keys,
                                                    uint32_t num_keys) {
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     RemoveKernel<_Key, _Value, _Hash>
             <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, num_keys);
@@ -256,7 +245,6 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert_(
         uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     // calling the kernel for bulk build:
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     InsertKernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, values, iterators, masks, num_keys);
     CHECK_CUDA(cudaDeviceSynchronize());
@@ -269,7 +257,6 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Search_(
         _Iterator<_Key, _Value>* iterators,
         uint8_t* masks,
         uint32_t num_keys) {
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     Search_Kernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, iterators, masks, num_keys);
@@ -281,7 +268,6 @@ template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove_(_Key* keys,
                                                     uint8_t* masks,
                                                     uint32_t num_keys) {
-    CHECK_CUDA(cudaSetDevice(device_idx_));
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     Remove_Kernel<_Key, _Value, _Hash>
             <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, masks, num_keys);
@@ -293,7 +279,7 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove_(_Key* keys,
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
 std::vector<int> SlabHash<_Key, _Value, _Hash, _Alloc>::CountElemsPerBucket() {
     auto elems_per_bucket_buffer = static_cast<uint32_t*>(
-            allocator_->allocate(num_buckets_ * sizeof(uint32_t)));
+            _Alloc::Malloc(num_buckets_ * sizeof(uint32_t), device_));
 
     thrust::device_vector<uint32_t> elems_per_bucket(
             elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);
@@ -307,7 +293,7 @@ std::vector<int> SlabHash<_Key, _Value, _Hash, _Alloc>::CountElemsPerBucket() {
     std::vector<int> result(num_buckets_);
     thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
                  result.begin());
-    allocator_->template deallocate<uint32_t>(elems_per_bucket_buffer);
+    _Alloc::Free(elems_per_bucket_buffer, device_);
     return std::move(result);
 }
 
