@@ -1,24 +1,33 @@
-/*
- * Copyright 2019 Saman Ashkiani,
- * Modified 2019 by Wei Dong
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
- * implied. See the License for the specific language governing permissions and
- * limitations under the License.
- *
- */
+// ----------------------------------------------------------------------------
+// -                        Open3D: www.open3d.org                            -
+// ----------------------------------------------------------------------------
+// The MIT License (MIT)
+//
+// Copyright (c) 2018 www.open3d.org
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
+// ----------------------------------------------------------------------------
 
 #pragma once
 
 #include <thrust/device_vector.h>
+#include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 #include "slab_hash.h"
 /*
@@ -162,8 +171,8 @@ unordered_map<Key, Value, Hash, Alloc>::Insert_(
 template <typename Key, typename Value, typename Hash, class Alloc>
 thrust::device_vector<uint8_t> unordered_map<Key, Value, Hash, Alloc>::Remove_(
         thrust::device_vector<Key>& input_keys) {
-    CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
-                          sizeof(uint8_t) * input_keys.size()));
+    OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
+                                 sizeof(uint8_t) * input_keys.size()));
 
     slab_hash_->Remove_(thrust::raw_pointer_cast(input_keys.data()),
                         output_mask_buffer_, input_keys.size());
@@ -180,13 +189,13 @@ unordered_map<Key, Value, Hash, Alloc>::Search_(
         thrust::device_vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
 
-    CHECK_CUDA(cudaMemset(output_mask_buffer_, 0,
-                          sizeof(uint8_t) * input_keys.size()));
+    OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
+                                 sizeof(uint8_t) * input_keys.size()));
 
     slab_hash_->Search_(thrust::raw_pointer_cast(input_keys.data()),
                         output_iterator_buffer_, output_mask_buffer_,
                         input_keys.size());
-    CHECK_CUDA(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
 
     thrust::device_vector<_Iterator<Key, Value>> output_iterators(
             output_iterator_buffer_,

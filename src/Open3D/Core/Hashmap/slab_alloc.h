@@ -18,9 +18,9 @@
 
 #include <stdint.h>
 #include <iostream>
+#include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 #include "config.h"
-#include "helper_cuda.h"
 /*
  * This class does not own any memory, and will be shallowly copied into device
  * kernel
@@ -280,14 +280,14 @@ public:
 
         for (int i = 0; i < slab_alloc_context_.num_super_blocks_; i++) {
             // setting bitmaps into zeros:
-            CHECK_CUDA(cudaMemset(
+            OPEN3D_CUDA_CHECK(cudaMemset(
                     super_blocks_ + i * slab_alloc_context_.SUPER_BLOCK_SIZE_,
                     0x00,
                     slab_alloc_context_.NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *
                             slab_alloc_context_.BITMAP_SIZE_ *
                             sizeof(uint32_t)));
             // setting empty memory units into ones:
-            CHECK_CUDA(cudaMemset(
+            OPEN3D_CUDA_CHECK(cudaMemset(
                     super_blocks_ + i * slab_alloc_context_.SUPER_BLOCK_SIZE_ +
                             (slab_alloc_context_
                                      .NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *

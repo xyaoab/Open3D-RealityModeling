@@ -4,20 +4,18 @@
 
 #pragma once
 
+#include <assert.h>
 #include <memory>
 #include <vector>
+#include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
-
+#include "config.h"
 /**
  * Memory allocation and free are expensive on GPU.
  * (And are easy to overflow, I need to check the the reason.)
  *
  * Basically, we maintain one memory heap per data type.
  */
-
-#include <assert.h>
-#include "config.h"
-#include "helper_cuda.h"
 
 #define _CUDA_DEBUG_ENABLE_ASSERTION
 template <typename T>
@@ -115,8 +113,8 @@ public:
         const int threads = 128;
 
         ResetMemoryAllocKernel<<<blocks, threads>>>(gpu_context_);
-        CHECK_CUDA(cudaDeviceSynchronize());
-        CHECK_CUDA(cudaGetLastError());
+        OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+        OPEN3D_CUDA_CHECK(cudaGetLastError());
 
         int heap_counter = 0;
         Alloc::Memcpy(gpu_context_.heap_counter_, device_, &heap_counter,

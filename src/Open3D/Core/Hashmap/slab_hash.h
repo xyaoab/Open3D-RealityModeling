@@ -1,6 +1,6 @@
 /*
  * Copyright 2019 Saman Ashkiani
- * Modified 2019 by Wei Dong
+ * Rewrite 2019 by Wei Dong
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -19,7 +19,7 @@
 #include <thrust/pair.h>
 #include <cassert>
 #include <memory>
-
+#include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 #include "memory_alloc.h"
 #include "slab_alloc.h"
@@ -160,7 +160,7 @@ SlabHash<_Key, _Value, _Hash, _Alloc>::SlabHash(
     // allocating initial buckets:
     bucket_list_head_ = static_cast<Slab*>(
             _Alloc::Malloc(num_buckets_ * sizeof(Slab), device_));
-    CHECK_CUDA(
+    OPEN3D_CUDA_CHECK(
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_,
@@ -184,8 +184,8 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Insert_(
     // calling the kernel for bulk build:
     Insert_Kernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, values, iterators, masks, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
@@ -197,8 +197,8 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Search_(
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     Search_Kernel<_Key, _Value, _Hash><<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, keys, iterators, masks, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename _Key, typename _Value, typename _Hash, class _Alloc>
@@ -208,8 +208,8 @@ void SlabHash<_Key, _Value, _Hash, _Alloc>::Remove_(_Key* keys,
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     Remove_Kernel<_Key, _Value, _Hash>
             <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, masks, num_keys);
-    CHECK_CUDA(cudaDeviceSynchronize());
-    CHECK_CUDA(cudaGetLastError());
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 /* Debug usage */
