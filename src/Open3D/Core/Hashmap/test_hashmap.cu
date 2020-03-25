@@ -103,12 +103,12 @@ void TEST_SIMPLE() {
     cuda::unordered_map<int, int> cuda_unordered_map(10);
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda_unordered_map.Insert_(cuda_insert_keys, cuda_insert_vals);
+    cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
 
     // query
     thrust::device_vector<int> cuda_query_keys(
             std::vector<int>({1, 2, 3, 4, 5}));
-    auto cuda_query_results = cuda_unordered_map.Search_(cuda_query_keys);
+    auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
 
     for (int i = 0; i < cuda_query_keys.size(); ++i) {
         auto iter = unordered_map.find(cuda_query_keys[i]);
@@ -154,7 +154,7 @@ void TEST_6DIM_KEYS(int key_size) {
     // gpu test
     std::cout << "inserting to cuda::unordered_map...\n";
     cuda::unordered_map<Vector6i, int> cuda_unordered_map(key_size);
-    cuda_unordered_map.Insert_(cuda_insert_keys, cuda_insert_vals);
+    cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
     std::cout << "insertion finished\n";
 
     // query -- all true
@@ -170,7 +170,7 @@ void TEST_6DIM_KEYS(int key_size) {
     std::cout << "query data generated\n";
 
     std::cout << "query from cuda::unordered_map...\n";
-    auto cuda_query_results = cuda_unordered_map.Search_(cuda_query_keys);
+    auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
     std::cout << "query results generated\n";
 
     std::cout << "comparing query results against ground truth...\n";
@@ -236,7 +236,7 @@ void TEST_COORD_KEYS(int key_size) {
     thrust::device_vector<Coordinate<int, D>> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
     cuda::unordered_map<Coordinate<int, D>, int> cuda_unordered_map(key_size);
-    cuda_unordered_map.Insert_(cuda_insert_keys, cuda_insert_vals);
+    cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
     std::cout << "insertion finished\n";
 
     // query
@@ -252,7 +252,7 @@ void TEST_COORD_KEYS(int key_size) {
     std::cout << "query data generated\n";
 
     std::cout << "query from cuda::unordered_map...\n";
-    auto cuda_query_results = cuda_unordered_map.Search_(cuda_query_keys);
+    auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
     std::cout << "query results generated\n";
 
     std::cout << "comparing query results against ground truth...\n";
