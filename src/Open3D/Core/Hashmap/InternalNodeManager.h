@@ -1,6 +1,6 @@
 /*
- * Copyright 2018 Saman Ashkiani
- *
+ * Copyright 2019 Saman Ashkiani
+ * Rewrite 2019 by Wei Dong
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -16,43 +16,17 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <iostream>
+#include <thrust/pair.h>
+#include <cassert>
+#include <memory>
+
+#include "Consts.h"
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
-#include "config.h"
-/*
- * This class does not own any memory, and will be shallowly copied into device
- * kernel
- */
-class SlabAllocContext {
+
+class InternalNodeManagerContext {
 public:
-    static constexpr uint32_t LOG_NUM_MEM_BLOCKS_ = 8;
-    static constexpr uint32_t NUM_SUPER_BLOCKS_ALLOCATOR_ = 32;
-    static constexpr uint32_t MEM_UNIT_WARP_MULTIPLES_ = 1;
-
-    // fixed parameters for the SlabAlloc
-    static constexpr uint32_t NUM_MEM_UNITS_PER_BLOCK_ = 1024;
-    static constexpr uint32_t NUM_BITMAP_PER_MEM_BLOCK_ = 32;
-    static constexpr uint32_t BITMAP_SIZE_ = 32;
-    static constexpr uint32_t WARP_SIZE = 32;
-    static constexpr uint32_t MEM_UNIT_SIZE_ =
-            MEM_UNIT_WARP_MULTIPLES_ * WARP_SIZE;
-    static constexpr uint32_t SUPER_BLOCK_BIT_OFFSET_ALLOC_ = 27;
-    static constexpr uint32_t MEM_BLOCK_BIT_OFFSET_ALLOC_ = 10;
-    static constexpr uint32_t MEM_UNIT_BIT_OFFSET_ALLOC_ = 5;
-    static constexpr uint32_t NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ =
-            (1 << LOG_NUM_MEM_BLOCKS_);
-    static constexpr uint32_t MEM_BLOCK_SIZE_ =
-            NUM_MEM_UNITS_PER_BLOCK_ * MEM_UNIT_SIZE_;
-    static constexpr uint32_t SUPER_BLOCK_SIZE_ =
-            ((BITMAP_SIZE_ + MEM_BLOCK_SIZE_) *
-             NUM_MEM_BLOCKS_PER_SUPER_BLOCK_);
-    static constexpr uint32_t MEM_BLOCK_OFFSET_ =
-            (BITMAP_SIZE_ * NUM_MEM_BLOCKS_PER_SUPER_BLOCK_);
-    static constexpr uint32_t num_super_blocks_ = NUM_SUPER_BLOCKS_ALLOCATOR_;
-
-    SlabAllocContext()
+    InternalNodeManagerContext()
         : super_blocks_(nullptr),
           hash_coef_(0),
           num_attempts_(0),
@@ -60,7 +34,8 @@ public:
           super_block_index_(0),
           allocated_index_(0) {}
 
-    SlabAllocContext& operator=(const SlabAllocContext& rhs) {
+    InternalNodeManagerContext& operator=(
+            const InternalNodeManagerContext& rhs) {
         super_blocks_ = rhs.super_blocks_;
         hash_coef_ = rhs.hash_coef_;
         num_attempts_ = 0;
@@ -70,7 +45,7 @@ public:
         return *this;
     }
 
-    ~SlabAllocContext() {}
+    ~InternalNodeManagerContext() {}
 
     void Setup(uint32_t* super_blocks, uint32_t hash_coef) {
         super_blocks_ = super_blocks;
@@ -244,14 +219,14 @@ private:
     uint32_t allocated_index_;  // to be asked via shuffle after
 };
 
-__global__ void CountSlabsPerSuperblockKernel(SlabAllocContext context,
-                                              uint32_t* slabs_per_superblock);
+__global__ void CountSlabsPerSuperblockKernel(
+        InternalNodeManagerContext context, uint32_t* slabs_per_superblock);
 
 /*
  * This class owns the memory for the allocator on the device
  */
 template <class _Alloc>
-class SlabAlloc {
+class InternalNodeManager {
 private:
     // a pointer to each super-block
     uint32_t* super_blocks_;
@@ -260,11 +235,11 @@ private:
     uint32_t hash_coef_;  // a random 32-bit
 
     // the context class is actually copied shallowly into GPU device
-    SlabAllocContext slab_alloc_context_;
+    InternalNodeManagerContext slab_alloc_context_;
     open3d::Device device_;
 
 public:
-    SlabAlloc(open3d::Device device)
+    InternalNodeManager(open3d::Device device)
         : super_blocks_(nullptr), hash_coef_(0), device_(device) {
         // random coefficients for allocator's hash function
         std::mt19937 rng(time(0));
@@ -272,45 +247,37 @@ public:
 
         // In the light version, we put num_super_blocks super blocks within
         // a single array
-        super_blocks_ = static_cast<uint32_t*>(
-                _Alloc::Malloc(slab_alloc_context_.SUPER_BLOCK_SIZE_ *
-                                       slab_alloc_context_.num_super_blocks_ *
-                                       sizeof(uint32_t),
-                               device_));
+        super_blocks_ = static_cast<uint32_t*>(_Alloc::Malloc(
+                SUPER_BLOCK_SIZE_ * num_super_blocks_ * sizeof(uint32_t),
+                device_));
 
-        for (int i = 0; i < slab_alloc_context_.num_super_blocks_; i++) {
+        for (int i = 0; i < num_super_blocks_; i++) {
             // setting bitmaps into zeros:
-            OPEN3D_CUDA_CHECK(cudaMemset(
-                    super_blocks_ + i * slab_alloc_context_.SUPER_BLOCK_SIZE_,
-                    0x00,
-                    slab_alloc_context_.NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *
-                            slab_alloc_context_.BITMAP_SIZE_ *
-                            sizeof(uint32_t)));
+            OPEN3D_CUDA_CHECK(
+                    cudaMemset(super_blocks_ + i * SUPER_BLOCK_SIZE_, 0x00,
+                               NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * BITMAP_SIZE_ *
+                                       sizeof(uint32_t)));
             // setting empty memory units into ones:
             OPEN3D_CUDA_CHECK(cudaMemset(
-                    super_blocks_ + i * slab_alloc_context_.SUPER_BLOCK_SIZE_ +
-                            (slab_alloc_context_
-                                     .NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *
-                             slab_alloc_context_.BITMAP_SIZE_),
+                    super_blocks_ + i * SUPER_BLOCK_SIZE_ +
+                            (NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * BITMAP_SIZE_),
                     0xFF,
-                    slab_alloc_context_.MEM_BLOCK_SIZE_ *
-                            slab_alloc_context_
-                                    .NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *
+                    MEM_BLOCK_SIZE_ * NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ *
                             sizeof(uint32_t)));
         }
 
         // initializing the slab context:
         slab_alloc_context_.Setup(super_blocks_, hash_coef_);
     }
-    ~SlabAlloc() { _Alloc::Free(super_blocks_, device_); }
+    ~InternalNodeManager() { _Alloc::Free(super_blocks_, device_); }
 
-    SlabAllocContext& getContext() { return slab_alloc_context_; }
+    InternalNodeManagerContext& getContext() { return slab_alloc_context_; }
 
     std::vector<int> CountSlabsPerSuperblock() {
-        const uint32_t num_super_blocks = slab_alloc_context_.num_super_blocks_;
+        const uint32_t num_super_blocks = num_super_blocks_;
 
         auto slabs_per_superblock_buffer = static_cast<uint32_t*>(
-                _Alloc::Malloc(num_super_blocks * sizeof(uint32_t), device_));
+                _Alloc::Malloc(num_super_blocks_ * sizeof(uint32_t), device_));
         thrust::device_vector<uint32_t> slabs_per_superblock(
                 slabs_per_superblock_buffer,
                 slabs_per_superblock_buffer + num_super_blocks);
@@ -319,8 +286,7 @@ public:
 
         // counting total number of allocated memory units:
         int blocksize = 128;
-        int num_mem_units =
-                slab_alloc_context_.NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
+        int num_mem_units = NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
         int num_cuda_blocks = (num_mem_units + blocksize - 1) / blocksize;
         CountSlabsPerSuperblockKernel<<<num_cuda_blocks, blocksize>>>(
                 slab_alloc_context_,
@@ -334,16 +300,16 @@ public:
     }
 };
 
-__global__ void CountSlabsPerSuperblockKernel(SlabAllocContext context,
-                                              uint32_t* slabs_per_superblock) {
+__global__ void CountSlabsPerSuperblockKernel(
+        InternalNodeManagerContext context, uint32_t* slabs_per_superblock) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
-    int num_bitmaps = context.NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
+    int num_bitmaps = NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
     if (tid >= num_bitmaps) {
         return;
     }
 
-    for (int i = 0; i < context.num_super_blocks_; i++) {
+    for (int i = 0; i < num_super_blocks_; i++) {
         uint32_t read_bitmap = *(context.get_ptr_for_bitmap(i, tid));
         atomicAdd(&slabs_per_superblock[i], __popc(read_bitmap));
     }

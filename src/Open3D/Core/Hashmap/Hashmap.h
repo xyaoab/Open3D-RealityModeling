@@ -29,7 +29,9 @@
 #include <thrust/device_vector.h>
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
-#include "slab_hash.h"
+
+#include "HashmapCUDA.h"
+
 /*
  * Default hash function:
  * It treat any kind of input as a concatenation of ints.
@@ -60,23 +62,23 @@ template <typename Key,
           typename Value,
           typename Hash = hash<Key>,
           class Alloc = open3d::MemoryManager>
-class unordered_map {
+class Hashmap {
 public:
-    unordered_map(uint32_t max_keys,
-                  /* Preset hash table params to estimate bucket num */
-                  uint32_t keys_per_bucket = 10,
-                  float expected_occupancy_per_bucket = 0.5,
-                  /* CUDA device */
-                  open3d::Device device = open3d::Device("CUDA:0"));
-    ~unordered_map();
+    Hashmap(uint32_t max_keys,
+            /* Preset hash table params to estimate bucket num */
+            uint32_t keys_per_bucket = 10,
+            float expected_occupancy_per_bucket = 0.5,
+            /* CUDA device */
+            open3d::Device device = open3d::Device("CUDA:0"));
+    ~Hashmap();
 
     /* Detailed output */
-    std::pair<thrust::device_vector<_Iterator<Key, Value>>,
+    std::pair<thrust::device_vector<Iterator<Key, Value>>,
               thrust::device_vector<uint8_t>>
     Insert(thrust::device_vector<Key>& input_keys,
            thrust::device_vector<Value>& input_values);
 
-    std::pair<thrust::device_vector<_Iterator<Key, Value>>,
+    std::pair<thrust::device_vector<Iterator<Key, Value>>,
               thrust::device_vector<uint8_t>>
     Search(thrust::device_vector<Key>& input_keys);
 
@@ -96,20 +98,20 @@ private:
     Value* input_value_buffer_;
     Key* output_key_buffer_;
     Value* output_value_buffer_;
-    _Iterator<Key, Value>* output_iterator_buffer_;
+    Iterator<Key, Value>* output_iterator_buffer_;
     uint8_t* output_mask_buffer_;
 
-    std::shared_ptr<SlabHash<Key, Value, Hash, Alloc>> slab_hash_;
+    std::shared_ptr<HashmapCUDA<Key, Value, Hash, Alloc>> device_hashmap_;
     open3d::Device device_;
 };
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-unordered_map<Key, Value, Hash, Alloc>::unordered_map(
+Hashmap<Key, Value, Hash, Alloc>::Hashmap(
         uint32_t max_keys,
         uint32_t keys_per_bucket,
         float expected_occupancy_per_bucket,
         open3d::Device device /* = open3d::Device("CUDA:0") */)
-    : max_keys_(max_keys), device_(device), slab_hash_(nullptr) {
+    : max_keys_(max_keys), device_(device), device_hashmap_(nullptr) {
     /* Set bucket size */
     uint32_t expected_keys_per_bucket =
             expected_occupancy_per_bucket * keys_per_bucket;
@@ -127,16 +129,16 @@ unordered_map<Key, Value, Hash, Alloc>::unordered_map(
             Alloc::Malloc(max_keys_ * sizeof(Value), device_));
     output_mask_buffer_ = static_cast<uint8_t*>(
             Alloc::Malloc(max_keys_ * sizeof(uint8_t), device_));
-    output_iterator_buffer_ = static_cast<_Iterator<Key, Value>*>(
-            Alloc::Malloc(max_keys_ * sizeof(_Iterator<Key, Value>), device_));
+    output_iterator_buffer_ = static_cast<Iterator<Key, Value>*>(
+            Alloc::Malloc(max_keys_ * sizeof(Iterator<Key, Value>), device_));
 
     // allocate an initialize the allocator:
-    slab_hash_ = std::make_shared<SlabHash<Key, Value, Hash, Alloc>>(
+    device_hashmap_ = std::make_shared<HashmapCUDA<Key, Value, Hash, Alloc>>(
             num_buckets_, max_keys_, device_);
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-unordered_map<Key, Value, Hash, Alloc>::~unordered_map() {
+Hashmap<Key, Value, Hash, Alloc>::~Hashmap() {
     Alloc::Free(input_key_buffer_, device_);
     Alloc::Free(input_value_buffer_, device_);
 
@@ -147,20 +149,20 @@ unordered_map<Key, Value, Hash, Alloc>::~unordered_map() {
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-std::pair<thrust::device_vector<_Iterator<Key, Value>>,
+std::pair<thrust::device_vector<Iterator<Key, Value>>,
           thrust::device_vector<uint8_t>>
-unordered_map<Key, Value, Hash, Alloc>::Insert(
+Hashmap<Key, Value, Hash, Alloc>::Insert(
         thrust::device_vector<Key>& input_keys,
         thrust::device_vector<Value>& input_values) {
     assert(input_values.size() == input_keys.size());
     assert(input_keys.size() <= max_keys_);
 
-    slab_hash_->Insert(thrust::raw_pointer_cast(input_keys.data()),
-                       thrust::raw_pointer_cast(input_values.data()),
-                       output_iterator_buffer_, output_mask_buffer_,
-                       input_keys.size());
+    device_hashmap_->Insert(thrust::raw_pointer_cast(input_keys.data()),
+                            thrust::raw_pointer_cast(input_values.data()),
+                            output_iterator_buffer_, output_mask_buffer_,
+                            input_keys.size());
 
-    thrust::device_vector<_Iterator<Key, Value>> output_iterators(
+    thrust::device_vector<Iterator<Key, Value>> output_iterators(
             output_iterator_buffer_,
             output_iterator_buffer_ + input_keys.size());
     thrust::device_vector<uint8_t> output_masks(
@@ -169,13 +171,13 @@ unordered_map<Key, Value, Hash, Alloc>::Insert(
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-thrust::device_vector<uint8_t> unordered_map<Key, Value, Hash, Alloc>::Remove(
+thrust::device_vector<uint8_t> Hashmap<Key, Value, Hash, Alloc>::Remove(
         thrust::device_vector<Key>& input_keys) {
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
                                  sizeof(uint8_t) * input_keys.size()));
 
-    slab_hash_->Remove(thrust::raw_pointer_cast(input_keys.data()),
-                       output_mask_buffer_, input_keys.size());
+    device_hashmap_->Remove(thrust::raw_pointer_cast(input_keys.data()),
+                            output_mask_buffer_, input_keys.size());
 
     thrust::device_vector<uint8_t> output_masks(
             output_mask_buffer_, output_mask_buffer_ + input_keys.size());
@@ -183,21 +185,21 @@ thrust::device_vector<uint8_t> unordered_map<Key, Value, Hash, Alloc>::Remove(
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-std::pair<thrust::device_vector<_Iterator<Key, Value>>,
+std::pair<thrust::device_vector<Iterator<Key, Value>>,
           thrust::device_vector<uint8_t>>
-unordered_map<Key, Value, Hash, Alloc>::Search(
+Hashmap<Key, Value, Hash, Alloc>::Search(
         thrust::device_vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
 
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
                                  sizeof(uint8_t) * input_keys.size()));
 
-    slab_hash_->Search(thrust::raw_pointer_cast(input_keys.data()),
-                       output_iterator_buffer_, output_mask_buffer_,
-                       input_keys.size());
+    device_hashmap_->Search(thrust::raw_pointer_cast(input_keys.data()),
+                            output_iterator_buffer_, output_mask_buffer_,
+                            input_keys.size());
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
 
-    thrust::device_vector<_Iterator<Key, Value>> output_iterators(
+    thrust::device_vector<Iterator<Key, Value>> output_iterators(
             output_iterator_buffer_,
             output_iterator_buffer_ + input_keys.size());
     thrust::device_vector<uint8_t> output_masks(
@@ -206,12 +208,12 @@ unordered_map<Key, Value, Hash, Alloc>::Search(
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-std::vector<int> unordered_map<Key, Value, Hash, Alloc>::CountElemsPerBucket() {
-    return slab_hash_->CountElemsPerBucket();
+std::vector<int> Hashmap<Key, Value, Hash, Alloc>::CountElemsPerBucket() {
+    return device_hashmap_->CountElemsPerBucket();
 }
 
 template <typename Key, typename Value, typename Hash, class Alloc>
-float unordered_map<Key, Value, Hash, Alloc>::ComputeLoadFactor() {
-    return slab_hash_->ComputeLoadFactor();
+float Hashmap<Key, Value, Hash, Alloc>::ComputeLoadFactor() {
+    return device_hashmap_->ComputeLoadFactor();
 }
 }  // namespace cuda

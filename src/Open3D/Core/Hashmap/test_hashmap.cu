@@ -7,7 +7,7 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
-#include "cuda_unordered_map.h"
+#include "Hashmap.h"
 
 template <typename T, size_t D>
 struct Coordinate {
@@ -100,7 +100,7 @@ void TEST_SIMPLE() {
         unordered_map[insert_keys[i]] = insert_vals[i];
     }
 
-    cuda::unordered_map<int, int> cuda_unordered_map(10);
+    cuda::Hashmap<int, int> cuda_unordered_map(10);
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
     cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
@@ -115,10 +115,10 @@ void TEST_SIMPLE() {
         if (iter == unordered_map.end()) {
             assert(cuda_query_results.second[i] == 0);
         } else {
-            _Iterator<int, int> iterator = cuda_query_results.first[i];
-            // _Iterator == _Pair*
-            _Pair<int, int> kv =
-                    *(thrust::device_ptr<_Pair<int, int>>(iterator));
+            Iterator<int, int> iterator = cuda_query_results.first[i];
+            // Iterator == Pair*
+            Pair<int, int> kv =
+                    *(thrust::device_ptr<Pair<int, int>>(iterator));
             assert(kv.first == cuda_query_keys[i]);
             assert(kv.second == iter->second);
         }
@@ -152,8 +152,8 @@ void TEST_6DIM_KEYS(int key_size) {
     std::cout << "ground truth generated\n";
 
     // gpu test
-    std::cout << "inserting to cuda::unordered_map...\n";
-    cuda::unordered_map<Vector6i, int> cuda_unordered_map(key_size);
+    std::cout << "inserting to cuda::Hashmap...\n";
+    cuda::Hashmap<Vector6i, int> cuda_unordered_map(key_size);
     cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
     std::cout << "insertion finished\n";
 
@@ -169,7 +169,7 @@ void TEST_6DIM_KEYS(int key_size) {
     }
     std::cout << "query data generated\n";
 
-    std::cout << "query from cuda::unordered_map...\n";
+    std::cout << "query from cuda::Hashmap...\n";
     auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
     std::cout << "query results generated\n";
 
@@ -179,10 +179,10 @@ void TEST_6DIM_KEYS(int key_size) {
         if (iter == unordered_map.end()) {
             assert(cuda_query_results.second[i] == 0);
         } else {
-            _Iterator<Vector6i, int> iterator = cuda_query_results.first[i];
-            // _Iterator == _Pair*
-            _Pair<Vector6i, int> kv =
-                    *(thrust::device_ptr<_Pair<Vector6i, int>>(iterator));
+            Iterator<Vector6i, int> iterator = cuda_query_results.first[i];
+            // Iterator == Pair*
+            Pair<Vector6i, int> kv =
+                    *(thrust::device_ptr<Pair<Vector6i, int>>(iterator));
             assert(kv.first == cuda_query_keys[i]);
             assert(kv.second == iter->second);
         }
@@ -232,10 +232,10 @@ void TEST_COORD_KEYS(int key_size) {
     std::cout << "ground truth generated\n";
 
     // gpu test
-    std::cout << "inserting to cuda::unordered_map...\n";
+    std::cout << "inserting to cuda::Hashmap...\n";
     thrust::device_vector<Coordinate<int, D>> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda::unordered_map<Coordinate<int, D>, int> cuda_unordered_map(key_size);
+    cuda::Hashmap<Coordinate<int, D>, int> cuda_unordered_map(key_size);
     cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
     std::cout << "insertion finished\n";
 
@@ -251,7 +251,7 @@ void TEST_COORD_KEYS(int key_size) {
     }
     std::cout << "query data generated\n";
 
-    std::cout << "query from cuda::unordered_map...\n";
+    std::cout << "query from cuda::Hashmap...\n";
     auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
     std::cout << "query results generated\n";
 
@@ -261,11 +261,11 @@ void TEST_COORD_KEYS(int key_size) {
         if (iter == unordered_map.end()) {
             assert(cuda_query_results.second[i] == 0);
         } else {
-            _Iterator<Coordinate<int, D>, int> iterator =
+            Iterator<Coordinate<int, D>, int> iterator =
                     cuda_query_results.first[i];
-            // _Iterator == _Pair*
-            _Pair<Coordinate<int, D>, int> kv =
-                    *(thrust::device_ptr<_Pair<Coordinate<int, D>, int>>(
+            // Iterator == Pair*
+            Pair<Coordinate<int, D>, int> kv =
+                    *(thrust::device_ptr<Pair<Coordinate<int, D>, int>>(
                             iterator));
             assert(kv.first == cuda_query_keys[i]);
             assert(kv.second == iter->second);

@@ -9,7 +9,8 @@
 #include <vector>
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
-#include "config.h"
+
+#include "Consts.h"
 /**
  * Memory allocation and free are expensive on GPU.
  * (And are easy to overflow, I need to check the the reason.)
@@ -19,7 +20,7 @@
 
 #define _CUDA_DEBUG_ENABLE_ASSERTION
 template <typename T>
-class MemoryAllocContext {
+class InternalMemoryManagerContext {
 public:
     T *data_;           /* [N] */
     ptr_t *heap_;       /* [N] */
@@ -81,7 +82,8 @@ public:
 };
 
 template <typename T>
-__global__ void ResetMemoryAllocKernel(MemoryAllocContext<T> ctx) {
+__global__ void ResetInternalMemoryManagerKernel(
+        InternalMemoryManagerContext<T> ctx) {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < ctx.max_capacity_) {
         ctx.data_[i] = T(); /* This is not required. */
@@ -90,14 +92,14 @@ __global__ void ResetMemoryAllocKernel(MemoryAllocContext<T> ctx) {
 }
 
 template <typename T, class Alloc>
-class MemoryAlloc {
+class InternalMemoryManager {
 public:
     int max_capacity_;
-    MemoryAllocContext<T> gpu_context_;
+    InternalMemoryManagerContext<T> gpu_context_;
     open3d::Device device_;
 
 public:
-    MemoryAlloc(int max_capacity, open3d::Device device) {
+    InternalMemoryManager(int max_capacity, open3d::Device device) {
         device_ = device;
         max_capacity_ = max_capacity;
         gpu_context_.max_capacity_ = max_capacity;
@@ -112,7 +114,7 @@ public:
         const int blocks = (max_capacity_ + 128 - 1) / 128;
         const int threads = 128;
 
-        ResetMemoryAllocKernel<<<blocks, threads>>>(gpu_context_);
+        ResetInternalMemoryManagerKernel<<<blocks, threads>>>(gpu_context_);
         OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
         OPEN3D_CUDA_CHECK(cudaGetLastError());
 
@@ -121,7 +123,7 @@ public:
                       open3d::Device("CPU:0"), sizeof(int));
     }
 
-    ~MemoryAlloc() {
+    ~InternalMemoryManager() {
         Alloc::Free(gpu_context_.heap_counter_, device_);
         Alloc::Free(gpu_context_.heap_, device_);
         Alloc::Free(gpu_context_.data_, device_);
