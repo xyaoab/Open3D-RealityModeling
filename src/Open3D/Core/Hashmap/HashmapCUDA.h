@@ -27,12 +27,15 @@
 #include "InternalMemoryManager.h"
 #include "InternalNodeManager.h"
 
-/**
- * Interface
- **/
+/// Internal Hashtable Node: (31 units and 1 next ptr) representation.
+/// \member kv_pair_ptrs:
+/// Each element is an internal ptr to a kv pair managed by the
+/// InternalMemoryManager. Can be converted to a real ptr.
+/// \member next_slab_ptr:
+/// An internal ptr managed by InternalNodeManager.
 class Slab {
 public:
-    ptr_t pair_ptrs[31];
+    ptr_t kv_pair_ptrs[31];
     ptr_t next_slab_ptr;
 };
 
@@ -40,9 +43,9 @@ template <typename Key, typename Value>
 struct Pair {
     Key first;
     Value second;
+    __device__ __host__ Pair() {}
     __device__ __host__ Pair(const Key& key, const Value& value)
         : first(key), second(value) {}
-    __device__ __host__ Pair() : first(), second() {}
 };
 
 template <typename Key, typename Value>
@@ -51,13 +54,13 @@ __device__ __host__ Pair<Key, Value> make_pair(const Key& key,
     return Pair<Key, Value>(key, value);
 }
 
-template <typename Key, typename Value, typename Hash>
-class HashmapCUDAContext;
-
 template <typename Key, typename Value>
 using Iterator = Pair<Key, Value>*;
 
-template <typename Key, typename Value, typename Hash, class Alloc>
+template <typename Key, typename Value, typename Hash>
+class HashmapCUDAContext;
+
+template <typename Key, typename Value, typename Hash, class MemMgr>
 class HashmapCUDA {
 public:
     HashmapCUDA(const uint32_t max_bucket_count,
@@ -66,13 +69,6 @@ public:
 
     ~HashmapCUDA();
 
-    /* Verbose output (similar to std): return success masks for all operations,
-
-    * and iterators for insert and search (not for remove operation, as
-     * iterators are invalid after erase).
-     * Output iterators supports READ/WRITE: change to these output will
-     * DIRECTLY change the internal hash table.
-     */
     void Insert(Key* input_keys,
                 Value* input_values,
                 Iterator<Key, Value>* output_iterators,
@@ -84,17 +80,17 @@ public:
                 uint32_t num_keys);
     void Remove(Key* input_keys, uint8_t* output_masks, uint32_t num_keys);
 
-    /* Parallel collect all the iterators from begin to end */
+    /// Parallel collect all the iterators from begin to end
     void GetIterators(Iterator<Key, Value>* iterators, uint32_t& num_iterators);
-    /* Parallel extract keys and values from iterators */
+
+    /// Parallel extract keys and values from iterators
     void ExtractIterators(Iterator<Key, Value>* iterators,
                           Key* keys,
                           Value* values,
                           uint32_t num_iterators);
 
-    /* Debug usages */
+    /// Profiler
     std::vector<int> CountElemsPerBucket();
-
     double ComputeLoadFactor();
 
 private:
@@ -103,13 +99,12 @@ private:
 
     HashmapCUDAContext<Key, Value, Hash> gpu_context_;
 
-    std::shared_ptr<InternalMemoryManager<Pair<Key, Value>, Alloc>>
+    std::shared_ptr<InternalMemoryManager<Pair<Key, Value>, MemMgr>>
             pair_allocator_;
-    std::shared_ptr<InternalNodeManager<Alloc>> slab_list_allocator_;
+    std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
     open3d::Device device_;
 };
 
-/** Verbose version **/
 template <typename Key, typename Value, typename Hash>
 __global__ void InsertKernel(HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
                              Key* input_keys,
@@ -128,7 +123,6 @@ __global__ void RemoveKernel(HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
                              Key* input_keys,
                              uint8_t* output_masks,
                              uint32_t num_keys);
-
 template <typename Key, typename Value, typename Hash>
 __global__ void GetIteratorsKernel(
         HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
@@ -140,27 +134,23 @@ __global__ void CountElemsPerBucketKernel(
         HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
         uint32_t* bucket_elem_counts);
 
-/**
- * Implementation for the host class
- **/
-template <typename Key, typename Value, typename Hash, class Alloc>
-HashmapCUDA<Key, Value, Hash, Alloc>::HashmapCUDA(
+template <typename Key, typename Value, typename Hash, class MemMgr>
+HashmapCUDA<Key, Value, Hash, MemMgr>::HashmapCUDA(
         const uint32_t max_bucket_count,
         const uint32_t max_keyvalue_count,
         open3d::Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
-    // allocate an initialize the allocator:
     pair_allocator_ =
-            std::make_shared<InternalMemoryManager<Pair<Key, Value>, Alloc>>(
+            std::make_shared<InternalMemoryManager<Pair<Key, Value>, MemMgr>>(
                     max_keyvalue_count, device_);
     slab_list_allocator_ =
-            std::make_shared<InternalNodeManager<Alloc>>(device_);
+            std::make_shared<InternalNodeManager<MemMgr>>(device_);
 
-    // allocating initial buckets:
+    // Allocating initial buckets
     bucket_list_head_ = static_cast<Slab*>(
-            Alloc::Malloc(num_buckets_ * sizeof(Slab), device_));
+            MemMgr::Malloc(num_buckets_ * sizeof(Slab), device_));
     OPEN3D_CUDA_CHECK(
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
@@ -169,13 +159,13 @@ HashmapCUDA<Key, Value, Hash, Alloc>::HashmapCUDA(
                        pair_allocator_->gpu_context_);
 }
 
-template <typename Key, typename Value, typename Hash, class Alloc>
-HashmapCUDA<Key, Value, Hash, Alloc>::~HashmapCUDA() {
-    Alloc::Free(bucket_list_head_, device_);
+template <typename Key, typename Value, typename Hash, class MemMgr>
+HashmapCUDA<Key, Value, Hash, MemMgr>::~HashmapCUDA() {
+    MemMgr::Free(bucket_list_head_, device_);
 }
 
-template <typename Key, typename Value, typename Hash, class Alloc>
-void HashmapCUDA<Key, Value, Hash, Alloc>::Insert(
+template <typename Key, typename Value, typename Hash, class MemMgr>
+void HashmapCUDA<Key, Value, Hash, MemMgr>::Insert(
         Key* keys,
         Value* values,
         Iterator<Key, Value>* iterators,
@@ -189,8 +179,8 @@ void HashmapCUDA<Key, Value, Hash, Alloc>::Insert(
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-template <typename Key, typename Value, typename Hash, class Alloc>
-void HashmapCUDA<Key, Value, Hash, Alloc>::Search(
+template <typename Key, typename Value, typename Hash, class MemMgr>
+void HashmapCUDA<Key, Value, Hash, MemMgr>::Search(
         Key* keys,
         Iterator<Key, Value>* iterators,
         uint8_t* masks,
@@ -202,10 +192,10 @@ void HashmapCUDA<Key, Value, Hash, Alloc>::Search(
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-template <typename Key, typename Value, typename Hash, class Alloc>
-void HashmapCUDA<Key, Value, Hash, Alloc>::Remove(Key* keys,
-                                                  uint8_t* masks,
-                                                  uint32_t num_keys) {
+template <typename Key, typename Value, typename Hash, class MemMgr>
+void HashmapCUDA<Key, Value, Hash, MemMgr>::Remove(Key* keys,
+                                                   uint8_t* masks,
+                                                   uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     RemoveKernel<Key, Value, Hash>
             <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, masks, num_keys);
@@ -214,10 +204,10 @@ void HashmapCUDA<Key, Value, Hash, Alloc>::Remove(Key* keys,
 }
 
 /* Debug usage */
-template <typename Key, typename Value, typename Hash, class Alloc>
-std::vector<int> HashmapCUDA<Key, Value, Hash, Alloc>::CountElemsPerBucket() {
+template <typename Key, typename Value, typename Hash, class MemMgr>
+std::vector<int> HashmapCUDA<Key, Value, Hash, MemMgr>::CountElemsPerBucket() {
     auto elems_per_bucket_buffer = static_cast<uint32_t*>(
-            Alloc::Malloc(num_buckets_ * sizeof(uint32_t), device_));
+            MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
 
     thrust::device_vector<uint32_t> elems_per_bucket(
             elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);
@@ -231,12 +221,12 @@ std::vector<int> HashmapCUDA<Key, Value, Hash, Alloc>::CountElemsPerBucket() {
     std::vector<int> result(num_buckets_);
     thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
                  result.begin());
-    Alloc::Free(elems_per_bucket_buffer, device_);
+    MemMgr::Free(elems_per_bucket_buffer, device_);
     return std::move(result);
 }
 
-template <typename Key, typename Value, typename Hash, class Alloc>
-double HashmapCUDA<Key, Value, Hash, Alloc>::ComputeLoadFactor() {
+template <typename Key, typename Value, typename Hash, class MemMgr>
+double HashmapCUDA<Key, Value, Hash, MemMgr>::ComputeLoadFactor() {
     auto elems_per_bucket = CountElemsPerBucket();
     int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
                                              elems_per_bucket.end(), 0);

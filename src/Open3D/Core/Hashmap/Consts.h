@@ -36,33 +36,29 @@ static constexpr uint32_t ACTIVE_LANES_MASK = 0xFFFFFFFF;
 static constexpr uint32_t PAIR_PTR_LANES_MASK = 0x7FFFFFFF;
 static constexpr uint32_t NEXT_SLAB_PTR_LANE = 31;
 
-using addr_t = uint32_t;
-
-/* These types are all the same, but distiguish the naming can lead to clearer
- * meanings*/
-using ptr_t = uint32_t;
-
 static constexpr uint32_t NULL_ITERATOR = 0xFFFFFFFF;
 
-static constexpr uint32_t LOG_NUM_MEM_BLOCKS_ = 8;
-static constexpr uint32_t NUM_SUPER_BLOCKS_ALLOCATOR_ = 32;
-static constexpr uint32_t MEM_UNIT_WARP_MULTIPLES_ = 1;
+static constexpr uint32_t NUM_SUPER_BLOCKS_ = 32;
 
-// fixed parameters for the SlabAlloc
+static constexpr uint32_t LOG_NUM_MEM_BLOCKS_ = 8;
+static constexpr uint32_t NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ = 256;
 static constexpr uint32_t NUM_MEM_UNITS_PER_BLOCK_ = 1024;
+
 static constexpr uint32_t NUM_BITMAP_PER_MEM_BLOCK_ = 32;
 static constexpr uint32_t BITMAP_SIZE_ = 32;
 static constexpr uint32_t WARP_SIZE = 32;
-static constexpr uint32_t MEM_UNIT_SIZE_ = MEM_UNIT_WARP_MULTIPLES_ * WARP_SIZE;
+static constexpr uint32_t MEM_UNIT_SIZE_ = 32;
 static constexpr uint32_t SUPER_BLOCK_BIT_OFFSET_ALLOC_ = 27;
 static constexpr uint32_t MEM_BLOCK_BIT_OFFSET_ALLOC_ = 10;
 static constexpr uint32_t MEM_UNIT_BIT_OFFSET_ALLOC_ = 5;
-static constexpr uint32_t NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ =
-        (1 << LOG_NUM_MEM_BLOCKS_);
+
 static constexpr uint32_t MEM_BLOCK_SIZE_ =
         NUM_MEM_UNITS_PER_BLOCK_ * MEM_UNIT_SIZE_;
 static constexpr uint32_t SUPER_BLOCK_SIZE_ =
         ((BITMAP_SIZE_ + MEM_BLOCK_SIZE_) * NUM_MEM_BLOCKS_PER_SUPER_BLOCK_);
 static constexpr uint32_t MEM_BLOCK_OFFSET_ =
         (BITMAP_SIZE_ * NUM_MEM_BLOCKS_PER_SUPER_BLOCK_);
-static constexpr uint32_t num_super_blocks_ = NUM_SUPER_BLOCKS_ALLOCATOR_;
+
+/* These types are all the same, but distiguish the naming can lead to clearer
+ * meanings*/
+using ptr_t = uint32_t;

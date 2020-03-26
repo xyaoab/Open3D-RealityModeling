@@ -11,14 +11,11 @@
 #include "Open3D/Core/MemoryManager.h"
 
 #include "Consts.h"
-/**
- * Memory allocation and free are expensive on GPU.
- * (And are easy to overflow, I need to check the the reason.)
- *
- * Basically, we maintain one memory heap per data type.
- */
 
-#define _CUDA_DEBUG_ENABLE_ASSERTION
+/// Dynamic memory allocation and free are expensive on kernels.
+/// We pre-allocate a chunk of memory and manually manage them on kernels.
+/// For simplicity, we maintain a chunk per array (type T) instead of managing a
+/// universal one. This causes more redundancy but is easier to maintain.
 template <typename T>
 class InternalMemoryManagerContext {
 public:

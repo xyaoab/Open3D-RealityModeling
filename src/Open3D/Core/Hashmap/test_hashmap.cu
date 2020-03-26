@@ -116,7 +116,6 @@ void TEST_SIMPLE() {
             assert(cuda_query_results.second[i] == 0);
         } else {
             Iterator<int, int> iterator = cuda_query_results.first[i];
-            // Iterator == Pair*
             Pair<int, int> kv =
                     *(thrust::device_ptr<Pair<int, int>>(iterator));
             assert(kv.first == cuda_query_keys[i]);
