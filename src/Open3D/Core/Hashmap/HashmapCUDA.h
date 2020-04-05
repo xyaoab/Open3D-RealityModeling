@@ -99,8 +99,7 @@ private:
 
     HashmapCUDAContext<Key, Value, Hash> gpu_context_;
 
-    std::shared_ptr<InternalMemoryManager<Pair<Key, Value>, MemMgr>>
-            pair_allocator_;
+    std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
     std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
     open3d::Device device_;
 };
@@ -142,9 +141,8 @@ HashmapCUDA<Key, Value, Hash, MemMgr>::HashmapCUDA(
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
-    pair_allocator_ =
-            std::make_shared<InternalMemoryManager<Pair<Key, Value>, MemMgr>>(
-                    max_keyvalue_count, device_);
+    pair_allocator_ = std::make_shared<InternalMemoryManager<MemMgr>>(
+            max_keyvalue_count, sizeof(Pair<Key, Value>), device_);
     slab_list_allocator_ =
             std::make_shared<InternalNodeManager<MemMgr>>(device_);
 
@@ -253,8 +251,7 @@ public:
     __host__ void Setup(Slab* bucket_list_head,
                         const uint32_t num_buckets,
                         const InternalNodeManagerContext& allocator_ctx,
-                        const InternalMemoryManagerContext<Pair<Key, Value>>&
-                                pair_allocator_ctx);
+                        const InternalMemoryManagerContext& pair_allocator_ctx);
 
     /* Core SIMT operations, shared by both simplistic and verbose
      * interfaces */
@@ -281,8 +278,7 @@ public:
     __device__ __host__ InternalNodeManagerContext& get_slab_alloc_ctx() {
         return slab_list_allocator_ctx_;
     }
-    __device__ __host__ InternalMemoryManagerContext<Pair<Key, Value>>
-    get_pair_alloc_ctx() {
+    __device__ __host__ InternalMemoryManagerContext& get_pair_alloc_ctx() {
         return pair_allocator_ctx_;
     }
 
@@ -315,7 +311,7 @@ private:
 
     Slab* bucket_list_head_;
     InternalNodeManagerContext slab_list_allocator_ctx_;
-    InternalMemoryManagerContext<Pair<Key, Value>> pair_allocator_ctx_;
+    InternalMemoryManagerContext pair_allocator_ctx_;
 };
 
 /**
@@ -333,8 +329,7 @@ __host__ void HashmapCUDAContext<Key, Value, Hash>::Setup(
         Slab* bucket_list_head,
         const uint32_t num_buckets,
         const InternalNodeManagerContext& allocator_ctx,
-        const InternalMemoryManagerContext<Pair<Key, Value>>&
-                pair_allocator_ctx) {
+        const InternalMemoryManagerContext& pair_allocator_ctx) {
     bucket_list_head_ = bucket_list_head;
 
     num_buckets_ = num_buckets;
@@ -370,7 +365,10 @@ __device__ int32_t HashmapCUDAContext<Key, Value, Hash>::WarpFindKey(
             /* validate key addrs */
             && (ptr != EMPTY_PAIR_PTR)
             /* find keys in memory heap */
-            && pair_allocator_ctx_.extract(ptr).first == key;
+            // TODO: replace with compare_key
+            && reinterpret_cast<Pair<Key, Value>*>(
+                       pair_allocator_ctx_.extract_ptr(ptr))
+                               ->first == key;
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
 }
@@ -492,8 +490,14 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Key, Value, Hash>::Insert(
     int prealloc_pair_internal_ptr = EMPTY_PAIR_PTR;
     if (to_be_inserted) {
         prealloc_pair_internal_ptr = pair_allocator_ctx_.Allocate();
-        pair_allocator_ctx_.extract(prealloc_pair_internal_ptr) =
-                make_pair(key, value);
+        // TODO: replace with Assign
+        Pair<Key, Value> pair = make_pair(key, value);
+        uint8_t* ptr =
+                pair_allocator_ctx_.extract_ptr(prealloc_pair_internal_ptr);
+        uint8_t* pair_ptr = reinterpret_cast<uint8_t*>(&pair);
+        for (int i = 0; i < pair_allocator_ctx_.dsize_; ++i) {
+            ptr[i] = pair_ptr[i];
+        }
     }
 
     /** > Loop when we have active lanes **/
@@ -710,8 +714,8 @@ __global__ void SearchKernel(HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
             slab_hash_ctx.Search(lane_active, lane_id, bucket_id, key);
 
     if (tid < num_queries) {
-        iterators[tid] = slab_hash_ctx.get_pair_alloc_ctx().extract_ext_ptr(
-                result.first);
+        iterators[tid] = reinterpret_cast<Pair<Key, Value>*>(
+                slab_hash_ctx.get_pair_alloc_ctx().extract_ptr(result.first));
         masks[tid] = result.second;
     }
 }
@@ -748,8 +752,8 @@ __global__ void InsertKernel(HashmapCUDAContext<Key, Value, Hash> slab_hash_ctx,
             slab_hash_ctx.Insert(lane_active, lane_id, bucket_id, key, value);
 
     if (tid < num_keys) {
-        iterators[tid] = slab_hash_ctx.get_pair_alloc_ctx().extract_ext_ptr(
-                result.first);
+        iterators[tid] = reinterpret_cast<Pair<Key, Value>*>(
+                slab_hash_ctx.get_pair_alloc_ctx().extract_ptr(result.first));
         masks[tid] = result.second;
     }
 }

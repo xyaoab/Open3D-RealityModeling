@@ -16,14 +16,14 @@
 /// We pre-allocate a chunk of memory and manually manage them on kernels.
 /// For simplicity, we maintain a chunk per array (type T) instead of managing a
 /// universal one. This causes more redundancy but is easier to maintain.
-template <typename T>
 class InternalMemoryManagerContext {
 public:
-    T *data_;           /* [N] */
+    uint8_t *data_;     /* [N] * sizeof(T) */
     ptr_t *heap_;       /* [N] */
     int *heap_counter_; /* [1] */
 
 public:
+    int dsize_;
     int max_capacity_;
 
 public:
@@ -45,68 +45,55 @@ public:
      */
     __device__ ptr_t Allocate() {
         int index = atomicAdd(heap_counter_, 1);
-#ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(index < max_capacity_);
-#endif
         return heap_[index];
     }
 
     __device__ void Free(ptr_t ptr) {
         int index = atomicSub(heap_counter_, 1);
-#ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(index >= 1);
-#endif
         heap_[index - 1] = ptr;
     }
 
-    __device__ T &extract(ptr_t ptr) {
-#ifdef CUDA_DEBUG_ENABLE_ASSERTION
-        assert(addr < max_capacity_);
-#endif
-        return data_[ptr];
-    }
+    __device__ uint8_t *extract_ptr(ptr_t ptr) { return data_ + ptr * dsize_; }
 
-    __device__ const T &extract(ptr_t ptr) const {
-#ifdef CUDA_DEBUG_ENABLE_ASSERTION
-        assert(addr < max_capacity_);
-#endif
-        return data_[ptr];
+    __device__ const uint8_t *extract_ptr(ptr_t ptr) const {
+        return data_ + ptr * dsize_;
     }
-
-    /* Returns the real ptr that can be accessed (instead of the internal ptr)
-     */
-    __device__ T *extract_ext_ptr(ptr_t ptr) { return data_ + ptr; }
 };
 
-template <typename T>
 __global__ void ResetInternalMemoryManagerKernel(
-        InternalMemoryManagerContext<T> ctx) {
+        InternalMemoryManagerContext ctx) {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < ctx.max_capacity_) {
-        ctx.data_[i] = T(); /* This is not required. */
+        /// data will not be initialized
         ctx.heap_[i] = i;
     }
 }
 
-template <typename T, class Alloc>
+template <class Alloc>
 class InternalMemoryManager {
 public:
     int max_capacity_;
-    InternalMemoryManagerContext<T> gpu_context_;
+    int dsize_;
+    InternalMemoryManagerContext gpu_context_;
     open3d::Device device_;
 
 public:
-    InternalMemoryManager(int max_capacity, open3d::Device device) {
+    InternalMemoryManager(int max_capacity, int dsize, open3d::Device device) {
         device_ = device;
         max_capacity_ = max_capacity;
+        dsize_ = dsize;
+
         gpu_context_.max_capacity_ = max_capacity;
+        gpu_context_.dsize_ = dsize_;
 
         gpu_context_.heap_counter_ = static_cast<int *>(
                 Alloc::Malloc(size_t(1) * sizeof(int), device_));
         gpu_context_.heap_ = static_cast<ptr_t *>(
                 Alloc::Malloc(size_t(max_capacity_) * sizeof(ptr_t), device_));
-        gpu_context_.data_ = static_cast<T *>(
-                Alloc::Malloc(size_t(max_capacity_) * sizeof(T), device_));
+        gpu_context_.data_ = static_cast<uint8_t *>(
+                Alloc::Malloc(size_t(max_capacity_) * dsize_, device_));
 
         const int blocks = (max_capacity_ + 128 - 1) / 128;
         const int threads = 128;
@@ -134,11 +121,11 @@ public:
         return ret;
     }
 
-    std::vector<T> DownloadValue() {
-        std::vector<T> ret;
+    std::vector<uint8_t> DownloadValue() {
+        std::vector<uint8_t> ret;
         ret.resize(max_capacity_);
         Alloc::Memcpy(ret.data(), open3d::Device("CPU:0"), gpu_context_.data_,
-                      device_, sizeof(T) * max_capacity_);
+                      device_, max_capacity_ * dsize_);
         return ret;
     }
 

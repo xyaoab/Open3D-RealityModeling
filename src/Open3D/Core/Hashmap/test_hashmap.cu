@@ -104,11 +104,13 @@ void TEST_SIMPLE() {
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
     cuda_unordered_map.Insert(cuda_insert_keys, cuda_insert_vals);
+    std::cout << "Inserted\n";
 
     // query
     thrust::device_vector<int> cuda_query_keys(
             std::vector<int>({1, 2, 3, 4, 5}));
     auto cuda_query_results = cuda_unordered_map.Search(cuda_query_keys);
+    std::cout << "Searched\n";
 
     for (int i = 0; i < cuda_query_keys.size(); ++i) {
         auto iter = unordered_map.find(cuda_query_keys[i]);
