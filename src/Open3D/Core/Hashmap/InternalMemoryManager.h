@@ -66,8 +66,12 @@ __global__ void ResetInternalMemoryManagerKernel(
         InternalMemoryManagerContext ctx) {
     const int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < ctx.max_capacity_) {
-        /// data will not be initialized
         ctx.heap_[i] = i;
+
+        /// Memset
+        for (int j = 0; j < ctx.dsize_; ++j) {
+            ctx.data_[i * ctx.dsize_ + j] = 0;
+        }
     }
 }
 

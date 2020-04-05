@@ -32,18 +32,36 @@
 
 #include "HashmapCUDA.h"
 
+// template <typename Key, typename Value>
+// struct Pair {
+//     Key first;
+//     Value second;
+//     __device__ __host__ Pair() {}
+//     __device__ __host__ Pair(const Key& key, const Value& value)
+//         : first(key), second(value) {}
+// };
+
+// template <typename Key, typename Value>
+// __device__ __host__ Pair<Key, Value> make_pair(const Key& key,
+//                                                const Value& value) {
+//     return Pair<Key, Value>(key, value);
+// }
+
+// template <typename Key, typename Value>
+// using Iterator = Pair<Key, Value>*;
+
 /*
  * Default hash function:
  * It treat any kind of input as a concatenation of ints.
  */
 template <typename Key>
 struct hash {
-    __device__ __host__ uint64_t operator()(const Key& key) const {
+    __device__ __host__ uint64_t operator()(uint8_t* key_ptr) const {
         uint64_t hash = UINT64_C(14695981039346656037);
 
         const int chunks = sizeof(Key) / sizeof(int);
         for (size_t i = 0; i < chunks; ++i) {
-            hash ^= ((int32_t*)(&key))[i];
+            hash ^= ((int32_t*)(key_ptr))[i];
             hash *= UINT64_C(1099511628211);
         }
         return hash;
@@ -76,16 +94,14 @@ public:
     /// TODO: change to raw pointers and adapt to Tensor scheduling
     /// Insert keys and values.
     /// Return (CUDA) pointers to the inserted kv pairs.
-    std::pair<thrust::device_vector<Iterator<Key, Value>>,
-              thrust::device_vector<uint8_t>>
+    std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
     Insert(thrust::device_vector<Key>& input_keys,
            thrust::device_vector<Value>& input_values);
 
     /// Search keys.
     /// Return (CUDA) pointers to the found kv pairs; nullptr for not found.
     /// Also returns a mask array to indicate success.
-    std::pair<thrust::device_vector<Iterator<Key, Value>>,
-              thrust::device_vector<uint8_t>>
+    std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
     Search(thrust::device_vector<Key>& input_keys);
 
     /// Remove key value pairs given keys.
@@ -104,12 +120,12 @@ private:
     uint32_t num_buckets_;
 
     // Buffer to store temporary results
-    Key* output_key_buffer_;
-    Value* output_value_buffer_;
-    Iterator<Key, Value>* output_iterator_buffer_;
+    uint8_t* output_key_buffer_;
+    uint8_t* output_value_buffer_;
+    iterator_t* output_iterator_buffer_;
     uint8_t* output_mask_buffer_;
 
-    std::shared_ptr<HashmapCUDA<Key, Value, Hash, MemMgr>> device_hashmap_;
+    std::shared_ptr<HashmapCUDA<Hash, MemMgr>> device_hashmap_;
     open3d::Device device_;
 };
 
@@ -128,17 +144,18 @@ Hashmap<Key, Value, Hash, MemMgr>::Hashmap(
 
     // Allocate memory
     output_key_buffer_ =
-            static_cast<Key*>(MemMgr::Malloc(max_keys_ * sizeof(Key), device_));
-    output_value_buffer_ = static_cast<Value*>(
-            MemMgr::Malloc(max_keys_ * sizeof(Value), device_));
-    output_mask_buffer_ = static_cast<uint8_t*>(
-            MemMgr::Malloc(max_keys_ * sizeof(uint8_t), device_));
-    output_iterator_buffer_ = static_cast<Iterator<Key, Value>*>(
-            MemMgr::Malloc(max_keys_ * sizeof(Iterator<Key, Value>), device_));
+            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(Key), device_);
+    output_value_buffer_ =
+            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(Value), device_);
+    output_mask_buffer_ =
+            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(uint8_t), device_);
+    output_iterator_buffer_ = (iterator_t*)MemMgr::Malloc(
+            max_keys_ * sizeof(iterator_t), device_);
 
     // Initialize internal allocator
-    device_hashmap_ = std::make_shared<HashmapCUDA<Key, Value, Hash, MemMgr>>(
-            num_buckets_, max_keys_, device_);
+    device_hashmap_ = std::make_shared<HashmapCUDA<Hash, MemMgr>>(
+            num_buckets_, max_keys_, sizeof(Key), sizeof(Value),
+            sizeof(Key) + sizeof(Value), device_);
 }
 
 template <typename Key, typename Value, typename Hash, class MemMgr>
@@ -150,8 +167,7 @@ Hashmap<Key, Value, Hash, MemMgr>::~Hashmap() {
 }
 
 template <typename Key, typename Value, typename Hash, class MemMgr>
-std::pair<thrust::device_vector<Iterator<Key, Value>>,
-          thrust::device_vector<uint8_t>>
+std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
 Hashmap<Key, Value, Hash, MemMgr>::Insert(
         thrust::device_vector<Key>& input_keys,
         thrust::device_vector<Value>& input_values) {
@@ -160,12 +176,12 @@ Hashmap<Key, Value, Hash, MemMgr>::Insert(
     // TODO: rehash and increase max_keys_
     assert(input_keys.size() <= max_keys_);
 
-    device_hashmap_->Insert(thrust::raw_pointer_cast(input_keys.data()),
-                            thrust::raw_pointer_cast(input_values.data()),
-                            output_iterator_buffer_, output_mask_buffer_,
-                            input_keys.size());
+    device_hashmap_->Insert(
+            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
+            (uint8_t*)thrust::raw_pointer_cast(input_values.data()),
+            output_iterator_buffer_, output_mask_buffer_, input_keys.size());
 
-    thrust::device_vector<Iterator<Key, Value>> output_iterators(
+    thrust::device_vector<iterator_t> output_iterators(
             output_iterator_buffer_,
             output_iterator_buffer_ + input_keys.size());
     thrust::device_vector<uint8_t> output_masks(
@@ -174,8 +190,7 @@ Hashmap<Key, Value, Hash, MemMgr>::Insert(
 }
 
 template <typename Key, typename Value, typename Hash, class MemMgr>
-std::pair<thrust::device_vector<Iterator<Key, Value>>,
-          thrust::device_vector<uint8_t>>
+std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
 Hashmap<Key, Value, Hash, MemMgr>::Search(
         thrust::device_vector<Key>& input_keys) {
     assert(input_keys.size() <= max_keys_);
@@ -183,12 +198,12 @@ Hashmap<Key, Value, Hash, MemMgr>::Search(
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
                                  sizeof(uint8_t) * input_keys.size()));
 
-    device_hashmap_->Search(thrust::raw_pointer_cast(input_keys.data()),
-                            output_iterator_buffer_, output_mask_buffer_,
-                            input_keys.size());
+    device_hashmap_->Search(
+            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
+            output_iterator_buffer_, output_mask_buffer_, input_keys.size());
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
 
-    thrust::device_vector<Iterator<Key, Value>> output_iterators(
+    thrust::device_vector<iterator_t> output_iterators(
             output_iterator_buffer_,
             output_iterator_buffer_ + input_keys.size());
     thrust::device_vector<uint8_t> output_masks(
@@ -202,8 +217,9 @@ thrust::device_vector<uint8_t> Hashmap<Key, Value, Hash, MemMgr>::Remove(
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
                                  sizeof(uint8_t) * input_keys.size()));
 
-    device_hashmap_->Remove(thrust::raw_pointer_cast(input_keys.data()),
-                            output_mask_buffer_, input_keys.size());
+    device_hashmap_->Remove(
+            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
+            output_mask_buffer_, input_keys.size());
 
     thrust::device_vector<uint8_t> output_masks(
             output_mask_buffer_, output_mask_buffer_ + input_keys.size());
