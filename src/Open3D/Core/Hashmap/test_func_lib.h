@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdio.h>
+
 inline void __OPEN3D_CUDA_CHECK(cudaError_t err,
                                 const char *file,
                                 const int line) {
