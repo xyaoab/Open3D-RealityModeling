@@ -77,7 +77,7 @@ struct Vector6i {
 };
 
 namespace std {
-template <>
+template <> 
 struct hash<Vector6i> {
     std::size_t operator()(const Vector6i& k) const {
         uint64_t h = UINT64_C(14695981039346656037);
@@ -100,7 +100,7 @@ void TEST_SIMPLE() {
         unordered_map[insert_keys[i]] = insert_vals[i];
     }
 
-    cuda::Hashmap<> cuda_unordered_map(10, sizeof(int), sizeof(int),
+    cuda::Hashmap cuda_unordered_map(10, sizeof(int), sizeof(int),
                                        sizeof(int) + sizeof(int));
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
@@ -162,7 +162,7 @@ void TEST_6DIM_KEYS(int key_size) {
 
     // gpu test
     std::cout << "inserting to cuda::Hashmap...\n";
-    cuda::Hashmap<> cuda_unordered_map(key_size, sizeof(Vector6i), sizeof(int),
+    cuda::Hashmap cuda_unordered_map(key_size, sizeof(Vector6i), sizeof(int),
                                      sizeof(Vector6i) + sizeof(int));
     cuda_unordered_map.Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
@@ -249,7 +249,7 @@ void TEST_COORD_KEYS(int key_size) {
     std::cout << "inserting to cuda::Hashmap...\n";
     thrust::device_vector<Coordinate<int, D>> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda::Hashmap<> cuda_unordered_map(key_size, sizeof(Coordinate<int, D>),
+    cuda::Hashmap cuda_unordered_map(key_size, sizeof(Coordinate<int, D>),
                                      sizeof(int),
                                      sizeof(Coordinate<int, D>) + sizeof(int));
     cuda_unordered_map.Insert(

@@ -61,196 +61,24 @@ public:
     ptr_t next_slab_ptr;
 };
 
-template <typename Hash>
-class HashmapCUDAContext;
+struct DefaultHash {
+    __device__ __host__ DefaultHash() {}
+    __device__ __host__ DefaultHash(uint32_t key_size) : key_size_(key_size) {}
+    __device__ __host__ uint64_t operator()(uint8_t* key_ptr) const {
+        uint64_t hash = UINT64_C(14695981039346656037);
 
-template <typename Hash, class MemMgr>
-class HashmapCUDA {
-public:
-    HashmapCUDA(const uint32_t max_bucket_count,
-                const uint32_t max_keyvalue_count,
-                const uint32_t dsize_key,
-                const uint32_t dsize_value,
-                open3d::Device device);
+        const int chunks = key_size_ / sizeof(int);
+        int32_t* cast_key_ptr = (int32_t*)(key_ptr);
+        for (size_t i = 0; i < chunks; ++i) {
+            hash ^= cast_key_ptr[i];
+            hash *= UINT64_C(1099511628211);
+        }
+        return hash;
+    }
 
-    ~HashmapCUDA();
-
-    void Insert(uint8_t* input_keys,
-                uint8_t* input_values,
-                iterator_t* output_iterators,
-                uint8_t* output_masks,
-                uint32_t num_keys);
-    void Search(uint8_t* input_keys,
-                iterator_t* output_iterators,
-                uint8_t* output_masks,
-                uint32_t num_keys);
-    void Remove(uint8_t* input_keys, uint8_t* output_masks, uint32_t num_keys);
-
-    /// Parallel collect all the iterators from begin to end
-    void GetIterators(iterator_t* iterators, uint32_t& num_iterators);
-
-    /// Parallel extract keys and values from iterators
-    void ExtractIterators(iterator_t* iterators,
-                          uint8_t* keys,
-                          uint8_t* values,
-                          uint32_t num_iterators);
-
-    /// Profiler
-    std::vector<int> CountElemsPerBucket();
-    double ComputeLoadFactor();
-
-private:
-    Slab* bucket_list_head_;
-    uint32_t num_buckets_;
-
-    HashmapCUDAContext<Hash> gpu_context_;
-
-    std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
-    std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
-    open3d::Device device_;
+    uint32_t key_size_ = 4;
 };
 
-template <typename Hash>
-__global__ void InsertKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
-                             uint8_t* input_keys,
-                             uint8_t* input_values,
-                             iterator_t* output_iterators,
-                             uint8_t* output_masks,
-                             uint32_t num_keys);
-
-template <typename Hash>
-__global__ void SearchKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
-                             uint8_t* input_keys,
-                             iterator_t* output_iterators,
-                             uint8_t* output_masks,
-                             uint32_t num_keys);
-
-template <typename Hash>
-__global__ void RemoveKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
-                             uint8_t* input_keys,
-                             uint8_t* output_masks,
-                             uint32_t num_keys);
-
-template <typename Hash>
-__global__ void GetIteratorsKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
-                                   iterator_t* output_iterators,
-                                   uint32_t* output_iterator_count,
-                                   uint32_t num_buckets);
-
-template <typename Hash>
-__global__ void CountElemsPerBucketKernel(
-        HashmapCUDAContext<Hash> slab_hash_ctx, uint32_t* bucket_elem_counts);
-
-template <typename Hash, class MemMgr>
-HashmapCUDA<Hash, MemMgr>::HashmapCUDA(const uint32_t max_bucket_count,
-                                       const uint32_t max_keyvalue_count,
-                                       const uint32_t dsize_key,
-                                       const uint32_t dsize_value,
-                                       open3d::Device device)
-    : num_buckets_(max_bucket_count),
-      device_(device),
-      bucket_list_head_(nullptr) {
-    pair_allocator_ = std::make_shared<InternalMemoryManager<MemMgr>>(
-            max_keyvalue_count, dsize_key + dsize_value, device_);
-    slab_list_allocator_ =
-            std::make_shared<InternalNodeManager<MemMgr>>(device_);
-
-    // Allocating initial buckets
-    bucket_list_head_ = static_cast<Slab*>(
-            MemMgr::Malloc(num_buckets_ * sizeof(Slab), device_));
-    OPEN3D_CUDA_CHECK(
-            cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
-
-    gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
-                       slab_list_allocator_->getContext(),
-                       pair_allocator_->gpu_context_);
-}
-
-template <typename Hash, class MemMgr>
-HashmapCUDA<Hash, MemMgr>::~HashmapCUDA() {
-    MemMgr::Free(bucket_list_head_, device_);
-}
-
-template <typename Hash, class MemMgr>
-void HashmapCUDA<Hash, MemMgr>::Insert(uint8_t* keys,
-                                       uint8_t* values,
-                                       iterator_t* iterators,
-                                       uint8_t* masks,
-                                       uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    InsertKernel<Hash><<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values,
-                                                   iterators, masks, num_keys);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, class MemMgr>
-void HashmapCUDA<Hash, MemMgr>::Search(uint8_t* keys,
-                                       iterator_t* iterators,
-                                       uint8_t* masks,
-                                       uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    SearchKernel<Hash><<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys,
-                                                   iterators, masks, num_keys);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, class MemMgr>
-void HashmapCUDA<Hash, MemMgr>::Remove(uint8_t* keys,
-                                       uint8_t* masks,
-                                       uint32_t num_keys) {
-    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    RemoveKernel<Hash>
-            <<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, masks, num_keys);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-/* Debug usage */
-template <typename Hash, class MemMgr>
-std::vector<int> HashmapCUDA<Hash, MemMgr>::CountElemsPerBucket() {
-    auto elems_per_bucket_buffer = static_cast<uint32_t*>(
-            MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
-
-    thrust::device_vector<uint32_t> elems_per_bucket(
-            elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);
-    thrust::fill(elems_per_bucket.begin(), elems_per_bucket.end(), 0);
-
-    const uint32_t blocksize = 128;
-    const uint32_t num_blocks = (num_buckets_ * 32 + blocksize - 1) / blocksize;
-    CountElemsPerBucketKernel<Hash><<<num_blocks, blocksize>>>(
-            gpu_context_, thrust::raw_pointer_cast(elems_per_bucket.data()));
-
-    std::vector<int> result(num_buckets_);
-    thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
-                 result.begin());
-    MemMgr::Free(elems_per_bucket_buffer, device_);
-    return std::move(result);
-}
-
-template <typename Hash, class MemMgr>
-double HashmapCUDA<Hash, MemMgr>::ComputeLoadFactor() {
-    auto elems_per_bucket = CountElemsPerBucket();
-    int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
-                                             elems_per_bucket.end(), 0);
-
-    slab_list_allocator_->getContext() = gpu_context_.get_slab_alloc_ctx();
-    auto slabs_per_bucket = slab_list_allocator_->CountSlabsPerSuperblock();
-    int total_slabs_stored = std::accumulate(
-            slabs_per_bucket.begin(), slabs_per_bucket.end(), num_buckets_);
-
-    double load_factor = double(total_elems_stored) /
-                         double(total_slabs_stored * WARP_WIDTH);
-
-    return load_factor;
-}
-
-/**
- * Internal implementation for the device proxy:
- * DO NOT ENTER!
- **/
-template <typename Hash>
 class HashmapCUDAContext {
 public:
     HashmapCUDAContext();
@@ -318,25 +146,195 @@ public:
     uint32_t dsize_key_;
     uint32_t dsize_value_;
 
-    Hash hash_fn_;
+    DefaultHash hash_fn_;
 
     Slab* bucket_list_head_;
     InternalNodeManagerContext slab_list_allocator_ctx_;
     InternalMemoryManagerContext pair_allocator_ctx_;
 };
 
+class HashmapCUDA {
+public:
+    using MemMgr = open3d::MemoryManager;
+    HashmapCUDA(const uint32_t max_bucket_count,
+                const uint32_t max_keyvalue_count,
+                const uint32_t dsize_key,
+                const uint32_t dsize_value,
+                open3d::Device device);
+
+    ~HashmapCUDA();
+
+    void Insert(uint8_t* input_keys,
+                uint8_t* input_values,
+                iterator_t* output_iterators,
+                uint8_t* output_masks,
+                uint32_t num_keys);
+    void Search(uint8_t* input_keys,
+                iterator_t* output_iterators,
+                uint8_t* output_masks,
+                uint32_t num_keys);
+    void Remove(uint8_t* input_keys, uint8_t* output_masks, uint32_t num_keys);
+
+    /// Parallel collect all the iterators from begin to end
+    void GetIterators(iterator_t* iterators, uint32_t& num_iterators);
+
+    /// Parallel extract keys and values from iterators
+    void ExtractIterators(iterator_t* iterators,
+                          uint8_t* keys,
+                          uint8_t* values,
+                          uint32_t num_iterators);
+
+    /// Profiler
+    std::vector<int> CountElemsPerBucket();
+    double ComputeLoadFactor();
+
+private:
+    Slab* bucket_list_head_;
+    uint32_t num_buckets_;
+
+    HashmapCUDAContext gpu_context_;
+
+    std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
+    std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
+
+    open3d::Device device_;
+};
+
+__global__ void InsertKernel(HashmapCUDAContext slab_hash_ctx,
+                             uint8_t* input_keys,
+                             uint8_t* input_values,
+                             iterator_t* output_iterators,
+                             uint8_t* output_masks,
+                             uint32_t num_keys);
+
+__global__ void SearchKernel(HashmapCUDAContext slab_hash_ctx,
+                             uint8_t* input_keys,
+                             iterator_t* output_iterators,
+                             uint8_t* output_masks,
+                             uint32_t num_keys);
+
+__global__ void RemoveKernel(HashmapCUDAContext slab_hash_ctx,
+                             uint8_t* input_keys,
+                             uint8_t* output_masks,
+                             uint32_t num_keys);
+
+__global__ void GetIteratorsKernel(HashmapCUDAContext slab_hash_ctx,
+                                   iterator_t* output_iterators,
+                                   uint32_t* output_iterator_count,
+                                   uint32_t num_buckets);
+
+__global__ void CountElemsPerBucketKernel(HashmapCUDAContext slab_hash_ctx,
+                                          uint32_t* bucket_elem_counts);
+
+HashmapCUDA::HashmapCUDA(const uint32_t max_bucket_count,
+                         const uint32_t max_keyvalue_count,
+                         const uint32_t dsize_key,
+                         const uint32_t dsize_value,
+                         open3d::Device device)
+    : num_buckets_(max_bucket_count),
+      device_(device),
+      bucket_list_head_(nullptr) {
+    pair_allocator_ = std::make_shared<InternalMemoryManager<MemMgr>>(
+            max_keyvalue_count, dsize_key + dsize_value, device_);
+    slab_list_allocator_ =
+            std::make_shared<InternalNodeManager<MemMgr>>(device_);
+
+    // Allocating initial buckets
+    bucket_list_head_ = static_cast<Slab*>(
+            MemMgr::Malloc(num_buckets_ * sizeof(Slab), device_));
+    OPEN3D_CUDA_CHECK(
+            cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
+
+    gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
+                       slab_list_allocator_->getContext(),
+                       pair_allocator_->gpu_context_);
+}
+
+HashmapCUDA::~HashmapCUDA() { MemMgr::Free(bucket_list_head_, device_); }
+
+void HashmapCUDA::Insert(uint8_t* keys,
+                         uint8_t* values,
+                         iterator_t* iterators,
+                         uint8_t* masks,
+                         uint32_t num_keys) {
+    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    InsertKernel<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values,
+                                             iterators, masks, num_keys);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+void HashmapCUDA::Search(uint8_t* keys,
+                         iterator_t* iterators,
+                         uint8_t* masks,
+                         uint32_t num_keys) {
+    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    SearchKernel<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, iterators,
+                                             masks, num_keys);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+void HashmapCUDA::Remove(uint8_t* keys, uint8_t* masks, uint32_t num_keys) {
+    const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    RemoveKernel<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, masks,
+                                             num_keys);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+/* Debug usage */
+std::vector<int> HashmapCUDA::CountElemsPerBucket() {
+    auto elems_per_bucket_buffer = static_cast<uint32_t*>(
+            MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
+
+    thrust::device_vector<uint32_t> elems_per_bucket(
+            elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);
+    thrust::fill(elems_per_bucket.begin(), elems_per_bucket.end(), 0);
+
+    const uint32_t blocksize = 128;
+    const uint32_t num_blocks = (num_buckets_ * 32 + blocksize - 1) / blocksize;
+    CountElemsPerBucketKernel<<<num_blocks, blocksize>>>(
+            gpu_context_, thrust::raw_pointer_cast(elems_per_bucket.data()));
+
+    std::vector<int> result(num_buckets_);
+    thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
+                 result.begin());
+    MemMgr::Free(elems_per_bucket_buffer, device_);
+    return std::move(result);
+}
+
+double HashmapCUDA::ComputeLoadFactor() {
+    auto elems_per_bucket = CountElemsPerBucket();
+    int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
+                                             elems_per_bucket.end(), 0);
+
+    slab_list_allocator_->getContext() = gpu_context_.get_slab_alloc_ctx();
+    auto slabs_per_bucket = slab_list_allocator_->CountSlabsPerSuperblock();
+    int total_slabs_stored = std::accumulate(
+            slabs_per_bucket.begin(), slabs_per_bucket.end(), num_buckets_);
+
+    double load_factor = double(total_elems_stored) /
+                         double(total_slabs_stored * WARP_WIDTH);
+
+    return load_factor;
+}
+
+/**
+ * Internal implementation for the device proxy:
+ * DO NOT ENTER!
+ **/
+
 /**
  * Definitions
  **/
-template <typename Hash>
-HashmapCUDAContext<Hash>::HashmapCUDAContext()
+HashmapCUDAContext::HashmapCUDAContext()
     : num_buckets_(0), bucket_list_head_(nullptr) {
     static_assert(sizeof(Slab) == (WARP_WIDTH * sizeof(ptr_t)),
                   "Invalid slab size");
 }
 
-template <typename Hash>
-__host__ void HashmapCUDAContext<Hash>::Setup(
+__host__ void HashmapCUDAContext::Setup(
         Slab* bucket_list_head,
         const uint32_t num_buckets,
         const uint32_t dsize_key,
@@ -352,17 +350,15 @@ __host__ void HashmapCUDAContext<Hash>::Setup(
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
 
-    hash_fn_ = Hash(dsize_key);
+    hash_fn_ = DefaultHash(dsize_key);
 }
 
-template <typename Hash>
 __device__ __host__ __forceinline__ uint32_t
-HashmapCUDAContext<Hash>::ComputeBucket(uint8_t* key) const {
+HashmapCUDAContext::ComputeBucket(uint8_t* key) const {
     return hash_fn_(key) % num_buckets_;
 }
 
-template <typename Hash>
-__device__ __forceinline__ void HashmapCUDAContext<Hash>::WarpSyncKey(
+__device__ __forceinline__ void HashmapCUDAContext::WarpSyncKey(
         uint8_t* key_ptr, const uint32_t lane_id, uint8_t* ret_key_ptr) {
     const int chunks = dsize_key_ / sizeof(int);
 #pragma unroll 1
@@ -383,10 +379,9 @@ __device__ __host__ inline bool cmp(uint8_t* src,
     return ret;
 }
 
-template <typename Hash>
-__device__ int32_t HashmapCUDAContext<Hash>::WarpFindKey(uint8_t* key_ptr,
-                                                         const uint32_t lane_id,
-                                                         const ptr_t ptr) {
+__device__ int32_t HashmapCUDAContext::WarpFindKey(uint8_t* key_ptr,
+                                                   const uint32_t lane_id,
+                                                   const ptr_t ptr) {
     uint8_t is_lane_found =
             /* select key lanes */
             ((1 << lane_id) & PAIR_PTR_LANES_MASK)
@@ -398,28 +393,24 @@ __device__ int32_t HashmapCUDAContext<Hash>::WarpFindKey(uint8_t* key_ptr,
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
 }
 
-template <typename Hash>
 __device__ __forceinline__ int32_t
-HashmapCUDAContext<Hash>::WarpFindEmpty(const ptr_t ptr) {
+HashmapCUDAContext::WarpFindEmpty(const ptr_t ptr) {
     uint8_t is_lane_empty = (ptr == EMPTY_PAIR_PTR);
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_empty)) - 1;
 }
 
-template <typename Hash>
 __device__ __forceinline__ ptr_t
-HashmapCUDAContext<Hash>::AllocateSlab(const uint32_t lane_id) {
+HashmapCUDAContext::AllocateSlab(const uint32_t lane_id) {
     return slab_list_allocator_ctx_.WarpAllocate(lane_id);
 }
 
-template <typename Hash>
-__device__ __forceinline__ void HashmapCUDAContext<Hash>::FreeSlab(
+__device__ __forceinline__ void HashmapCUDAContext::FreeSlab(
         const ptr_t slab_ptr) {
     slab_list_allocator_ctx_.FreeUntouched(slab_ptr);
 }
 
-template <typename Hash>
-__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Search(
+__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Search(
         uint8_t& to_search,
         const uint32_t lane_id,
         const uint32_t bucket_id,
@@ -496,8 +487,7 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Search(
  * replacePair: REPLACE if found
  * WE DO NOT ALLOW DUPLICATE KEYS
  */
-template <typename Hash>
-__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Insert(
+__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Insert(
         uint8_t& to_be_inserted,
         const uint32_t lane_id,
         const uint32_t bucket_id,
@@ -634,11 +624,10 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Insert(
     return make_pair(iterator, mask);
 }
 
-template <typename Hash>
-__device__ uint8_t HashmapCUDAContext<Hash>::Remove(uint8_t& to_be_deleted,
-                                                    const uint32_t lane_id,
-                                                    const uint32_t bucket_id,
-                                                    uint8_t* key) {
+__device__ uint8_t HashmapCUDAContext::Remove(uint8_t& to_be_deleted,
+                                              const uint32_t lane_id,
+                                              const uint32_t bucket_id,
+                                              uint8_t* key) {
     uint32_t work_queue = 0;
     uint32_t prev_work_queue = 0;
     uint32_t curr_slab_ptr = HEAD_SLAB_PTR;
@@ -709,8 +698,7 @@ __device__ uint8_t HashmapCUDAContext<Hash>::Remove(uint8_t& to_be_deleted,
     return mask;
 }
 
-template <typename Hash>
-__global__ void SearchKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
+__global__ void SearchKernel(HashmapCUDAContext slab_hash_ctx,
                              uint8_t* keys,
                              iterator_t* iterators,
                              uint8_t* masks,
@@ -749,8 +737,7 @@ __global__ void SearchKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
     }
 }
 
-template <typename Hash>
-__global__ void InsertKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
+__global__ void InsertKernel(HashmapCUDAContext slab_hash_ctx,
                              uint8_t* keys,
                              uint8_t* values,
                              iterator_t* iterators,
@@ -790,8 +777,7 @@ __global__ void InsertKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
     }
 }
 
-template <typename Hash>
-__global__ void RemoveKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
+__global__ void RemoveKernel(HashmapCUDAContext slab_hash_ctx,
                              uint8_t* keys,
                              uint8_t* masks,
                              uint32_t num_keys) {
@@ -822,8 +808,7 @@ __global__ void RemoveKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
     }
 }
 
-template <typename Hash>
-__global__ void GetIteratorsKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
+__global__ void GetIteratorsKernel(HashmapCUDAContext slab_hash_ctx,
                                    iterator_t* iterators,
                                    uint32_t* iterator_count,
                                    uint32_t num_buckets) {
@@ -878,9 +863,8 @@ __global__ void GetIteratorsKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
  * This kernel can be used to compute total number of elements within each
  * bucket. The final results per bucket is stored in d_count_result array
  */
-template <typename Hash>
-__global__ void CountElemsPerBucketKernel(
-        HashmapCUDAContext<Hash> slab_hash_ctx, uint32_t* bucket_elem_counts) {
+__global__ void CountElemsPerBucketKernel(HashmapCUDAContext slab_hash_ctx,
+                                          uint32_t* bucket_elem_counts) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
 
