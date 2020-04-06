@@ -86,7 +86,6 @@ public:
     Hashmap(uint32_t max_keys,
             uint32_t dsize_key,
             uint32_t dsize_value,
-            uint32_t dsize_kvpair,
             // Preset hash table params to estimate bucket num
             uint32_t keys_per_bucket = 10,
             float expected_occupancy_per_bucket = 0.5,
@@ -124,7 +123,6 @@ private:
 
     uint32_t dsize_key_;
     uint32_t dsize_value_;
-    uint32_t dsize_kvpair_;
 
     // Buffer to store temporary results
     uint8_t* output_key_buffer_;
@@ -141,14 +139,12 @@ Hashmap<Hash, MemMgr>::Hashmap(
         uint32_t max_keys,
         uint32_t dsize_key,
         uint32_t dsize_value,
-        uint32_t dsize_kvpair,
         uint32_t keys_per_bucket,
         float expected_occupancy_per_bucket,
         open3d::Device device /* = open3d::Device("CUDA:0") */)
     : max_keys_(max_keys),
       dsize_key_(dsize_key),
       dsize_value_(dsize_value),
-      dsize_kvpair_(dsize_kvpair),
       device_(device),
       device_hashmap_(nullptr) {
     // Set bucket size
@@ -169,8 +165,7 @@ Hashmap<Hash, MemMgr>::Hashmap(
 
     // Initialize internal allocator
     device_hashmap_ = std::make_shared<HashmapCUDA<Hash, MemMgr>>(
-            num_buckets_, max_keys_, dsize_key_, dsize_value_, dsize_kvpair_,
-            device_);
+            num_buckets_, max_keys_, dsize_key_, dsize_value_, device_);
 }
 
 template <typename Hash, class MemMgr>

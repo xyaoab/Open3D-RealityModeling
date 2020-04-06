@@ -71,7 +71,6 @@ public:
                 const uint32_t max_keyvalue_count,
                 const uint32_t dsize_key,
                 const uint32_t dsize_value,
-                const uint32_t dsize_kvpair,
                 open3d::Device device);
 
     ~HashmapCUDA();
@@ -147,13 +146,12 @@ HashmapCUDA<Hash, MemMgr>::HashmapCUDA(const uint32_t max_bucket_count,
                                        const uint32_t max_keyvalue_count,
                                        const uint32_t dsize_key,
                                        const uint32_t dsize_value,
-                                       const uint32_t dsize_kvpair,
                                        open3d::Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
     pair_allocator_ = std::make_shared<InternalMemoryManager<MemMgr>>(
-            max_keyvalue_count, dsize_kvpair, device_);
+            max_keyvalue_count, dsize_key + dsize_value, device_);
     slab_list_allocator_ =
             std::make_shared<InternalNodeManager<MemMgr>>(device_);
 
@@ -164,7 +162,7 @@ HashmapCUDA<Hash, MemMgr>::HashmapCUDA(const uint32_t max_bucket_count,
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
-                       dsize_kvpair, slab_list_allocator_->getContext(),
+                       slab_list_allocator_->getContext(),
                        pair_allocator_->gpu_context_);
 }
 
@@ -260,7 +258,6 @@ public:
                         const uint32_t num_buckets,
                         const uint32_t dsize_key,
                         const uint32_t dsize_value,
-                        const uint32_t dsize_kvpair,
                         const InternalNodeManagerContext& allocator_ctx,
                         const InternalMemoryManagerContext& pair_allocator_ctx);
 
@@ -320,7 +317,6 @@ public:
     uint32_t num_buckets_;
     uint32_t dsize_key_;
     uint32_t dsize_value_;
-    uint32_t dsize_kvpair_;
 
     Hash hash_fn_;
 
@@ -345,7 +341,6 @@ __host__ void HashmapCUDAContext<Hash>::Setup(
         const uint32_t num_buckets,
         const uint32_t dsize_key,
         const uint32_t dsize_value,
-        const uint32_t dsize_kvpair,
         const InternalNodeManagerContext& allocator_ctx,
         const InternalMemoryManagerContext& pair_allocator_ctx) {
     bucket_list_head_ = bucket_list_head;
@@ -353,7 +348,6 @@ __host__ void HashmapCUDAContext<Hash>::Setup(
     num_buckets_ = num_buckets;
     dsize_key_ = dsize_key;
     dsize_value_ = dsize_value;
-    dsize_kvpair_ = dsize_kvpair;
 
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
