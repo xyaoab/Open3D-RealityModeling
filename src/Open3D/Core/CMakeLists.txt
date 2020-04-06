@@ -30,12 +30,18 @@ set (CORE_CUDA_SRC
     MemoryManagerCUDA.cu
 )
 
+
+set (HASHMAP_CUDA_SRC
+    Hashmap/Hashmap.cu
+)
+
 if (BUILD_CUDA_MODULE)
     set (ALL_CORE_SRC
         ${CORE_SRC}
         ${CORE_CUDA_SRC}
         ${KERNEL_SRC}
         ${KERNEL_CUDA_SRC}
+        ${HASHMAP_CUDA_SRC}
     )
 else()
     set (ALL_CORE_SRC
@@ -62,6 +68,6 @@ if (BUILD_CUDA_MODULE)
     # cuda_add_executable(test_func Hashmap/test_func.cu)
     # target_link_libraries(test_func test_func_lib)
 
-    set(CUDA_SEPARABLE_COMPILATION ON)
-    cuda_add_executable(test_func Hashmap/test_func.cu Hashmap/test_func_lib.cu)
+    # set(CUDA_SEPARABLE_COMPILATION ON)
+    # cuda_add_executable(test_func Hashmap/test_func.cu Hashmap/test_func_lib.cu)
 endif()

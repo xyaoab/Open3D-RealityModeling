@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <thrust/device_vector.h>
 #include <thrust/pair.h>
 #include <cassert>
 #include <memory>
+#include <random>
 
 #include "Consts.h"
 #include "Open3D/Core/CUDAUtils.h"

@@ -62,3 +62,5 @@ static constexpr uint32_t MEM_BLOCK_OFFSET_ =
 /* These types are all the same, but distiguish the naming can lead to clearer
  * meanings*/
 using ptr_t = uint32_t;
+
+typedef uint8_t* iterator_t;
