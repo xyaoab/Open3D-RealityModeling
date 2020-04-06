@@ -221,7 +221,7 @@ __global__ void CountSlabsPerSuperblockKernel(
 /*
  * This class owns the memory for the allocator on the device
  */
-template <class _Alloc>
+template <class MemMgr>
 class InternalNodeManager {
 private:
     uint32_t* super_blocks_;
@@ -241,7 +241,7 @@ public:
 
         // In the light version, we put num_super_blocks super blocks within
         // a single array
-        super_blocks_ = static_cast<uint32_t*>(_Alloc::Malloc(
+        super_blocks_ = static_cast<uint32_t*>(MemMgr::Malloc(
                 SUPER_BLOCK_SIZE_ * NUM_SUPER_BLOCKS_ * sizeof(uint32_t),
                 device_));
 
@@ -264,7 +264,7 @@ public:
         // initializing the slab context:
         slab_alloc_context_.Setup(super_blocks_, hash_coef_);
     }
-    ~InternalNodeManager() { _Alloc::Free(super_blocks_, device_); }
+    ~InternalNodeManager() { MemMgr::Free(super_blocks_, device_); }
 
     InternalNodeManagerContext& getContext() { return slab_alloc_context_; }
 
@@ -272,7 +272,7 @@ public:
         const uint32_t num_super_blocks = NUM_SUPER_BLOCKS_;
 
         auto slabs_per_superblock_buffer = static_cast<uint32_t*>(
-                _Alloc::Malloc(NUM_SUPER_BLOCKS_ * sizeof(uint32_t), device_));
+                MemMgr::Malloc(NUM_SUPER_BLOCKS_ * sizeof(uint32_t), device_));
         thrust::device_vector<uint32_t> slabs_per_superblock(
                 slabs_per_superblock_buffer,
                 slabs_per_superblock_buffer + num_super_blocks);
@@ -290,7 +290,7 @@ public:
         std::vector<int> result(num_super_blocks);
         thrust::copy(slabs_per_superblock.begin(), slabs_per_superblock.end(),
                      result.begin());
-        _Alloc::Free(slabs_per_superblock_buffer, device_);
+        MemMgr::Free(slabs_per_superblock_buffer, device_);
         return std::move(result);
     }
 };

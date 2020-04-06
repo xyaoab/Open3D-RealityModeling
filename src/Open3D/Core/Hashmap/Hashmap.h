@@ -32,24 +32,6 @@
 
 #include "HashmapCUDA.h"
 
-// template <typename Key, typename Value>
-// struct Pair {
-//     Key first;
-//     Value second;
-//     __device__ __host__ Pair() {}
-//     __device__ __host__ Pair(const Key& key, const Value& value)
-//         : first(key), second(value) {}
-// };
-
-// template <typename Key, typename Value>
-// __device__ __host__ Pair<Key, Value> make_pair(const Key& key,
-//                                                const Value& value) {
-//     return Pair<Key, Value>(key, value);
-// }
-
-// template <typename Key, typename Value>
-// using Iterator = Pair<Key, Value>*;
-
 /*
  * Default hash function:
  * It treat any kind of input as a concatenation of ints.

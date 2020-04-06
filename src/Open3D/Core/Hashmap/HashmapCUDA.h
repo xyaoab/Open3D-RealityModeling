@@ -53,13 +53,27 @@ __device__ __host__ Pair<Key, Value> make_pair(const Key& key,
 
 typedef uint8_t* iterator_t;
 
-using hash_t = uint32_t (*)(uint8_t*, uint32_t);
-
 class Slab {
 public:
     ptr_t kv_pair_ptrs[31];
     ptr_t next_slab_ptr;
 };
+
+typedef uint64_t (*hash_t)(uint8_t*, uint32_t);
+
+__device__ uint64_t default_hash_fn(uint8_t* key_ptr, uint32_t key_size) {
+    uint64_t hash = UINT64_C(14695981039346656037);
+
+    const int chunks = key_size / sizeof(int);
+    int32_t* cast_key_ptr = (int32_t*)(key_ptr);
+    for (size_t i = 0; i < chunks; ++i) {
+        hash ^= cast_key_ptr[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+__device__ hash_t default_hash_fn_ptr = default_hash_fn;
 
 struct DefaultHash {
     __device__ __host__ DefaultHash() {}
@@ -146,7 +160,7 @@ public:
     uint32_t dsize_key_;
     uint32_t dsize_value_;
 
-    DefaultHash hash_fn_;
+    hash_t hash_fn_;
 
     Slab* bucket_list_head_;
     InternalNodeManagerContext slab_list_allocator_ctx_;
@@ -350,12 +364,12 @@ __host__ void HashmapCUDAContext::Setup(
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
 
-    hash_fn_ = DefaultHash(dsize_key);
+    cudaMemcpyFromSymbol(&hash_fn_, default_hash_fn_ptr, sizeof(hash_t));
 }
 
 __device__ __host__ __forceinline__ uint32_t
 HashmapCUDAContext::ComputeBucket(uint8_t* key) const {
-    return hash_fn_(key) % num_buckets_;
+    return hash_fn_(key, dsize_key_) % num_buckets_;
 }
 
 __device__ __forceinline__ void HashmapCUDAContext::WarpSyncKey(
