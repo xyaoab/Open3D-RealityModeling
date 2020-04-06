@@ -120,6 +120,7 @@ void TEST_SIMPLE() {
             iterator_t iterator = cuda_query_results.first[i];
             int key = *(thrust::device_ptr<int>((int*)iterator));
             int val = *(thrust::device_ptr<int>((int*)(iterator + sizeof(int))));
+            std::cout << key << " " << val << "\n";
             assert(key == cuda_query_keys[i]);
             assert(val == iter->second);
         }

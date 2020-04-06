@@ -178,7 +178,6 @@ void HashmapCUDA<Hash, MemMgr>::Insert(uint8_t* keys,
                                        uint8_t* masks,
                                        uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    // calling the kernel for bulk build:
     InsertKernel<Hash><<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values,
                                                    iterators, masks, num_keys);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
@@ -375,7 +374,9 @@ __device__ __forceinline__ void HashmapCUDAContext<Hash>::WarpSyncKey(
     }
 }
 
-__device__ __host__ bool cmp(uint8_t* src, uint8_t* dst, uint32_t dsize) {
+__device__ __host__ inline bool cmp(uint8_t* src,
+                                    uint8_t* dst,
+                                    uint32_t dsize) {
     bool ret = true;
 #pragma unroll 1
     for (int i = 0; i < dsize; ++i) {
@@ -394,7 +395,6 @@ __device__ int32_t HashmapCUDAContext<Hash>::WarpFindKey(uint8_t* key_ptr,
             /* validate key addrs */
             && (ptr != EMPTY_PAIR_PTR)
             /* find keys in memory heap */
-            // TODO: replace with compare_key
             && cmp(pair_allocator_ctx_.extract_ptr(ptr), key_ptr, dsize_key_);
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
@@ -443,7 +443,6 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Search(
         uint32_t src_bucket =
                 __shfl_sync(ACTIVE_LANES_MASK, bucket_id, src_lane, WARP_WIDTH);
 
-        // TODO MAX_KEY_SIZE
         uint8_t src_key[MAX_KEY_BYTESIZE];
         WarpSyncKey(query_key, src_lane, src_key);
 
@@ -522,10 +521,10 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext<Hash>::Insert(
         uint8_t* ptr =
                 pair_allocator_ctx_.extract_ptr(prealloc_pair_internal_ptr);
         for (int i = 0; i < dsize_key_; ++i) {
-            ptr[i] = key[i];
+            *ptr++ = key[i];
         }
         for (int i = 0; i < dsize_value_; ++i) {
-            ptr[i + dsize_key_] = value[i];
+            *ptr++ = value[i];
         }
     }
 
@@ -731,17 +730,19 @@ __global__ void SearchKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
 
     uint8_t lane_active = false;
     uint32_t bucket_id = 0;
-    uint8_t* key;
+
+    // dummy
+    __shared__ uint8_t dummy_key[MAX_KEY_BYTESIZE];
+    uint8_t* key = dummy_key;
+    Pair<ptr_t, uint8_t> result;
 
     if (tid < num_queries) {
         lane_active = true;
         key = keys + tid * slab_hash_ctx.dsize_key_;
         bucket_id = slab_hash_ctx.ComputeBucket(key);
-        // printf("search: bucket_id %d\n", bucket_id);
     }
 
-    Pair<ptr_t, uint8_t> result =
-            slab_hash_ctx.Search(lane_active, lane_id, bucket_id, key);
+    result = slab_hash_ctx.Search(lane_active, lane_id, bucket_id, key);
 
     if (tid < num_queries) {
         iterators[tid] =
@@ -768,7 +769,10 @@ __global__ void InsertKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
 
     uint8_t lane_active = false;
     uint32_t bucket_id = 0;
-    uint8_t* key;
+
+    // dummy
+    __shared__ uint8_t dummy_key[MAX_KEY_BYTESIZE];
+    uint8_t* key = dummy_key;
     uint8_t* value;
 
     if (tid < num_keys) {
@@ -776,7 +780,6 @@ __global__ void InsertKernel(HashmapCUDAContext<Hash> slab_hash_ctx,
         key = keys + tid * slab_hash_ctx.dsize_key_;
         value = values + tid * slab_hash_ctx.dsize_value_;
         bucket_id = slab_hash_ctx.ComputeBucket(key);
-        // printf("insert: bucket_id %d for key %d\n", bucket_id, *(int*)key);
     }
 
     Pair<ptr_t, uint8_t> result =

@@ -60,8 +60,9 @@ struct hash {
         uint64_t hash = UINT64_C(14695981039346656037);
 
         const int chunks = sizeof(Key) / sizeof(int);
+        int32_t* cast_key_ptr = (int32_t*)(key_ptr);
         for (size_t i = 0; i < chunks; ++i) {
-            hash ^= ((int32_t*)(key_ptr))[i];
+            hash ^= cast_key_ptr[i];
             hash *= UINT64_C(1099511628211);
         }
         return hash;
