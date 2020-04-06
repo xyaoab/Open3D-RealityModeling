@@ -54,12 +54,13 @@
  * Default hash function:
  * It treat any kind of input as a concatenation of ints.
  */
-template <typename Key>
 struct hash {
+    __device__ __host__ hash() {}
+    __device__ __host__ hash(uint32_t key_size) : key_size_(key_size) {}
     __device__ __host__ uint64_t operator()(uint8_t* key_ptr) const {
         uint64_t hash = UINT64_C(14695981039346656037);
 
-        const int chunks = sizeof(Key) / sizeof(int);
+        const int chunks = key_size_ / sizeof(int);
         int32_t* cast_key_ptr = (int32_t*)(key_ptr);
         for (size_t i = 0; i < chunks; ++i) {
             hash ^= cast_key_ptr[i];
@@ -67,6 +68,8 @@ struct hash {
         }
         return hash;
     }
+
+    uint32_t key_size_ = 4;
 };
 
 /* Lightweight wrapper to handle host input */
@@ -77,13 +80,13 @@ struct hash {
  * https://en.wikipedia.org/w/index.php?title=Sequence_container_(C%2B%2B)&oldid=767869909#Specialization_for_bool
  */
 namespace cuda {
-template <typename Key,
-          typename Value,
-          typename Hash = hash<Key>,
-          class MemMgr = open3d::MemoryManager>
+template <typename Hash = hash, class MemMgr = open3d::MemoryManager>
 class Hashmap {
 public:
     Hashmap(uint32_t max_keys,
+            uint32_t dsize_key,
+            uint32_t dsize_value,
+            uint32_t dsize_kvpair,
             // Preset hash table params to estimate bucket num
             uint32_t keys_per_bucket = 10,
             float expected_occupancy_per_bucket = 0.5,
@@ -96,19 +99,18 @@ public:
     /// Insert keys and values.
     /// Return (CUDA) pointers to the inserted kv pairs.
     std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-    Insert(thrust::device_vector<Key>& input_keys,
-           thrust::device_vector<Value>& input_values);
+    Insert(uint8_t* input_keys, uint8_t* input_values, uint32_t input_key_size);
 
     /// Search keys.
     /// Return (CUDA) pointers to the found kv pairs; nullptr for not found.
     /// Also returns a mask array to indicate success.
     std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-    Search(thrust::device_vector<Key>& input_keys);
+    Search(uint8_t* input_keys, uint32_t input_key_size);
 
     /// Remove key value pairs given keys.
     /// Return mask array to indicate success or not found.
-    thrust::device_vector<uint8_t> Remove(
-            thrust::device_vector<Key>& input_keys);
+    thrust::device_vector<uint8_t> Remove(uint8_t* input_keys,
+                                          uint32_t input_key_size);
 
     /// Assistance functions for memory profiling.
     float ComputeLoadFactor();
@@ -120,6 +122,10 @@ private:
     uint32_t max_keys_;
     uint32_t num_buckets_;
 
+    uint32_t dsize_key_;
+    uint32_t dsize_value_;
+    uint32_t dsize_kvpair_;
+
     // Buffer to store temporary results
     uint8_t* output_key_buffer_;
     uint8_t* output_value_buffer_;
@@ -130,13 +136,21 @@ private:
     open3d::Device device_;
 };
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
-Hashmap<Key, Value, Hash, MemMgr>::Hashmap(
+template <typename Hash, class MemMgr>
+Hashmap<Hash, MemMgr>::Hashmap(
         uint32_t max_keys,
+        uint32_t dsize_key,
+        uint32_t dsize_value,
+        uint32_t dsize_kvpair,
         uint32_t keys_per_bucket,
         float expected_occupancy_per_bucket,
         open3d::Device device /* = open3d::Device("CUDA:0") */)
-    : max_keys_(max_keys), device_(device), device_hashmap_(nullptr) {
+    : max_keys_(max_keys),
+      dsize_key_(dsize_key),
+      dsize_value_(dsize_value),
+      dsize_kvpair_(dsize_kvpair),
+      device_(device),
+      device_hashmap_(nullptr) {
     // Set bucket size
     uint32_t expected_keys_per_bucket =
             expected_occupancy_per_bucket * keys_per_bucket;
@@ -145,9 +159,9 @@ Hashmap<Key, Value, Hash, MemMgr>::Hashmap(
 
     // Allocate memory
     output_key_buffer_ =
-            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(Key), device_);
+            (uint8_t*)MemMgr::Malloc(max_keys_ * dsize_key_, device_);
     output_value_buffer_ =
-            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(Value), device_);
+            (uint8_t*)MemMgr::Malloc(max_keys_ * dsize_value_, device_);
     output_mask_buffer_ =
             (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(uint8_t), device_);
     output_iterator_buffer_ = (iterator_t*)MemMgr::Malloc(
@@ -155,85 +169,75 @@ Hashmap<Key, Value, Hash, MemMgr>::Hashmap(
 
     // Initialize internal allocator
     device_hashmap_ = std::make_shared<HashmapCUDA<Hash, MemMgr>>(
-            num_buckets_, max_keys_, sizeof(Key), sizeof(Value),
-            sizeof(Key) + sizeof(Value), device_);
+            num_buckets_, max_keys_, dsize_key_, dsize_value_, dsize_kvpair_,
+            device_);
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
-Hashmap<Key, Value, Hash, MemMgr>::~Hashmap() {
+template <typename Hash, class MemMgr>
+Hashmap<Hash, MemMgr>::~Hashmap() {
     MemMgr::Free(output_key_buffer_, device_);
     MemMgr::Free(output_value_buffer_, device_);
     MemMgr::Free(output_mask_buffer_, device_);
     MemMgr::Free(output_iterator_buffer_, device_);
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
+template <typename Hash, class MemMgr>
 std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-Hashmap<Key, Value, Hash, MemMgr>::Insert(
-        thrust::device_vector<Key>& input_keys,
-        thrust::device_vector<Value>& input_values) {
-    assert(input_values.size() == input_keys.size());
-
+Hashmap<Hash, MemMgr>::Insert(uint8_t* input_keys,
+                              uint8_t* input_values,
+                              uint32_t input_keys_size) {
     // TODO: rehash and increase max_keys_
-    assert(input_keys.size() <= max_keys_);
+    assert(input_keys_size <= max_keys_);
 
-    device_hashmap_->Insert(
-            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
-            (uint8_t*)thrust::raw_pointer_cast(input_values.data()),
-            output_iterator_buffer_, output_mask_buffer_, input_keys.size());
+    device_hashmap_->Insert(input_keys, input_values, output_iterator_buffer_,
+                            output_mask_buffer_, input_keys_size);
 
     thrust::device_vector<iterator_t> output_iterators(
-            output_iterator_buffer_,
-            output_iterator_buffer_ + input_keys.size());
+            output_iterator_buffer_, output_iterator_buffer_ + input_keys_size);
     thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys.size());
+            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
     return std::make_pair(output_iterators, output_masks);
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
+template <typename Hash, class MemMgr>
 std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-Hashmap<Key, Value, Hash, MemMgr>::Search(
-        thrust::device_vector<Key>& input_keys) {
-    assert(input_keys.size() <= max_keys_);
+Hashmap<Hash, MemMgr>::Search(uint8_t* input_keys, uint32_t input_keys_size) {
+    assert(input_keys_size <= max_keys_);
 
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
-                                 sizeof(uint8_t) * input_keys.size()));
+                                 sizeof(uint8_t) * input_keys_size));
 
-    device_hashmap_->Search(
-            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
-            output_iterator_buffer_, output_mask_buffer_, input_keys.size());
+    device_hashmap_->Search(input_keys, output_iterator_buffer_,
+                            output_mask_buffer_, input_keys_size);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
 
     thrust::device_vector<iterator_t> output_iterators(
-            output_iterator_buffer_,
-            output_iterator_buffer_ + input_keys.size());
+            output_iterator_buffer_, output_iterator_buffer_ + input_keys_size);
     thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys.size());
+            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
     return std::make_pair(output_iterators, output_masks);
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
-thrust::device_vector<uint8_t> Hashmap<Key, Value, Hash, MemMgr>::Remove(
-        thrust::device_vector<Key>& input_keys) {
+template <typename Hash, class MemMgr>
+thrust::device_vector<uint8_t> Hashmap<Hash, MemMgr>::Remove(
+        uint8_t* input_keys, uint32_t input_keys_size) {
     OPEN3D_CUDA_CHECK(cudaMemset(output_mask_buffer_, 0,
-                                 sizeof(uint8_t) * input_keys.size()));
+                                 sizeof(uint8_t) * input_keys_size));
 
-    device_hashmap_->Remove(
-            (uint8_t*)thrust::raw_pointer_cast(input_keys.data()),
-            output_mask_buffer_, input_keys.size());
+    device_hashmap_->Remove(input_keys, output_mask_buffer_, input_keys_size);
 
     thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys.size());
+            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
     return output_masks;
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
-std::vector<int> Hashmap<Key, Value, Hash, MemMgr>::CountElemsPerBucket() {
+template <typename Hash, class MemMgr>
+std::vector<int> Hashmap<Hash, MemMgr>::CountElemsPerBucket() {
     return device_hashmap_->CountElemsPerBucket();
 }
 
-template <typename Key, typename Value, typename Hash, class MemMgr>
-float Hashmap<Key, Value, Hash, MemMgr>::ComputeLoadFactor() {
+template <typename Hash, class MemMgr>
+float Hashmap<Hash, MemMgr>::ComputeLoadFactor() {
     return device_hashmap_->ComputeLoadFactor();
 }
 }  // namespace cuda

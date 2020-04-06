@@ -355,6 +355,8 @@ __host__ void HashmapCUDAContext<Hash>::Setup(
 
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
+
+    hash_fn_ = Hash(dsize_key);
 }
 
 template <typename Hash>
