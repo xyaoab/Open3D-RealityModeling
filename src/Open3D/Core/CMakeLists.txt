@@ -55,4 +55,8 @@ if (BUILD_CUDA_MODULE)
     set(CMAKE_CXX_STANDARD 11)
     cuda_add_executable(test_hashmap Hashmap/test_hashmap.cu)
     target_link_libraries(test_hashmap ${CMAKE_PROJECT_NAME})
+
+    # add_library(test_func_lib Hashmap/test_func_lib.cu)
+    cuda_add_executable(test_func Hashmap/test_func.cu)
+    # target_link_libraries(test_func test_func_lib)
 endif()

@@ -53,6 +53,8 @@ __device__ __host__ Pair<Key, Value> make_pair(const Key& key,
 
 typedef uint8_t* iterator_t;
 
+using hash_t = uint32_t (*)(uint8_t*, uint32_t);
+
 class Slab {
 public:
     ptr_t kv_pair_ptrs[31];
