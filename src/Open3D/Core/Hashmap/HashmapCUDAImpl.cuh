@@ -1,6 +1,32 @@
+// ----------------------------------------------------------------------------
+// -                        Open3D: www.open3d.org                            -
+// ----------------------------------------------------------------------------
+// The MIT License (MIT)
+//
+// Copyright (c) 2018 www.open3d.org
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+// IN THE SOFTWARE.
+// ----------------------------------------------------------------------------
+
 /*
  * Copyright 2019 Saman Ashkiani
- * Rewrite 2019 by Wei Dong
+ * Rewritten by Wei Dong 2019 - 2020
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,16 +40,11 @@
  * limitations under the License.
  */
 
-#include "HashmapCUDAImpl.h"
 #include <thrust/device_vector.h>
+#include "HashmapCUDAImpl.h"
 
-namespace cuda {
-  /// Internal Hashtable Node: (31 units and 1 next ptr) representation.
-/// \member kv_pair_ptrs:
-/// Each element is an internal ptr to a kv pair managed by the
-/// InternalMemoryManager. Can be converted to a real ptr.
-/// \member next_slab_ptr:
-/// An internal ptr managed by InternalNodeManager.
+namespace open3d {
+/// Default hash function for all types
 __device__ uint64_t default_hash_fn(uint8_t* key_ptr, uint32_t key_size) {
     uint64_t hash = UINT64_C(14695981039346656037);
 
@@ -35,10 +56,9 @@ __device__ uint64_t default_hash_fn(uint8_t* key_ptr, uint32_t key_size) {
     }
     return hash;
 }
-
 __device__ hash_t default_hash_fn_ptr = default_hash_fn;
 
-
+/// Kernels
 __global__ void InsertKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* input_keys,
                              uint8_t* input_values,
@@ -65,11 +85,12 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext slab_hash_ctx,
 __global__ void CountElemsPerBucketKernel(CUDAHashmapImplContext slab_hash_ctx,
                                           uint32_t* bucket_elem_counts);
 
+/// Kernel callers
 CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
-                         const uint32_t max_keyvalue_count,
-                         const uint32_t dsize_key,
-                         const uint32_t dsize_value,
-                         open3d::Device device)
+                                 const uint32_t max_keyvalue_count,
+                                 const uint32_t dsize_key,
+                                 const uint32_t dsize_value,
+                                 open3d::Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
@@ -78,7 +99,6 @@ CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
     slab_list_allocator_ =
             std::make_shared<InternalNodeManager<MemMgr>>(device_);
 
-    // Allocating initial buckets
     bucket_list_head_ = static_cast<Slab*>(
             MemMgr::Malloc(num_buckets_ * sizeof(Slab), device_));
     OPEN3D_CUDA_CHECK(
@@ -89,13 +109,15 @@ CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
                        pair_allocator_->gpu_context_);
 }
 
-CUDAHashmapImpl::~CUDAHashmapImpl() { MemMgr::Free(bucket_list_head_, device_); }
+CUDAHashmapImpl::~CUDAHashmapImpl() {
+    MemMgr::Free(bucket_list_head_, device_);
+}
 
 void CUDAHashmapImpl::Insert(uint8_t* keys,
-                         uint8_t* values,
-                         iterator_t* iterators,
-                         uint8_t* masks,
-                         uint32_t num_keys) {
+                             uint8_t* values,
+                             iterator_t* iterators,
+                             uint8_t* masks,
+                             uint32_t num_keys) {
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     InsertKernel<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, keys, values,
                                              iterators, masks, num_keys);
@@ -104,9 +126,9 @@ void CUDAHashmapImpl::Insert(uint8_t* keys,
 }
 
 void CUDAHashmapImpl::Search(uint8_t* keys,
-                         iterator_t* iterators,
-                         uint8_t* masks,
-                         uint32_t num_keys) {
+                             iterator_t* iterators,
+                             uint8_t* masks,
+                             uint32_t num_keys) {
     OPEN3D_CUDA_CHECK(cudaMemset(masks, 0, sizeof(uint8_t) * num_keys));
 
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
@@ -126,7 +148,6 @@ void CUDAHashmapImpl::Remove(uint8_t* keys, uint8_t* masks, uint32_t num_keys) {
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-/* Debug usage */
 std::vector<int> CUDAHashmapImpl::CountElemsPerBucket() {
     auto elems_per_bucket_buffer = static_cast<uint32_t*>(
             MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
@@ -163,14 +184,7 @@ double CUDAHashmapImpl::ComputeLoadFactor() {
     return load_factor;
 }
 
-/**
- * Internal implementation for the device proxy:
- * DO NOT ENTER!
- **/
-
-/**
- * Definitions
- **/
+/// Device proxy
 CUDAHashmapImplContext::CUDAHashmapImplContext()
     : num_buckets_(0), bucket_list_head_(nullptr) {
     static_assert(sizeof(Slab) == (WARP_WIDTH * sizeof(ptr_t)),
@@ -196,6 +210,7 @@ __host__ void CUDAHashmapImplContext::Setup(
     cudaMemcpyFromSymbol(&hash_fn_, default_hash_fn_ptr, sizeof(hash_t));
 }
 
+/// Device functions
 __device__ __host__ __forceinline__ uint32_t
 CUDAHashmapImplContext::ComputeBucket(uint8_t* key) const {
     return hash_fn_(key, dsize_key_) % num_buckets_;
@@ -223,8 +238,8 @@ __device__ __host__ inline bool cmp(uint8_t* src,
 }
 
 __device__ int32_t CUDAHashmapImplContext::WarpFindKey(uint8_t* key_ptr,
-                                                   const uint32_t lane_id,
-                                                   const ptr_t ptr) {
+                                                       const uint32_t lane_id,
+                                                       const ptr_t ptr) {
     uint8_t is_lane_found =
             /* select key lanes */
             ((1 << lane_id) & PAIR_PTR_LANES_MASK)
@@ -468,9 +483,9 @@ __device__ Pair<ptr_t, uint8_t> CUDAHashmapImplContext::Insert(
 }
 
 __device__ uint8_t CUDAHashmapImplContext::Remove(uint8_t& to_be_deleted,
-                                              const uint32_t lane_id,
-                                              const uint32_t bucket_id,
-                                              uint8_t* key) {
+                                                  const uint32_t lane_id,
+                                                  const uint32_t bucket_id,
+                                                  uint8_t* key) {
     uint32_t work_queue = 0;
     uint32_t prev_work_queue = 0;
     uint32_t curr_slab_ptr = HEAD_SLAB_PTR;
@@ -744,4 +759,4 @@ __global__ void CountElemsPerBucketKernel(CUDAHashmapImplContext slab_hash_ctx,
         bucket_elem_counts[wid] = count;
     }
 }
-}
+}  // namespace open3d

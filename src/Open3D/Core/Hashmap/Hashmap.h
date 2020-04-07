@@ -26,25 +26,11 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-#include <cstdint>
 #include "Open3D/Core/CUDAUtils.h"
-#include "Open3D/Core/Hashmap/Consts.h"
+#include "Open3D/Core/Hashmap/Types.h"
 #include "Open3D/Core/MemoryManager.h"
-/*
- * Default hash function:
- * It treat any kind of input as a concatenation of ints.
- */
 
-/* Lightweight wrapper to handle host input */
-/* Key supports elementary types: int, long, etc. */
-/* Value supports arbitrary types in theory. */
-/* std::vector<bool> is specialized: it stores only one bit per element
- * We have to use uint8_t instead to read and write masks
- * https://en.wikipedia.org/w/index.php?title=Sequence_container_(C%2B%2B)&oldid=767869909#Specialization_for_bool
- */
-
-namespace cuda {
+namespace open3d {
 
 class Hashmap {
 public:
@@ -105,11 +91,12 @@ protected:
     iterator_t* output_iterator_buffer_;
     uint8_t* output_mask_buffer_;
 
-    std::shared_ptr<CUDAHashmapImpl> device_hashmap_;
+    std::shared_ptr<CUDAHashmapImpl> cuda_hashmap_impl_;
 };
 
+/// Factory
 std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
                                        uint32_t dsize_key,
                                        uint32_t dsize_value,
                                        open3d::Device device);
-}  // namespace cuda
+}  // namespace open3d

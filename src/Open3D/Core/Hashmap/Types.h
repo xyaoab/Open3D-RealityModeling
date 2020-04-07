@@ -24,38 +24,38 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Hashmap.h"
-#include <unordered_map>
-
 namespace open3d {
 
-std::shared_ptr<CUDAHashmap> CreateCUDAHashmap(uint32_t max_keys,
-                                               uint32_t dsize_key,
-                                               uint32_t dsize_value,
-                                               open3d::Device device) {
-    return std::make_shared<CUDAHashmap>(max_keys, dsize_key, dsize_value,
-                                         device);
+typedef uint32_t ptr_t;
+typedef uint8_t* iterator_t;
+
+typedef uint64_t (*hash_t)(uint8_t*, uint32_t);
+
+/// Internal Hashtable Node: (31 units and 1 next ptr) representation.
+/// \member kv_pair_ptrs:
+/// Each element is an internal ptr to a kv pair managed by the
+/// InternalMemoryManager. Can be converted to a real ptr.
+/// \member next_slab_ptr:
+/// An internal ptr managed by InternalNodeManager.
+class Slab {
+public:
+    ptr_t kv_pair_ptrs[31];
+    ptr_t next_slab_ptr;
+};
+
+template <typename Key, typename Value>
+struct Pair {
+    Key first;
+    Value second;
+    __device__ __host__ Pair() {}
+    __device__ __host__ Pair(const Key& key, const Value& value)
+        : first(key), second(value) {}
+};
+
+template <typename Key, typename Value>
+__device__ __host__ Pair<Key, Value> make_pair(const Key& key,
+                                               const Value& value) {
+    return Pair<Key, Value>(key, value);
 }
 
-std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
-                                       uint32_t dsize_key,
-                                       uint32_t dsize_value,
-                                       open3d::Device device) {
-    static std::unordered_map<
-            open3d::Device::DeviceType,
-            std::function<std::shared_ptr<Hashmap>(uint32_t, uint32_t, uint32_t,
-                                                   open3d::Device)>,
-            open3d::utility::hash_enum_class::hash>
-            map_device_type_to_memory_manager = {
-                    {open3d::Device::DeviceType::CUDA, CreateCUDAHashmap}};
-
-    if (map_device_type_to_memory_manager.find(device.GetType()) ==
-        map_device_type_to_memory_manager.end()) {
-        open3d::utility::LogError(
-                "MemoryManager::GetDeviceMemoryManager: Unimplemented device");
-    }
-
-    auto fn = map_device_type_to_memory_manager.at(device.GetType());
-    return fn(max_keys, dsize_key, dsize_value, device);
-}
 }  // namespace open3d
