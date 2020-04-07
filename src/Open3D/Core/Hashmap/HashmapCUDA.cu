@@ -25,7 +25,7 @@
 // ----------------------------------------------------------------------------
 
 #include "Hashmap.h"
-#include "HashmapCUDA.cuh"
+#include "HashmapCUDAImpl.cuh"
 
 /*
  * Default hash function:
@@ -41,20 +41,18 @@
  */
 namespace cuda {
 
-Hashmap::Hashmap(uint32_t max_keys,
-                 uint32_t dsize_key,
-                 uint32_t dsize_value,
-                 uint32_t keys_per_bucket,
-                 float expected_occupancy_per_bucket,
-                 open3d::Device device /* = open3d::Device("CUDA:0") */)
-    : max_keys_(max_keys),
-      dsize_key_(dsize_key),
-      dsize_value_(dsize_value),
-      device_(device),
-      device_hashmap_(nullptr) {
+void CUDAHashmap::Setup(uint32_t max_keys,
+                        uint32_t dsize_key,
+                        uint32_t dsize_value,
+                        open3d::Device device) {
+    max_keys_ = max_keys;
+    dsize_key_ = dsize_key;
+    dsize_value_ = dsize_value;
+    device_ = device;
+
     // Set bucket size
-    uint32_t expected_keys_per_bucket =
-            expected_occupancy_per_bucket * keys_per_bucket;
+    printf("%d\n", max_keys);
+    const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
 
@@ -69,20 +67,21 @@ Hashmap::Hashmap(uint32_t max_keys,
             max_keys_ * sizeof(iterator_t), device_);
 
     // Initialize internal allocator
-    device_hashmap_ = std::make_shared<HashmapCUDA>(
+    device_hashmap_ = std::make_shared<CUDAHashmapImpl>(
             num_buckets_, max_keys_, dsize_key_, dsize_value_, device_);
 }
 
-Hashmap::~Hashmap() {
+CUDAHashmap::~CUDAHashmap() {
+    printf("Freed!\n");
     MemMgr::Free(output_key_buffer_, device_);
     MemMgr::Free(output_value_buffer_, device_);
     MemMgr::Free(output_mask_buffer_, device_);
     MemMgr::Free(output_iterator_buffer_, device_);
 }
 
-std::pair<iterator_t*, uint8_t*> Hashmap::Insert(uint8_t* input_keys,
-                                                 uint8_t* input_values,
-                                                 uint32_t input_keys_size) {
+std::pair<iterator_t*, uint8_t*> CUDAHashmap::Insert(uint8_t* input_keys,
+                                                     uint8_t* input_values,
+                                                     uint32_t input_keys_size) {
     // TODO: rehash and increase max_keys_
     assert(input_keys_size <= max_keys_);
 
@@ -92,8 +91,8 @@ std::pair<iterator_t*, uint8_t*> Hashmap::Insert(uint8_t* input_keys,
     return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-std::pair<iterator_t*, uint8_t*> Hashmap::Search(uint8_t* input_keys,
-                                                 uint32_t input_keys_size) {
+std::pair<iterator_t*, uint8_t*> CUDAHashmap::Search(uint8_t* input_keys,
+                                                     uint32_t input_keys_size) {
     assert(input_keys_size <= max_keys_);
 
     device_hashmap_->Search(input_keys, output_iterator_buffer_,
@@ -102,17 +101,10 @@ std::pair<iterator_t*, uint8_t*> Hashmap::Search(uint8_t* input_keys,
     return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-uint8_t* Hashmap::Remove(uint8_t* input_keys, uint32_t input_keys_size) {
+uint8_t* CUDAHashmap::Remove(uint8_t* input_keys, uint32_t input_keys_size) {
     device_hashmap_->Remove(input_keys, output_mask_buffer_, input_keys_size);
 
     return output_mask_buffer_;
 }
 
-std::vector<int> Hashmap::CountElemsPerBucket() {
-    return device_hashmap_->CountElemsPerBucket();
-}
-
-float Hashmap::ComputeLoadFactor() {
-    return device_hashmap_->ComputeLoadFactor();
-}
 }  // namespace cuda

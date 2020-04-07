@@ -30,9 +30,11 @@ set (CORE_CUDA_SRC
     MemoryManagerCUDA.cu
 )
 
-
+set (HASHMAP_SRC
+    Hashmap/Hashmap.cpp
+)
 set (HASHMAP_CUDA_SRC
-    Hashmap/Hashmap.cu
+    Hashmap/HashmapCUDA.cu
 )
 
 if (BUILD_CUDA_MODULE)
@@ -41,11 +43,13 @@ if (BUILD_CUDA_MODULE)
         ${CORE_CUDA_SRC}
         ${KERNEL_SRC}
         ${KERNEL_CUDA_SRC}
+        ${HASHMAP_SRC}
         ${HASHMAP_CUDA_SRC}
     )
 else()
     set (ALL_CORE_SRC
         ${CORE_SRC}
+        ${HASHMAP_SRC}
         ${KERNEL_SRC}
     )
 endif()

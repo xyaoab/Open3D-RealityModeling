@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "HashmapCUDA.h"
+#include "HashmapCUDAImpl.h"
 #include <thrust/device_vector.h>
 
-/// Internal Hashtable Node: (31 units and 1 next ptr) representation.
+namespace cuda {
+  /// Internal Hashtable Node: (31 units and 1 next ptr) representation.
 /// \member kv_pair_ptrs:
 /// Each element is an internal ptr to a kv pair managed by the
 /// InternalMemoryManager. Can be converted to a real ptr.
@@ -38,33 +39,33 @@ __device__ uint64_t default_hash_fn(uint8_t* key_ptr, uint32_t key_size) {
 __device__ hash_t default_hash_fn_ptr = default_hash_fn;
 
 
-__global__ void InsertKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void InsertKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* input_keys,
                              uint8_t* input_values,
                              iterator_t* output_iterators,
                              uint8_t* output_masks,
                              uint32_t num_keys);
 
-__global__ void SearchKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void SearchKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* input_keys,
                              iterator_t* output_iterators,
                              uint8_t* output_masks,
                              uint32_t num_keys);
 
-__global__ void RemoveKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void RemoveKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* input_keys,
                              uint8_t* output_masks,
                              uint32_t num_keys);
 
-__global__ void GetIteratorsKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void GetIteratorsKernel(CUDAHashmapImplContext slab_hash_ctx,
                                    iterator_t* output_iterators,
                                    uint32_t* output_iterator_count,
                                    uint32_t num_buckets);
 
-__global__ void CountElemsPerBucketKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void CountElemsPerBucketKernel(CUDAHashmapImplContext slab_hash_ctx,
                                           uint32_t* bucket_elem_counts);
 
-HashmapCUDA::HashmapCUDA(const uint32_t max_bucket_count,
+CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
                          const uint32_t max_keyvalue_count,
                          const uint32_t dsize_key,
                          const uint32_t dsize_value,
@@ -88,9 +89,9 @@ HashmapCUDA::HashmapCUDA(const uint32_t max_bucket_count,
                        pair_allocator_->gpu_context_);
 }
 
-HashmapCUDA::~HashmapCUDA() { MemMgr::Free(bucket_list_head_, device_); }
+CUDAHashmapImpl::~CUDAHashmapImpl() { MemMgr::Free(bucket_list_head_, device_); }
 
-void HashmapCUDA::Insert(uint8_t* keys,
+void CUDAHashmapImpl::Insert(uint8_t* keys,
                          uint8_t* values,
                          iterator_t* iterators,
                          uint8_t* masks,
@@ -102,7 +103,7 @@ void HashmapCUDA::Insert(uint8_t* keys,
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-void HashmapCUDA::Search(uint8_t* keys,
+void CUDAHashmapImpl::Search(uint8_t* keys,
                          iterator_t* iterators,
                          uint8_t* masks,
                          uint32_t num_keys) {
@@ -115,7 +116,7 @@ void HashmapCUDA::Search(uint8_t* keys,
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-void HashmapCUDA::Remove(uint8_t* keys, uint8_t* masks, uint32_t num_keys) {
+void CUDAHashmapImpl::Remove(uint8_t* keys, uint8_t* masks, uint32_t num_keys) {
     OPEN3D_CUDA_CHECK(cudaMemset(masks, 0, sizeof(uint8_t) * num_keys));
 
     const uint32_t num_blocks = (num_keys + BLOCKSIZE_ - 1) / BLOCKSIZE_;
@@ -126,7 +127,7 @@ void HashmapCUDA::Remove(uint8_t* keys, uint8_t* masks, uint32_t num_keys) {
 }
 
 /* Debug usage */
-std::vector<int> HashmapCUDA::CountElemsPerBucket() {
+std::vector<int> CUDAHashmapImpl::CountElemsPerBucket() {
     auto elems_per_bucket_buffer = static_cast<uint32_t*>(
             MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
 
@@ -146,7 +147,7 @@ std::vector<int> HashmapCUDA::CountElemsPerBucket() {
     return std::move(result);
 }
 
-double HashmapCUDA::ComputeLoadFactor() {
+double CUDAHashmapImpl::ComputeLoadFactor() {
     auto elems_per_bucket = CountElemsPerBucket();
     int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
                                              elems_per_bucket.end(), 0);
@@ -170,13 +171,13 @@ double HashmapCUDA::ComputeLoadFactor() {
 /**
  * Definitions
  **/
-HashmapCUDAContext::HashmapCUDAContext()
+CUDAHashmapImplContext::CUDAHashmapImplContext()
     : num_buckets_(0), bucket_list_head_(nullptr) {
     static_assert(sizeof(Slab) == (WARP_WIDTH * sizeof(ptr_t)),
                   "Invalid slab size");
 }
 
-__host__ void HashmapCUDAContext::Setup(
+__host__ void CUDAHashmapImplContext::Setup(
         Slab* bucket_list_head,
         const uint32_t num_buckets,
         const uint32_t dsize_key,
@@ -196,11 +197,11 @@ __host__ void HashmapCUDAContext::Setup(
 }
 
 __device__ __host__ __forceinline__ uint32_t
-HashmapCUDAContext::ComputeBucket(uint8_t* key) const {
+CUDAHashmapImplContext::ComputeBucket(uint8_t* key) const {
     return hash_fn_(key, dsize_key_) % num_buckets_;
 }
 
-__device__ __forceinline__ void HashmapCUDAContext::WarpSyncKey(
+__device__ __forceinline__ void CUDAHashmapImplContext::WarpSyncKey(
         uint8_t* key_ptr, const uint32_t lane_id, uint8_t* ret_key_ptr) {
     const int chunks = dsize_key_ / sizeof(int);
 #pragma unroll 1
@@ -221,7 +222,7 @@ __device__ __host__ inline bool cmp(uint8_t* src,
     return ret;
 }
 
-__device__ int32_t HashmapCUDAContext::WarpFindKey(uint8_t* key_ptr,
+__device__ int32_t CUDAHashmapImplContext::WarpFindKey(uint8_t* key_ptr,
                                                    const uint32_t lane_id,
                                                    const ptr_t ptr) {
     uint8_t is_lane_found =
@@ -236,23 +237,23 @@ __device__ int32_t HashmapCUDAContext::WarpFindKey(uint8_t* key_ptr,
 }
 
 __device__ __forceinline__ int32_t
-HashmapCUDAContext::WarpFindEmpty(const ptr_t ptr) {
+CUDAHashmapImplContext::WarpFindEmpty(const ptr_t ptr) {
     uint8_t is_lane_empty = (ptr == EMPTY_PAIR_PTR);
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_empty)) - 1;
 }
 
 __device__ __forceinline__ ptr_t
-HashmapCUDAContext::AllocateSlab(const uint32_t lane_id) {
+CUDAHashmapImplContext::AllocateSlab(const uint32_t lane_id) {
     return slab_list_allocator_ctx_.WarpAllocate(lane_id);
 }
 
-__device__ __forceinline__ void HashmapCUDAContext::FreeSlab(
+__device__ __forceinline__ void CUDAHashmapImplContext::FreeSlab(
         const ptr_t slab_ptr) {
     slab_list_allocator_ctx_.FreeUntouched(slab_ptr);
 }
 
-__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Search(
+__device__ Pair<ptr_t, uint8_t> CUDAHashmapImplContext::Search(
         uint8_t& to_search,
         const uint32_t lane_id,
         const uint32_t bucket_id,
@@ -329,7 +330,7 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Search(
  * replacePair: REPLACE if found
  * WE DO NOT ALLOW DUPLICATE KEYS
  */
-__device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Insert(
+__device__ Pair<ptr_t, uint8_t> CUDAHashmapImplContext::Insert(
         uint8_t& to_be_inserted,
         const uint32_t lane_id,
         const uint32_t bucket_id,
@@ -466,7 +467,7 @@ __device__ Pair<ptr_t, uint8_t> HashmapCUDAContext::Insert(
     return make_pair(iterator, mask);
 }
 
-__device__ uint8_t HashmapCUDAContext::Remove(uint8_t& to_be_deleted,
+__device__ uint8_t CUDAHashmapImplContext::Remove(uint8_t& to_be_deleted,
                                               const uint32_t lane_id,
                                               const uint32_t bucket_id,
                                               uint8_t* key) {
@@ -540,7 +541,7 @@ __device__ uint8_t HashmapCUDAContext::Remove(uint8_t& to_be_deleted,
     return mask;
 }
 
-__global__ void SearchKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void SearchKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* keys,
                              iterator_t* iterators,
                              uint8_t* masks,
@@ -579,7 +580,7 @@ __global__ void SearchKernel(HashmapCUDAContext slab_hash_ctx,
     }
 }
 
-__global__ void InsertKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void InsertKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* keys,
                              uint8_t* values,
                              iterator_t* iterators,
@@ -619,7 +620,7 @@ __global__ void InsertKernel(HashmapCUDAContext slab_hash_ctx,
     }
 }
 
-__global__ void RemoveKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void RemoveKernel(CUDAHashmapImplContext slab_hash_ctx,
                              uint8_t* keys,
                              uint8_t* masks,
                              uint32_t num_keys) {
@@ -650,7 +651,7 @@ __global__ void RemoveKernel(HashmapCUDAContext slab_hash_ctx,
     }
 }
 
-__global__ void GetIteratorsKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void GetIteratorsKernel(CUDAHashmapImplContext slab_hash_ctx,
                                    iterator_t* iterators,
                                    uint32_t* iterator_count,
                                    uint32_t num_buckets) {
@@ -705,7 +706,7 @@ __global__ void GetIteratorsKernel(HashmapCUDAContext slab_hash_ctx,
  * This kernel can be used to compute total number of elements within each
  * bucket. The final results per bucket is stored in d_count_result array
  */
-__global__ void CountElemsPerBucketKernel(HashmapCUDAContext slab_hash_ctx,
+__global__ void CountElemsPerBucketKernel(CUDAHashmapImplContext slab_hash_ctx,
                                           uint32_t* bucket_elem_counts) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
@@ -742,4 +743,5 @@ __global__ void CountElemsPerBucketKernel(HashmapCUDAContext slab_hash_ctx,
     if (lane_id == 0) {
         bucket_elem_counts[wid] = count;
     }
+}
 }

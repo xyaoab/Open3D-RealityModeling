@@ -36,6 +36,7 @@
 
 #define MAX_KEY_BYTESIZE 32
 
+namespace cuda {
 template <typename Key, typename Value>
 struct Pair {
     Key first;
@@ -59,9 +60,9 @@ public:
 
 typedef uint64_t (*hash_t)(uint8_t*, uint32_t);
 
-class HashmapCUDAContext {
+class CUDAHashmapImplContext {
 public:
-    HashmapCUDAContext();
+    CUDAHashmapImplContext();
     __host__ void Setup(Slab* bucket_list_head,
                         const uint32_t num_buckets,
                         const uint32_t dsize_key,
@@ -133,16 +134,16 @@ public:
     InternalMemoryManagerContext pair_allocator_ctx_;
 };
 
-class HashmapCUDA {
+class CUDAHashmapImpl {
 public:
     using MemMgr = open3d::MemoryManager;
-    HashmapCUDA(const uint32_t max_bucket_count,
-                const uint32_t max_keyvalue_count,
-                const uint32_t dsize_key,
-                const uint32_t dsize_value,
-                open3d::Device device);
+    CUDAHashmapImpl(const uint32_t max_bucket_count,
+                    const uint32_t max_keyvalue_count,
+                    const uint32_t dsize_key,
+                    const uint32_t dsize_value,
+                    open3d::Device device);
 
-    ~HashmapCUDA();
+    ~CUDAHashmapImpl();
 
     void Insert(uint8_t* input_keys,
                 uint8_t* input_values,
@@ -172,10 +173,11 @@ private:
     Slab* bucket_list_head_;
     uint32_t num_buckets_;
 
-    HashmapCUDAContext gpu_context_;
+    CUDAHashmapImplContext gpu_context_;
 
     std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
     std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
 
     open3d::Device device_;
 };
+}  // namespace cuda

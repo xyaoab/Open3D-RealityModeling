@@ -100,10 +100,14 @@ void TEST_SIMPLE() {
         unordered_map[insert_keys[i]] = insert_vals[i];
     }
 
-    cuda::Hashmap cuda_unordered_map(10, sizeof(int), sizeof(int));
+    auto cuda_unordered_map = cuda::CreateHashmap(10, sizeof(int), sizeof(int),
+                                                  open3d::Device("CUDA:0"));
+
+    std::cout << "Created\n";
+
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda_unordered_map.Insert(
+    cuda_unordered_map->Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data()),
             cuda_insert_keys.size());
@@ -112,7 +116,7 @@ void TEST_SIMPLE() {
     // query
     thrust::device_vector<int> cuda_query_keys(
             std::vector<int>({1, 2, 3, 4, 5}));
-    auto cuda_query_results = cuda_unordered_map.Search(
+    auto cuda_query_results = cuda_unordered_map->Search(
             (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data()),
             cuda_query_keys.size());
     std::cout << "Searched\n";
@@ -168,8 +172,11 @@ void TEST_6DIM_KEYS(int key_size) {
 
     // gpu test
     std::cout << "inserting to cuda::Hashmap...\n";
-    cuda::Hashmap cuda_unordered_map(key_size, sizeof(Vector6i),
-    sizeof(int)); cuda_unordered_map.Insert(
+
+    auto cuda_unordered_map = cuda::CreateHashmap(
+            key_size, sizeof(Vector6i), sizeof(int), open3d::Device("CUDA:0"));
+
+    cuda_unordered_map->Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data()),
             cuda_insert_keys.size());
@@ -188,7 +195,7 @@ void TEST_6DIM_KEYS(int key_size) {
     std::cout << "query data generated\n";
 
     std::cout << "query from cuda::Hashmap...\n";
-    auto cuda_query_results = cuda_unordered_map.Search(
+    auto cuda_query_results = cuda_unordered_map->Search(
             (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data()),
             cuda_query_keys.size());
     std::cout << "query results generated\n";
@@ -199,7 +206,6 @@ void TEST_6DIM_KEYS(int key_size) {
             cuda_query_results.second,
             cuda_query_results.second + cuda_query_keys.size());
 
-
     std::cout << "comparing query results against ground truth...\n";
     for (int i = 0; i < cuda_query_keys.size(); ++i) {
         auto iter = unordered_map.find(cuda_query_keys[i]);
@@ -207,9 +213,8 @@ void TEST_6DIM_KEYS(int key_size) {
             assert(cuda_ret_masks[i] == 0);
         } else {
             iterator_t iterator = cuda_ret_iterators[i];
-            Vector6i key =
-            *(thrust::device_ptr<Vector6i>((Vector6i*)iterator)); int val =
-            *(thrust::device_ptr<int>(
+            Vector6i key = *(thrust::device_ptr<Vector6i>((Vector6i*)iterator));
+            int val = *(thrust::device_ptr<int>(
                     (int*)(iterator + sizeof(Vector6i))));
             assert(key == cuda_query_keys[i]);
             assert(val == iter->second);
@@ -262,9 +267,11 @@ void TEST_COORD_KEYS(int key_size) {
     std::cout << "inserting to cuda::Hashmap...\n";
     thrust::device_vector<Coordinate<int, D>> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda::Hashmap cuda_unordered_map(key_size, sizeof(Coordinate<int, D>),
-                                     sizeof(int));
-    cuda_unordered_map.Insert(
+
+    auto cuda_unordered_map =
+            cuda::CreateHashmap(key_size, sizeof(Coordinate<int, D>),
+                                sizeof(int), open3d::Device("CUDA:0"));
+    cuda_unordered_map->Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data()),
             cuda_insert_keys.size());
@@ -284,7 +291,7 @@ void TEST_COORD_KEYS(int key_size) {
     std::cout << "query data generated\n";
 
     std::cout << "query from cuda::Hashmap...\n";
-    auto cuda_query_results = cuda_unordered_map.Search(
+    auto cuda_query_results = cuda_unordered_map->Search(
             (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data()),
             cuda_query_keys.size());
     std::cout << "query results generated\n";
@@ -295,7 +302,6 @@ void TEST_COORD_KEYS(int key_size) {
             cuda_query_results.second,
             cuda_query_results.second + cuda_query_keys.size());
 
-
     std::cout << "comparing query results against ground truth...\n";
     for (int i = 0; i < cuda_query_keys.size(); ++i) {
         auto iter = unordered_map.find(cuda_query_keys[i]);
@@ -303,8 +309,7 @@ void TEST_COORD_KEYS(int key_size) {
             assert(cuda_ret_masks[i] == 0);
         } else {
             iterator_t iterator = cuda_ret_iterators[i];
-            Coordinate<int, D> key = *(thrust::device_ptr<Coordinate<int,
-            D>>(
+            Coordinate<int, D> key = *(thrust::device_ptr<Coordinate<int, D>>(
                     (Coordinate<int, D>*)iterator));
             int val = *(thrust::device_ptr<int>(
                     (int*)(iterator + sizeof(Coordinate<int, D>))));

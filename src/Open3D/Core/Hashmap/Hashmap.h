@@ -27,6 +27,7 @@
 #pragma once
 
 #include <thrust/device_vector.h>
+#include <cstdint>
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/Hashmap/Consts.h"
 #include "Open3D/Core/MemoryManager.h"
@@ -43,53 +44,57 @@
  * https://en.wikipedia.org/w/index.php?title=Sequence_container_(C%2B%2B)&oldid=767869909#Specialization_for_bool
  */
 
-class HashmapCUDA;
 namespace cuda {
 
 class Hashmap {
 public:
     using MemMgr = open3d::MemoryManager;
 
-    Hashmap(uint32_t max_keys,
-            uint32_t dsize_key,
-            uint32_t dsize_value,
-            // Preset hash table params to estimate bucket num
-            uint32_t keys_per_bucket = 10,
-            float expected_occupancy_per_bucket = 0.5,
-            // CUDA device
-            open3d::Device device = open3d::Device("CUDA:0"));
-    ~Hashmap();
+    ~Hashmap(){};
+    virtual void Setup(uint32_t max_keys,
+                       uint32_t dsize_key,
+                       uint32_t dsize_value,
+                       open3d::Device device) = 0;
 
-    /// Thrust interface for array-like input
-    /// TODO: change to raw pointers and adapt to Tensor scheduling
-    /// Insert keys and values.
-    /// Return (CUDA) pointers to the inserted kv pairs.
+    virtual std::pair<iterator_t*, uint8_t*> Insert(
+            uint8_t* input_keys,
+            uint8_t* input_values,
+            uint32_t input_key_size) = 0;
+
+    virtual std::pair<iterator_t*, uint8_t*> Search(
+            uint8_t* input_keys, uint32_t input_key_size) = 0;
+
+    virtual uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size) = 0;
+
+protected:
+    uint32_t max_keys_;
+    uint32_t dsize_key_;
+    uint32_t dsize_value_;
+
+    open3d::Device device_;
+};
+
+class CUDAHashmapImpl;
+class CUDAHashmap : public Hashmap {
+public:
+    ~CUDAHashmap();
+
+    void Setup(uint32_t max_keys,
+               uint32_t dsize_key,
+               uint32_t dsize_value,
+               open3d::Device device);
+
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,
                                             uint32_t input_key_size);
 
-    /// Search keys.
-    /// Return (CUDA) pointers to the found kv pairs; nullptr for not found.
-    /// Also returns a mask array to indicate success.
     std::pair<iterator_t*, uint8_t*> Search(uint8_t* input_keys,
                                             uint32_t input_key_size);
 
-    /// Remove key value pairs given keys.
-    /// Return mask array to indicate success or not found.
     uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size);
 
-    /// Assistance functions for memory profiling.
-    float ComputeLoadFactor();
-    std::vector<int> CountElemsPerBucket();
-
-private:
-    // Rough estimation of total keys at max capacity.
-    // TODO: change it adaptively in internal implementation
-    uint32_t max_keys_;
+protected:
     uint32_t num_buckets_;
-
-    uint32_t dsize_key_;
-    uint32_t dsize_value_;
 
     // Buffer to store temporary results
     uint8_t* output_key_buffer_;
@@ -97,8 +102,11 @@ private:
     iterator_t* output_iterator_buffer_;
     uint8_t* output_mask_buffer_;
 
-    std::shared_ptr<HashmapCUDA> device_hashmap_;
-    open3d::Device device_;
+    std::shared_ptr<CUDAHashmapImpl> device_hashmap_;
 };
 
+std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
+                                       uint32_t dsize_key,
+                                       uint32_t dsize_value,
+                                       open3d::Device device);
 }  // namespace cuda
