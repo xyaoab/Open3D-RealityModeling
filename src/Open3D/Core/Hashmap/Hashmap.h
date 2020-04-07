@@ -39,8 +39,8 @@ public:
     Hashmap(uint32_t max_keys,
             uint32_t dsize_key,
             uint32_t dsize_value,
-            hash_t hash_fn_ptr,
-            open3d::Device device)
+            open3d::Device device,
+            hash_t hash_fn_ptr)
         : max_keys_(max_keys),
           dsize_key_(dsize_key),
           dsize_value_(dsize_value),
@@ -72,8 +72,8 @@ public:
     CUDAHashmap(uint32_t max_keys,
                 uint32_t dsize_key,
                 uint32_t dsize_value,
-                hash_t hash_fn_ptr,
-                open3d::Device device);
+                open3d::Device device,
+                hash_t hash_fn_ptr);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,
@@ -103,8 +103,8 @@ public:
     CPUHashmap(uint32_t max_keys,
                uint32_t dsize_key,
                uint32_t dsize_value,
-               hash_t hash_fn_ptr,
-               open3d::Device device);
+               open3d::Device device,
+               hash_t hash_fn_ptr);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,
@@ -120,6 +120,6 @@ public:
 std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
                                        uint32_t dsize_key,
                                        uint32_t dsize_value,
-                                       hash_t hash_fn_ptr,
-                                       open3d::Device device);
+                                       open3d::Device device,
+                                       hash_t hash_fn_ptr);
 }  // namespace open3d

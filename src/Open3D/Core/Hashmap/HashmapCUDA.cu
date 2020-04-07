@@ -32,9 +32,9 @@ namespace open3d {
 CUDAHashmap::CUDAHashmap(uint32_t max_keys,
                          uint32_t dsize_key,
                          uint32_t dsize_value,
-                         hash_t hash_fn_ptr,
-                         open3d::Device device)
-  : Hashmap(max_keys, dsize_key, dsize_value, hash_fn_ptr, device) {
+                         open3d::Device device,
+                         hash_t hash_fn_ptr)
+    : Hashmap(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
