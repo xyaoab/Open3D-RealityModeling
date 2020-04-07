@@ -94,6 +94,28 @@ protected:
     std::shared_ptr<CUDAHashmapImpl> cuda_hashmap_impl_;
 };
 
+class CPUHashmap : public Hashmap {
+public:
+    ~CPUHashmap();
+
+    CPUHashmap(uint32_t max_keys,
+               uint32_t dsize_key,
+               uint32_t dsize_value,
+               open3d::Device device);
+
+    std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
+                                            uint8_t* input_values,
+                                            uint32_t input_key_size);
+
+    std::pair<iterator_t*, uint8_t*> Search(uint8_t* input_keys,
+                                            uint32_t input_key_size);
+
+    uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size);
+
+protected:
+    uint32_t num_buckets_;
+};
+
 /// Factory
 std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
                                        uint32_t dsize_key,
