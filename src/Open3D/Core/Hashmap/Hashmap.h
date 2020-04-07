@@ -64,19 +64,19 @@ public:
     /// TODO: change to raw pointers and adapt to Tensor scheduling
     /// Insert keys and values.
     /// Return (CUDA) pointers to the inserted kv pairs.
-    std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-    Insert(uint8_t* input_keys, uint8_t* input_values, uint32_t input_key_size);
+    std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
+                                            uint8_t* input_values,
+                                            uint32_t input_key_size);
 
     /// Search keys.
     /// Return (CUDA) pointers to the found kv pairs; nullptr for not found.
     /// Also returns a mask array to indicate success.
-    std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-    Search(uint8_t* input_keys, uint32_t input_key_size);
+    std::pair<iterator_t*, uint8_t*> Search(uint8_t* input_keys,
+                                            uint32_t input_key_size);
 
     /// Remove key value pairs given keys.
     /// Return mask array to indicate success or not found.
-    thrust::device_vector<uint8_t> Remove(uint8_t* input_keys,
-                                          uint32_t input_key_size);
+    uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size);
 
     /// Assistance functions for memory profiling.
     float ComputeLoadFactor();

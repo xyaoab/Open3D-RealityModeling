@@ -24,7 +24,6 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-
 #include "Hashmap.h"
 #include "HashmapCUDA.cuh"
 
@@ -81,44 +80,32 @@ Hashmap::~Hashmap() {
     MemMgr::Free(output_iterator_buffer_, device_);
 }
 
-std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-Hashmap::Insert(uint8_t* input_keys,
-                uint8_t* input_values,
-                uint32_t input_keys_size) {
+std::pair<iterator_t*, uint8_t*> Hashmap::Insert(uint8_t* input_keys,
+                                                 uint8_t* input_values,
+                                                 uint32_t input_keys_size) {
     // TODO: rehash and increase max_keys_
     assert(input_keys_size <= max_keys_);
 
     device_hashmap_->Insert(input_keys, input_values, output_iterator_buffer_,
                             output_mask_buffer_, input_keys_size);
 
-    thrust::device_vector<iterator_t> output_iterators(
-            output_iterator_buffer_, output_iterator_buffer_ + input_keys_size);
-    thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
-    return std::make_pair(output_iterators, output_masks);
+    return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-std::pair<thrust::device_vector<iterator_t>, thrust::device_vector<uint8_t>>
-Hashmap::Search(uint8_t* input_keys, uint32_t input_keys_size) {
+std::pair<iterator_t*, uint8_t*> Hashmap::Search(uint8_t* input_keys,
+                                                 uint32_t input_keys_size) {
     assert(input_keys_size <= max_keys_);
 
     device_hashmap_->Search(input_keys, output_iterator_buffer_,
                             output_mask_buffer_, input_keys_size);
 
-    thrust::device_vector<iterator_t> output_iterators(
-            output_iterator_buffer_, output_iterator_buffer_ + input_keys_size);
-    thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
-    return std::make_pair(output_iterators, output_masks);
+    return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-thrust::device_vector<uint8_t> Hashmap::Remove(uint8_t* input_keys,
-                                               uint32_t input_keys_size) {
+uint8_t* Hashmap::Remove(uint8_t* input_keys, uint32_t input_keys_size) {
     device_hashmap_->Remove(input_keys, output_mask_buffer_, input_keys_size);
 
-    thrust::device_vector<uint8_t> output_masks(
-            output_mask_buffer_, output_mask_buffer_ + input_keys_size);
-    return output_masks;
+    return output_mask_buffer_;
 }
 
 std::vector<int> Hashmap::CountElemsPerBucket() {
