@@ -41,17 +41,12 @@
  */
 namespace cuda {
 
-void CUDAHashmap::Setup(uint32_t max_keys,
-                        uint32_t dsize_key,
-                        uint32_t dsize_value,
-                        open3d::Device device) {
-    max_keys_ = max_keys;
-    dsize_key_ = dsize_key;
-    dsize_value_ = dsize_value;
-    device_ = device;
-
+CUDAHashmap::CUDAHashmap(uint32_t max_keys,
+                         uint32_t dsize_key,
+                         uint32_t dsize_value,
+                         open3d::Device device)
+    : Hashmap(max_keys, dsize_key, dsize_value, device) {
     // Set bucket size
-    printf("%d\n", max_keys);
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
@@ -72,7 +67,6 @@ void CUDAHashmap::Setup(uint32_t max_keys,
 }
 
 CUDAHashmap::~CUDAHashmap() {
-    printf("Freed!\n");
     MemMgr::Free(output_key_buffer_, device_);
     MemMgr::Free(output_value_buffer_, device_);
     MemMgr::Free(output_mask_buffer_, device_);

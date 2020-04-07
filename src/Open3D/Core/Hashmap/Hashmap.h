@@ -50,11 +50,14 @@ class Hashmap {
 public:
     using MemMgr = open3d::MemoryManager;
 
-    ~Hashmap(){};
-    virtual void Setup(uint32_t max_keys,
-                       uint32_t dsize_key,
-                       uint32_t dsize_value,
-                       open3d::Device device) = 0;
+    Hashmap(uint32_t max_keys,
+            uint32_t dsize_key,
+            uint32_t dsize_value,
+            open3d::Device device)
+        : max_keys_(max_keys),
+          dsize_key_(dsize_key),
+          dsize_value_(dsize_value),
+          device_(device){};
 
     virtual std::pair<iterator_t*, uint8_t*> Insert(
             uint8_t* input_keys,
@@ -79,10 +82,10 @@ class CUDAHashmap : public Hashmap {
 public:
     ~CUDAHashmap();
 
-    void Setup(uint32_t max_keys,
-               uint32_t dsize_key,
-               uint32_t dsize_value,
-               open3d::Device device);
+    CUDAHashmap(uint32_t max_keys,
+                uint32_t dsize_key,
+                uint32_t dsize_value,
+                open3d::Device device);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,
