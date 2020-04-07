@@ -29,6 +29,22 @@
 
 namespace open3d {
 
+/// Default hash function for all types
+uint64_t OPEN3D_HOST_DEVICE default_hash_fn(uint8_t* key_ptr,
+                                            uint32_t key_size) {
+    uint64_t hash = UINT64_C(14695981039346656037);
+
+    const int chunks = key_size / sizeof(int);
+    int32_t* cast_key_ptr = (int32_t*)(key_ptr);
+    for (size_t i = 0; i < chunks; ++i) {
+        hash ^= cast_key_ptr[i];
+        hash *= UINT64_C(1099511628211);
+    }
+    return hash;
+}
+
+hash_t __device__ default_hash_fn_ptr = default_hash_fn;
+
 CUDAHashmap::CUDAHashmap(uint32_t max_keys,
                          uint32_t dsize_key,
                          uint32_t dsize_value,
@@ -48,6 +64,8 @@ CUDAHashmap::CUDAHashmap(uint32_t max_keys,
     output_iterator_buffer_ = (iterator_t*)MemMgr::Malloc(
             max_keys_ * sizeof(iterator_t), device_);
 
+    OPEN3D_CUDA_CHECK(cudaMemcpyFromSymbol(&hash_fn_ptr, default_hash_fn_ptr,
+                                           sizeof(hash_t)));
     cuda_hashmap_impl_ = std::make_shared<CUDAHashmapImpl>(
             num_buckets_, max_keys_, dsize_key_, dsize_value_, hash_fn_ptr,
             device_);

@@ -45,22 +45,6 @@
 
 namespace open3d {
 
-/// Default hash function for all types
-uint64_t OPEN3D_HOST_DEVICE default_hash_fn(uint8_t* key_ptr,
-                                            uint32_t key_size) {
-    uint64_t hash = UINT64_C(14695981039346656037);
-
-    const int chunks = key_size / sizeof(int);
-    int32_t* cast_key_ptr = (int32_t*)(key_ptr);
-    for (size_t i = 0; i < chunks; ++i) {
-        hash ^= cast_key_ptr[i];
-        hash *= UINT64_C(1099511628211);
-    }
-    return hash;
-}
-
-hash_t __device__ default_hash_fn_ptr = default_hash_fn;
-
 
 /// Kernels
 __global__ void InsertKernel(CUDAHashmapImplContext slab_hash_ctx,
@@ -214,7 +198,7 @@ __host__ void CUDAHashmapImplContext::Setup(
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
 
-    cudaMemcpyFromSymbol(&hash_fn_, default_hash_fn_ptr, sizeof(hash_t));
+    hash_fn_ = hash_fn_ptr;
 }
 
 /// Device functions
