@@ -93,33 +93,34 @@ struct hash<Vector6i> {
 void TEST_SIMPLE() {
     std::unordered_map<int, int> unordered_map;
 
-    // insert
+    // Create data
+    int max_keys = 10;
     std::vector<int> insert_keys = {1, 3, 5};
     std::vector<int> insert_vals = {100, 300, 500};
     for (int i = 0; i < insert_keys.size(); ++i) {
         unordered_map[insert_keys[i]] = insert_vals[i];
     }
 
-    auto cuda_unordered_map = cuda::CreateHashmap(10, sizeof(int), sizeof(int),
-                                                  open3d::Device("CUDA:0"));
-
-    std::cout << "Created\n";
-
     thrust::device_vector<int> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
-    cuda_unordered_map->Insert(
-            (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
-            (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data()),
-            cuda_insert_keys.size());
-    std::cout << "Inserted\n";
-
-    // query
     thrust::device_vector<int> cuda_query_keys(
             std::vector<int>({1, 2, 3, 4, 5}));
+
+    uint8_t* cuda_insert_keys_ptr =
+            (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data());
+    uint8_t* cuda_insert_vals_ptr =
+            (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data());
+    uint8_t* cuda_query_keys_ptr =
+            (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data());
+
+    auto cuda_unordered_map = cuda::CreateHashmap(
+            max_keys, sizeof(int), sizeof(int), open3d::Device("CUDA:0"));
+
+    cuda_unordered_map->Insert(cuda_insert_keys_ptr, cuda_insert_vals_ptr,
+                               cuda_insert_keys.size());
+    // pair<iterator*, uint8_t*>
     auto cuda_query_results = cuda_unordered_map->Search(
-            (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data()),
-            cuda_query_keys.size());
-    std::cout << "Searched\n";
+            cuda_query_keys_ptr, cuda_query_keys.size());
 
     auto cuda_ret_iterators = thrust::device_vector<iterator_t>(
             cuda_query_results.first,
