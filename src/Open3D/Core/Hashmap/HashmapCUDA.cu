@@ -28,11 +28,13 @@
 #include "HashmapCUDAImpl.cuh"
 
 namespace open3d {
+
 CUDAHashmap::CUDAHashmap(uint32_t max_keys,
                          uint32_t dsize_key,
                          uint32_t dsize_value,
+                         hash_t hash_fn_ptr,
                          open3d::Device device)
-    : Hashmap(max_keys, dsize_key, dsize_value, device) {
+  : Hashmap(max_keys, dsize_key, dsize_value, hash_fn_ptr, device) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
@@ -47,7 +49,8 @@ CUDAHashmap::CUDAHashmap(uint32_t max_keys,
             max_keys_ * sizeof(iterator_t), device_);
 
     cuda_hashmap_impl_ = std::make_shared<CUDAHashmapImpl>(
-            num_buckets_, max_keys_, dsize_key_, dsize_value_, device_);
+            num_buckets_, max_keys_, dsize_key_, dsize_value_, hash_fn_ptr,
+            device_);
 }
 
 CUDAHashmap::~CUDAHashmap() {

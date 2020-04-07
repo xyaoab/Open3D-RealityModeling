@@ -31,8 +31,9 @@ namespace open3d {
 CPUHashmap::CPUHashmap(uint32_t max_keys,
                        uint32_t dsize_key,
                        uint32_t dsize_value,
+                       hash_t hash_fn_ptr,
                        open3d::Device device)
-    : Hashmap(max_keys, dsize_key, dsize_value, device) {
+    : Hashmap(max_keys, dsize_key, dsize_value, hash_fn_ptr, device) {
     utility::LogError("CPUHashmap is unimplemented!");
 };
 

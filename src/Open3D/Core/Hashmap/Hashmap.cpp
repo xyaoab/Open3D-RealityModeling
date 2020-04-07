@@ -32,27 +32,30 @@ namespace open3d {
 std::shared_ptr<CPUHashmap> CreateCPUHashmap(uint32_t max_keys,
                                              uint32_t dsize_key,
                                              uint32_t dsize_value,
+                                             hash_t hash_fn_ptr,
                                              open3d::Device device) {
     return std::make_shared<CPUHashmap>(max_keys, dsize_key, dsize_value,
-                                        device);
+                                        hash_fn_ptr, device);
 }
 
 std::shared_ptr<CUDAHashmap> CreateCUDAHashmap(uint32_t max_keys,
                                                uint32_t dsize_key,
                                                uint32_t dsize_value,
+                                               hash_t hash_fn_ptr,
                                                open3d::Device device) {
     return std::make_shared<CUDAHashmap>(max_keys, dsize_key, dsize_value,
-                                         device);
+                                         hash_fn_ptr, device);
 }
 
 std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
                                        uint32_t dsize_key,
                                        uint32_t dsize_value,
+                                       hash_t hash_fn_ptr,
                                        open3d::Device device) {
     static std::unordered_map<
             open3d::Device::DeviceType,
             std::function<std::shared_ptr<Hashmap>(uint32_t, uint32_t, uint32_t,
-                                                   open3d::Device)>,
+                                                   hash_t, open3d::Device)>,
             open3d::utility::hash_enum_class::hash>
             map_device_type_to_hashmap_constructor = {
                     {open3d::Device::DeviceType::CPU, CreateCPUHashmap},
@@ -66,6 +69,6 @@ std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
 
     auto constructor =
             map_device_type_to_hashmap_constructor.at(device.GetType());
-    return constructor(max_keys, dsize_key, dsize_value, device);
+    return constructor(max_keys, dsize_key, dsize_value, hash_fn_ptr, device);
 }
 }  // namespace open3d

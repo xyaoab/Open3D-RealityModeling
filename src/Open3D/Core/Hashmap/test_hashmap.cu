@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <thrust/device_vector.h>
 #include <time.h>
 #include <unistd.h>
 #include <algorithm>
@@ -7,7 +8,6 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
-#include <thrust/device_vector.h>
 #include "Hashmap.h"
 
 template <typename T, size_t D>
@@ -92,6 +92,8 @@ struct hash<Vector6i> {
 }  // namespace std
 
 using namespace open3d;
+hash_t dummy_hash_fn;
+
 void TEST_SIMPLE() {
     std::unordered_map<int, int> unordered_map;
 
@@ -115,8 +117,9 @@ void TEST_SIMPLE() {
     uint8_t* cuda_query_keys_ptr =
             (uint8_t*)thrust::raw_pointer_cast(cuda_query_keys.data());
 
-    auto cuda_unordered_map = open3d::CreateHashmap(
-            max_keys, sizeof(int), sizeof(int), open3d::Device("CUDA:0"));
+    auto cuda_unordered_map =
+            open3d::CreateHashmap(max_keys, sizeof(int), sizeof(int),
+                                  dummy_hash_fn, open3d::Device("CUDA:0"));
 
     cuda_unordered_map->Insert(cuda_insert_keys_ptr, cuda_insert_vals_ptr,
                                cuda_insert_keys.size());
@@ -176,8 +179,9 @@ void TEST_6DIM_KEYS(int key_size) {
     // gpu test
     std::cout << "inserting to open3d::Hashmap...\n";
 
-    auto cuda_unordered_map = open3d::CreateHashmap(
-            key_size, sizeof(Vector6i), sizeof(int), open3d::Device("CUDA:0"));
+    auto cuda_unordered_map =
+            open3d::CreateHashmap(key_size, sizeof(Vector6i), sizeof(int),
+                                  dummy_hash_fn, open3d::Device("CUDA:0"));
 
     cuda_unordered_map->Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
@@ -271,9 +275,9 @@ void TEST_COORD_KEYS(int key_size) {
     thrust::device_vector<Coordinate<int, D>> cuda_insert_keys = insert_keys;
     thrust::device_vector<int> cuda_insert_vals = insert_vals;
 
-    auto cuda_unordered_map =
-            open3d::CreateHashmap(key_size, sizeof(Coordinate<int, D>),
-                                sizeof(int), open3d::Device("CUDA:0"));
+    auto cuda_unordered_map = open3d::CreateHashmap(
+            key_size, sizeof(Coordinate<int, D>), sizeof(int), dummy_hash_fn,
+            open3d::Device("CUDA:0"));
     cuda_unordered_map->Insert(
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_keys.data()),
             (uint8_t*)thrust::raw_pointer_cast(cuda_insert_vals.data()),

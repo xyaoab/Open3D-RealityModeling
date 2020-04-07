@@ -44,6 +44,7 @@
 #include "HashmapCUDAImpl.h"
 
 namespace open3d {
+
 /// Default hash function for all types
 __device__ uint64_t default_hash_fn(uint8_t* key_ptr, uint32_t key_size) {
     uint64_t hash = UINT64_C(14695981039346656037);
@@ -90,6 +91,7 @@ CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
                                  const uint32_t max_keyvalue_count,
                                  const uint32_t dsize_key,
                                  const uint32_t dsize_value,
+                                 const hash_t hash_fn_ptr,
                                  open3d::Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
@@ -105,6 +107,7 @@ CUDAHashmapImpl::CUDAHashmapImpl(const uint32_t max_bucket_count,
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
+                       hash_fn_ptr,
                        slab_list_allocator_->getContext(),
                        pair_allocator_->gpu_context_);
 }
@@ -196,6 +199,7 @@ __host__ void CUDAHashmapImplContext::Setup(
         const uint32_t num_buckets,
         const uint32_t dsize_key,
         const uint32_t dsize_value,
+        const hash_t hash_fn_ptr,
         const InternalNodeManagerContext& allocator_ctx,
         const InternalMemoryManagerContext& pair_allocator_ctx) {
     bucket_list_head_ = bucket_list_head;

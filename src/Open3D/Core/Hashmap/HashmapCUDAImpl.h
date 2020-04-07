@@ -61,6 +61,7 @@ public:
                         const uint32_t num_buckets,
                         const uint32_t dsize_key,
                         const uint32_t dsize_value,
+                        const hash_t hash_fn_ptr,
                         const InternalNodeManagerContext& allocator_ctx,
                         const InternalMemoryManagerContext& pair_allocator_ctx);
 
@@ -135,6 +136,7 @@ public:
                     const uint32_t max_keyvalue_count,
                     const uint32_t dsize_key,
                     const uint32_t dsize_value,
+                    const hash_t hash_fn_ptr,
                     open3d::Device device);
 
     ~CUDAHashmapImpl();
