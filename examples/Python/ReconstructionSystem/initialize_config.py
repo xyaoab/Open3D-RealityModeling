@@ -24,6 +24,7 @@ def initialize_config(config):
     set_default_value(config, "preference_loop_closure_registration", 5.0)
     set_default_value(config, "tsdf_cubic_size", 3.0)
     set_default_value(config, "icp_method", "color")
+    set_default_value(config, "feature_type", "fcgf")
     set_default_value(config, "global_registration", "ransac")
     set_default_value(config, "python_multi_threading", "true")
 

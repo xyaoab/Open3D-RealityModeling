@@ -34,3 +34,6 @@
 [submodule "3rdparty/cutlass"]
 	path = 3rdparty/cutlass
 	url = https://github.com/NVIDIA/cutlass
+[submodule "examples/Python/ReconstructionSystem/FCGF"]
+	path = examples/Python/ReconstructionSystem/FCGF
+	url = https://github.com/chrischoy/FCGF.git

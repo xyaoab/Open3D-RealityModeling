@@ -9,6 +9,7 @@
     "preference_loop_closure_registration": 5.0,
     "tsdf_cubic_size": 3.0,
     "icp_method": "color",
+    "feature_type": "fcgf",
     "global_registration": "ransac",
-    "python_multi_threading": true
+    "python_multi_threading": false
 }
