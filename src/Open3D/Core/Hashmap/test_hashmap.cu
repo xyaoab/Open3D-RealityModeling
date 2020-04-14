@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 #include "Hashmap.h"
+#include "Open3D/Utility/Timer.h"
 
 using namespace open3d;
 hash_t dummy_hash_fn;
@@ -129,7 +130,7 @@ struct hash<Vector6i> {
 };
 }  // namespace std
 
-void TEST_VECTOR6I_INT(int key_size) {
+void TEST_VECTOR6I_INT(int key_size, bool cmp = true) {
     std::default_random_engine generator;
     std::uniform_int_distribution<int> dist(-100, 100);
 
@@ -172,19 +173,33 @@ void TEST_VECTOR6I_INT(int key_size) {
             open3d::CreateHashmap(key_size, sizeof(Vector6i), sizeof(int),
                                   open3d::Device("CUDA:0"), dummy_hash_fn);
 
+    utility::Timer timer;
+
     /// Hashmap insertion
+    timer.Start();
     hashmap->Insert(insert_keys_ptr_cuda, insert_vals_ptr_cuda,
                     insert_keys_cuda.size());
+    timer.Stop();
+    auto duration = timer.GetDuration();
+    utility::LogInfo("{} pairs inserted in {} ms, avg {} insertions/s",
+                     key_size, duration, 1000 * key_size / duration);
 
     /// Hashmap search
     iterator_t* ret_iterators;
     uint8_t* ret_masks;
+    timer.Start();
     std::tie(ret_iterators, ret_masks) =
             hashmap->Search(query_keys_ptr_cuda, query_keys_cuda.size());
+    timer.Stop();
+    duration = timer.GetDuration();
+    utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s", key_size,
+                     duration, 1000 * key_size / duration);
 
     /// Result parsing
-    Compare<Vector6i, int>(ret_iterators, ret_masks, query_keys.size(),
-                           query_keys, hashmap_gt);
+    if (cmp) {
+        Compare<Vector6i, int>(ret_iterators, ret_masks, query_keys.size(),
+                               query_keys, hashmap_gt);
+    }
     utility::LogInfo("TEST_VECTOR6I_INT() passed");
 }
 
@@ -231,8 +246,8 @@ struct CoordinateHashFunc {
     }
 };
 
-void TEST_COORD8D_INT(int key_size) {
-    const int D = 8;
+void TEST_COORD_INT(int key_size, bool cmp = true) {
+    const int D = 3;
     std::default_random_engine generator;
     std::uniform_int_distribution<int> dist(-1000, 1000);
 
@@ -277,26 +292,45 @@ void TEST_COORD8D_INT(int key_size) {
     auto hashmap = open3d::CreateHashmap(key_size, sizeof(Coordinate<int, D>),
                                          sizeof(int), open3d::Device("CUDA:0"),
                                          dummy_hash_fn);
+    utility::Timer timer;
 
     /// Hashmap insertion
+    timer.Start();
     hashmap->Insert(insert_keys_ptr_cuda, insert_vals_ptr_cuda,
                     insert_keys_cuda.size());
+    timer.Stop();
+    auto duration = timer.GetDuration();
+    utility::LogInfo("{} pairs inserted in {} ms, avg {} insertions/s",
+                     key_size, duration, 1000 * key_size / duration);
 
     /// Hashmap search
     iterator_t* ret_iterators;
     uint8_t* ret_masks;
+    timer.Start();
     std::tie(ret_iterators, ret_masks) =
             hashmap->Search(query_keys_ptr_cuda, query_keys_cuda.size());
+    timer.Stop();
+    duration = timer.GetDuration();
+    utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s", key_size,
+                     duration, 1000 * key_size / duration);
 
     /// Result parsing
-    Compare<Coordinate<int, D>, int, CoordinateHashFunc<int, D>>(
-            ret_iterators, ret_masks, query_keys.size(), query_keys,
-            hashmap_gt);
+    if (cmp) {
+        Compare<Coordinate<int, D>, int, CoordinateHashFunc<int, D>>(
+                ret_iterators, ret_masks, query_keys.size(), query_keys,
+                hashmap_gt);
+    }
     utility::LogInfo("TEST_COORD8D_INT() passed");
 }
 
 int main() {
     TEST_SIMPLE();
-    TEST_VECTOR6I_INT(1000000);
-    TEST_COORD8D_INT(1000000);
+    const int max_kvpairs = 10000000;
+    for (int i = 1000; i <= max_kvpairs; i *= 10) {
+        TEST_VECTOR6I_INT(i, false);
+    }
+
+    for (int i = 1000; i <= max_kvpairs; i *= 10) {
+        TEST_COORD_INT(i, false);
+    }
 }
