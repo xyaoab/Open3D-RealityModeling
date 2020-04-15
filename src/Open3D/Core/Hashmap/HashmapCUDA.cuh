@@ -45,11 +45,27 @@ uint64_t OPEN3D_HOST_DEVICE default_hash_fn(uint8_t* key_ptr,
 
 hash_t __device__ default_hash_fn_ptr = default_hash_fn;
 
-CUDAHashmap::CUDAHashmap(uint32_t max_keys,
-                         uint32_t dsize_key,
-                         uint32_t dsize_value,
-                         open3d::Device device,
-                         hash_t hash_fn_ptr)
+struct DefaultHash {
+    uint64_t OPEN3D_HOST_DEVICE operator()(uint8_t* key_ptr,
+                                           uint32_t key_size) const {
+        uint64_t hash = UINT64_C(14695981039346656037);
+
+        const int chunks = key_size / sizeof(int);
+        int32_t* cast_key_ptr = (int32_t*)(key_ptr);
+        for (size_t i = 0; i < chunks; ++i) {
+            hash ^= cast_key_ptr[i];
+            hash *= UINT64_C(1099511628211);
+        }
+        return hash;
+    }
+};
+
+template <typename Hash>
+CUDAHashmap<Hash>::CUDAHashmap(uint32_t max_keys,
+                               uint32_t dsize_key,
+                               uint32_t dsize_value,
+                               open3d::Device device,
+                               hash_t hash_fn_ptr)
     : Hashmap(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
@@ -71,16 +87,17 @@ CUDAHashmap::CUDAHashmap(uint32_t max_keys,
             device_);
 }
 
-CUDAHashmap::~CUDAHashmap() {
+template <typename Hash>
+CUDAHashmap<Hash>::~CUDAHashmap() {
     MemMgr::Free(output_key_buffer_, device_);
     MemMgr::Free(output_value_buffer_, device_);
     MemMgr::Free(output_mask_buffer_, device_);
     MemMgr::Free(output_iterator_buffer_, device_);
 }
 
-std::pair<iterator_t*, uint8_t*> CUDAHashmap::Insert(uint8_t* input_keys,
-                                                     uint8_t* input_values,
-                                                     uint32_t input_keys_size) {
+template <typename Hash>
+std::pair<iterator_t*, uint8_t*> CUDAHashmap<Hash>::Insert(
+        uint8_t* input_keys, uint8_t* input_values, uint32_t input_keys_size) {
     // TODO: rehash and increase max_keys_
     if (input_keys_size > max_keys_) {
         utility::LogError(
@@ -96,8 +113,9 @@ std::pair<iterator_t*, uint8_t*> CUDAHashmap::Insert(uint8_t* input_keys,
     return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-std::pair<iterator_t*, uint8_t*> CUDAHashmap::Search(uint8_t* input_keys,
-                                                     uint32_t input_keys_size) {
+template <typename Hash>
+std::pair<iterator_t*, uint8_t*> CUDAHashmap<Hash>::Search(
+        uint8_t* input_keys, uint32_t input_keys_size) {
     if (input_keys_size > max_keys_) {
         utility::LogError(
                 "CUDAHashmap::Search: number of input keys {} larger than "
@@ -111,7 +129,9 @@ std::pair<iterator_t*, uint8_t*> CUDAHashmap::Search(uint8_t* input_keys,
     return std::make_pair(output_iterator_buffer_, output_mask_buffer_);
 }
 
-uint8_t* CUDAHashmap::Remove(uint8_t* input_keys, uint32_t input_keys_size) {
+template <typename Hash>
+uint8_t* CUDAHashmap<Hash>::Remove(uint8_t* input_keys,
+                                   uint32_t input_keys_size) {
     cuda_hashmap_impl_->Remove(input_keys, output_mask_buffer_,
                                input_keys_size);
 

@@ -24,10 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Hashmap.h"
 #include <unordered_map>
+#include "Hashmap.h"
+#include "HashmapCUDA.cuh"
 
 namespace open3d {
+
 
 std::shared_ptr<CPUHashmap> CreateCPUHashmap(uint32_t max_keys,
                                              uint32_t dsize_key,
@@ -38,13 +40,14 @@ std::shared_ptr<CPUHashmap> CreateCPUHashmap(uint32_t max_keys,
                                         device, hash_fn_ptr);
 }
 
-std::shared_ptr<CUDAHashmap> CreateCUDAHashmap(uint32_t max_keys,
-                                               uint32_t dsize_key,
-                                               uint32_t dsize_value,
-                                               open3d::Device device,
-                                               hash_t hash_fn_ptr) {
-    return std::make_shared<CUDAHashmap>(max_keys, dsize_key, dsize_value,
-                                         device, hash_fn_ptr);
+std::shared_ptr<CUDAHashmap<DefaultHash>> CreateCUDAHashmap(
+        uint32_t max_keys,
+        uint32_t dsize_key,
+        uint32_t dsize_value,
+        open3d::Device device,
+        hash_t hash_fn_ptr) {
+    return std::make_shared<CUDAHashmap<DefaultHash>>(
+            max_keys, dsize_key, dsize_value, device, hash_fn_ptr);
 }
 
 std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,

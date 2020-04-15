@@ -65,6 +65,8 @@ protected:
 };
 
 class CUDAHashmapImpl;
+
+template <typename Hash>
 class CUDAHashmap : public Hashmap {
 public:
     ~CUDAHashmap();

@@ -31,11 +31,12 @@ set (CORE_CUDA_SRC
 )
 
 set (HASHMAP_SRC
-    Hashmap/Hashmap.cpp
+    # Hashmap/Hashmap.cpp
     Hashmap/HashmapCPU.cpp
 )
 set (HASHMAP_CUDA_SRC
-    Hashmap/HashmapCUDA.cu
+    Hashmap/Hashmap.cu
+    #Hashmap/HashmapCUDA.cu
 )
 
 if (BUILD_CUDA_MODULE)
