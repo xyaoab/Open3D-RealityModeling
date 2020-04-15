@@ -50,10 +50,13 @@
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 
+#include "Hashmap.h"
 #include "InternalMemoryManager.h"
 #include "InternalNodeManager.h"
 
 namespace open3d {
+
+template <typename Hash>
 class CUDAHashmapImplContext {
 public:
     CUDAHashmapImplContext();
@@ -122,13 +125,14 @@ public:
     uint32_t dsize_key_;
     uint32_t dsize_value_;
 
-    hash_t hash_fn_;
+    Hash hash_fn_;
 
     Slab* bucket_list_head_;
     InternalNodeManagerContext slab_list_allocator_ctx_;
     InternalMemoryManagerContext pair_allocator_ctx_;
 };
 
+template <typename Hash>
 class CUDAHashmapImpl {
 public:
     using MemMgr = open3d::MemoryManager;
@@ -166,11 +170,44 @@ private:
     Slab* bucket_list_head_;
     uint32_t num_buckets_;
 
-    CUDAHashmapImplContext gpu_context_;
+    CUDAHashmapImplContext<Hash> gpu_context_;
 
     std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
     std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
 
     open3d::Device device_;
 };
+
+template <typename Hash>
+class CUDAHashmap : public Hashmap {
+public:
+    ~CUDAHashmap();
+
+    CUDAHashmap(uint32_t max_keys,
+                uint32_t dsize_key,
+                uint32_t dsize_value,
+                open3d::Device device,
+                hash_t hash_fn_ptr);
+
+    std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
+                                            uint8_t* input_values,
+                                            uint32_t input_key_size);
+
+    std::pair<iterator_t*, uint8_t*> Search(uint8_t* input_keys,
+                                            uint32_t input_key_size);
+
+    uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size);
+
+protected:
+    uint32_t num_buckets_;
+
+    // Buffer to store temporary results
+    uint8_t* output_key_buffer_;
+    uint8_t* output_value_buffer_;
+    iterator_t* output_iterator_buffer_;
+    uint8_t* output_mask_buffer_;
+
+    std::shared_ptr<CUDAHashmapImpl<Hash>> cuda_hashmap_impl_;
+};
+
 }  // namespace open3d

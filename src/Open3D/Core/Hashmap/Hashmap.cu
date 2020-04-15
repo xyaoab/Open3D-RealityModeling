@@ -26,6 +26,8 @@
 
 #include <unordered_map>
 #include "Hashmap.h"
+
+#include "HashmapCPU.hpp"
 #include "HashmapCUDA.cuh"
 
 namespace open3d {

@@ -24,7 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Hashmap.h"
+#include "HashmapCPU.h"
 
 namespace open3d {
 
