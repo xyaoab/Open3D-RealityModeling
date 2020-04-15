@@ -28,33 +28,38 @@
 
 namespace open3d {
 
-CPUHashmap::CPUHashmap(uint32_t max_keys,
-                       uint32_t dsize_key,
-                       uint32_t dsize_value,
-                       open3d::Device device,
-                       hash_t hash_fn_ptr)
-    : Hashmap(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
+template <typename Hash>
+CPUHashmap<Hash>::CPUHashmap(uint32_t max_keys,
+                             uint32_t dsize_key,
+                             uint32_t dsize_value,
+                             open3d::Device device,
+                             hash_t hash_fn_ptr)
+    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
     utility::LogError("CPUHashmap is unimplemented!");
 };
 
-CPUHashmap::~CPUHashmap(){};
+template <typename Hash>
+CPUHashmap<Hash>::~CPUHashmap(){};
 
-std::pair<iterator_t*, uint8_t*> CPUHashmap::Insert(uint8_t* input_keys,
-                                                    uint8_t* input_values,
-                                                    uint32_t input_key_size) {
+template <typename Hash>
+std::pair<iterator_t*, uint8_t*> CPUHashmap<Hash>::Insert(
+        uint8_t* input_keys, uint8_t* input_values, uint32_t input_key_size) {
     iterator_t* iterators = nullptr;
     uint8_t* masks = nullptr;
     return std::make_pair(iterators, masks);
 }
 
-std::pair<iterator_t*, uint8_t*> CPUHashmap::Search(uint8_t* input_keys,
-                                                    uint32_t input_key_size) {
+template <typename Hash>
+std::pair<iterator_t*, uint8_t*> CPUHashmap<Hash>::Search(
+        uint8_t* input_keys, uint32_t input_key_size) {
     iterator_t* iterators = nullptr;
     uint8_t* masks = nullptr;
     return std::make_pair(iterators, masks);
 }
 
-uint8_t* CPUHashmap::Remove(uint8_t* input_keys, uint32_t input_key_size) {
+template <typename Hash>
+uint8_t* CPUHashmap<Hash>::Remove(uint8_t* input_keys,
+                                  uint32_t input_key_size) {
     uint8_t* masks = nullptr;
     return masks;
 }

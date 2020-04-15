@@ -32,39 +32,41 @@
 
 namespace open3d {
 
+template <typename Hash>
+std::shared_ptr<CPUHashmap<Hash>> CreateCPUHashmap(uint32_t max_keys,
+                                                   uint32_t dsize_key,
+                                                   uint32_t dsize_value,
+                                                   open3d::Device device,
+                                                   hash_t hash_fn_ptr) {
+    return std::make_shared<CPUHashmap<Hash>>(max_keys, dsize_key, dsize_value,
+                                              device, hash_fn_ptr);
+}
 
-std::shared_ptr<CPUHashmap> CreateCPUHashmap(uint32_t max_keys,
+template <typename Hash>
+std::shared_ptr<CUDAHashmap<Hash>> CreateCUDAHashmap(uint32_t max_keys,
+                                                     uint32_t dsize_key,
+                                                     uint32_t dsize_value,
+                                                     open3d::Device device,
+                                                     hash_t hash_fn_ptr) {
+    return std::make_shared<CUDAHashmap<Hash>>(max_keys, dsize_key, dsize_value,
+                                               device, hash_fn_ptr);
+}
+
+template <typename Hash>
+std::shared_ptr<Hashmap<Hash>> CreateHashmap(uint32_t max_keys,
                                              uint32_t dsize_key,
                                              uint32_t dsize_value,
                                              open3d::Device device,
                                              hash_t hash_fn_ptr) {
-    return std::make_shared<CPUHashmap>(max_keys, dsize_key, dsize_value,
-                                        device, hash_fn_ptr);
-}
-
-std::shared_ptr<CUDAHashmap<DefaultHash>> CreateCUDAHashmap(
-        uint32_t max_keys,
-        uint32_t dsize_key,
-        uint32_t dsize_value,
-        open3d::Device device,
-        hash_t hash_fn_ptr) {
-    return std::make_shared<CUDAHashmap<DefaultHash>>(
-            max_keys, dsize_key, dsize_value, device, hash_fn_ptr);
-}
-
-std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
-                                       uint32_t dsize_key,
-                                       uint32_t dsize_value,
-                                       open3d::Device device,
-                                       hash_t hash_fn_ptr) {
     static std::unordered_map<
             open3d::Device::DeviceType,
-            std::function<std::shared_ptr<Hashmap>(uint32_t, uint32_t, uint32_t,
-                                                   open3d::Device, hash_t)>,
+            std::function<std::shared_ptr<Hashmap<Hash>>(
+                    uint32_t, uint32_t, uint32_t, open3d::Device, hash_t)>,
             open3d::utility::hash_enum_class::hash>
             map_device_type_to_hashmap_constructor = {
-                    {open3d::Device::DeviceType::CPU, CreateCPUHashmap},
-                    {open3d::Device::DeviceType::CUDA, CreateCUDAHashmap}};
+                    {open3d::Device::DeviceType::CPU, CreateCPUHashmap<Hash>},
+                    {open3d::Device::DeviceType::CUDA,
+                     CreateCUDAHashmap<Hash>}};
 
     if (map_device_type_to_hashmap_constructor.find(device.GetType()) ==
         map_device_type_to_hashmap_constructor.end()) {

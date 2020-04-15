@@ -115,13 +115,13 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
-    pair_allocator_ = std::make_shared<InternalMemoryManager<MemMgr>>(
+    pair_allocator_ = std::make_shared<InternalMemoryManager<MemoryManager>>(
             max_keyvalue_count, dsize_key + dsize_value, device_);
     slab_list_allocator_ =
-            std::make_shared<InternalNodeManager<MemMgr>>(device_);
+            std::make_shared<InternalNodeManager<MemoryManager>>(device_);
 
     bucket_list_head_ = static_cast<Slab*>(
-            MemMgr::Malloc(num_buckets_ * sizeof(Slab), device_));
+            MemoryManager::Malloc(num_buckets_ * sizeof(Slab), device_));
     OPEN3D_CUDA_CHECK(
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
@@ -132,7 +132,7 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
 
 template <typename Hash>
 CUDAHashmapImpl<Hash>::~CUDAHashmapImpl() {
-    MemMgr::Free(bucket_list_head_, device_);
+    MemoryManager::Free(bucket_list_head_, device_);
 }
 
 template <typename Hash>
@@ -178,7 +178,7 @@ void CUDAHashmapImpl<Hash>::Remove(uint8_t* keys,
 template <typename Hash>
 std::vector<int> CUDAHashmapImpl<Hash>::CountElemsPerBucket() {
     auto elems_per_bucket_buffer = static_cast<uint32_t*>(
-            MemMgr::Malloc(num_buckets_ * sizeof(uint32_t), device_));
+            MemoryManager::Malloc(num_buckets_ * sizeof(uint32_t), device_));
 
     thrust::device_vector<uint32_t> elems_per_bucket(
             elems_per_bucket_buffer, elems_per_bucket_buffer + num_buckets_);
@@ -192,7 +192,7 @@ std::vector<int> CUDAHashmapImpl<Hash>::CountElemsPerBucket() {
     std::vector<int> result(num_buckets_);
     thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
                  result.begin());
-    MemMgr::Free(elems_per_bucket_buffer, device_);
+    MemoryManager::Free(elems_per_bucket_buffer, device_);
     return std::move(result);
 }
 
@@ -813,44 +813,44 @@ CUDAHashmap<Hash>::CUDAHashmap(uint32_t max_keys,
                                uint32_t dsize_value,
                                open3d::Device device,
                                hash_t hash_fn_ptr)
-    : Hashmap(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
+    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
 
-    output_key_buffer_ =
-            (uint8_t*)MemMgr::Malloc(max_keys_ * dsize_key_, device_);
-    output_value_buffer_ =
-            (uint8_t*)MemMgr::Malloc(max_keys_ * dsize_value_, device_);
-    output_mask_buffer_ =
-            (uint8_t*)MemMgr::Malloc(max_keys_ * sizeof(uint8_t), device_);
-    output_iterator_buffer_ = (iterator_t*)MemMgr::Malloc(
-            max_keys_ * sizeof(iterator_t), device_);
+    output_key_buffer_ = (uint8_t*)MemoryManager::Malloc(
+            this->max_keys_ * this->dsize_key_, this->device_);
+    output_value_buffer_ = (uint8_t*)MemoryManager::Malloc(
+            this->max_keys_ * this->dsize_value_, this->device_);
+    output_mask_buffer_ = (uint8_t*)MemoryManager::Malloc(
+            this->max_keys_ * sizeof(uint8_t), this->device_);
+    output_iterator_buffer_ = (iterator_t*)MemoryManager::Malloc(
+            this->max_keys_ * sizeof(iterator_t), this->device_);
 
     // OPEN3D_CUDA_CHECK(cudaMemcpyFromSymbol(&hash_fn_ptr, default_hash_fn_ptr,
     //                                        sizeof(hash_t)));
     cuda_hashmap_impl_ = std::make_shared<CUDAHashmapImpl<Hash>>(
-            num_buckets_, max_keys_, dsize_key_, dsize_value_, hash_fn_ptr,
-            device_);
+            this->num_buckets_, this->max_keys_, this->dsize_key_,
+            this->dsize_value_, hash_fn_ptr, this->device_);
 }
 
 template <typename Hash>
 CUDAHashmap<Hash>::~CUDAHashmap() {
-    MemMgr::Free(output_key_buffer_, device_);
-    MemMgr::Free(output_value_buffer_, device_);
-    MemMgr::Free(output_mask_buffer_, device_);
-    MemMgr::Free(output_iterator_buffer_, device_);
+    MemoryManager::Free(output_key_buffer_, this->device_);
+    MemoryManager::Free(output_value_buffer_, this->device_);
+    MemoryManager::Free(output_mask_buffer_, this->device_);
+    MemoryManager::Free(output_iterator_buffer_, this->device_);
 }
 
 template <typename Hash>
 std::pair<iterator_t*, uint8_t*> CUDAHashmap<Hash>::Insert(
         uint8_t* input_keys, uint8_t* input_values, uint32_t input_keys_size) {
     // TODO: rehash and increase max_keys_
-    if (input_keys_size > max_keys_) {
+    if (input_keys_size > this->max_keys_) {
         utility::LogError(
                 "CUDAHashmap::Insert: number of input keys {} larger than "
                 "reserved number of keys {}",
-                input_keys_size, max_keys_);
+                input_keys_size, this->max_keys_);
     }
 
     cuda_hashmap_impl_->Insert(input_keys, input_values,
@@ -863,11 +863,11 @@ std::pair<iterator_t*, uint8_t*> CUDAHashmap<Hash>::Insert(
 template <typename Hash>
 std::pair<iterator_t*, uint8_t*> CUDAHashmap<Hash>::Search(
         uint8_t* input_keys, uint32_t input_keys_size) {
-    if (input_keys_size > max_keys_) {
+    if (input_keys_size > this->max_keys_) {
         utility::LogError(
                 "CUDAHashmap::Search: number of input keys {} larger than "
                 "reserved number of keys {}",
-                input_keys_size, max_keys_);
+                input_keys_size, this->max_keys_);
     }
 
     cuda_hashmap_impl_->Search(input_keys, output_iterator_buffer_,

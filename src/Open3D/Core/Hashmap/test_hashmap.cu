@@ -8,7 +8,7 @@
 #include <random>
 #include <unordered_map>
 #include <vector>
-#include "HashmapCUDA.cuh"
+#include "Hashmap.cuh"
 #include "Open3D/Utility/Timer.h"
 
 using namespace open3d;

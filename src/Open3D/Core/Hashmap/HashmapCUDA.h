@@ -135,7 +135,7 @@ public:
 template <typename Hash>
 class CUDAHashmapImpl {
 public:
-    using MemMgr = open3d::MemoryManager;
+    using MemoryManager = open3d::MemoryManager;
     CUDAHashmapImpl(const uint32_t max_bucket_count,
                     const uint32_t max_keyvalue_count,
                     const uint32_t dsize_key,
@@ -172,14 +172,14 @@ private:
 
     CUDAHashmapImplContext<Hash> gpu_context_;
 
-    std::shared_ptr<InternalMemoryManager<MemMgr>> pair_allocator_;
-    std::shared_ptr<InternalNodeManager<MemMgr>> slab_list_allocator_;
+    std::shared_ptr<InternalMemoryManager<MemoryManager>> pair_allocator_;
+    std::shared_ptr<InternalNodeManager<MemoryManager>> slab_list_allocator_;
 
     open3d::Device device_;
 };
 
 template <typename Hash>
-class CUDAHashmap : public Hashmap {
+class CUDAHashmap : public Hashmap<Hash> {
 public:
     ~CUDAHashmap();
 

@@ -1,7 +1,8 @@
 #include "Hashmap.h"
 
 namespace open3d {
-class CPUHashmap : public Hashmap {
+template <typename Hash>
+class CPUHashmap : public Hashmap<Hash> {
 public:
     ~CPUHashmap();
 

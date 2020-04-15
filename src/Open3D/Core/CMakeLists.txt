@@ -35,7 +35,7 @@ set (HASHMAP_SRC
     # Hashmap/HashmapCPU.cpp
 )
 set (HASHMAP_CUDA_SRC
-    Hashmap/Hashmap.cu
+    # Hashmap/Hashmap.cu
     #Hashmap/HashmapCUDA.cu
 )
 

@@ -33,6 +33,7 @@
 namespace open3d {
 
 /// Base class
+template <typename Hash>
 class Hashmap {
 public:
     using MemMgr = open3d::MemoryManager;
@@ -66,9 +67,10 @@ protected:
 };
 
 /// Factory
-std::shared_ptr<Hashmap> CreateHashmap(uint32_t max_keys,
-                                       uint32_t dsize_key,
-                                       uint32_t dsize_value,
-                                       open3d::Device device,
-                                       hash_t hash_fn_ptr);
+template <typename Hash>
+std::shared_ptr<Hashmap<Hash>> CreateHashmap(uint32_t max_keys,
+                                             uint32_t dsize_key,
+                                             uint32_t dsize_value,
+                                             open3d::Device device,
+                                             hash_t hash_fn_ptr);
 }  // namespace open3d
