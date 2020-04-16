@@ -9,8 +9,7 @@ public:
     CPUHashmap(uint32_t max_keys,
                uint32_t dsize_key,
                uint32_t dsize_value,
-               open3d::Device device,
-               hash_t hash_fn_ptr);
+               open3d::Device device);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,

@@ -45,21 +45,6 @@
 
 namespace open3d {
 /// Default hash function for all types
-uint64_t OPEN3D_HOST_DEVICE default_hash_fn(uint8_t* key_ptr,
-                                            uint32_t key_size) {
-    uint64_t hash = UINT64_C(14695981039346656037);
-
-    const int chunks = key_size / sizeof(int);
-    int32_t* cast_key_ptr = (int32_t*)(key_ptr);
-    for (size_t i = 0; i < chunks; ++i) {
-        hash ^= cast_key_ptr[i];
-        hash *= UINT64_C(1099511628211);
-    }
-    return hash;
-}
-
-hash_t __device__ default_hash_fn_ptr = default_hash_fn;
-
 struct DefaultHash {
     uint64_t OPEN3D_HOST_DEVICE operator()(uint8_t* key_ptr,
                                            uint32_t key_size) const {
@@ -110,7 +95,6 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
                                        const uint32_t max_keyvalue_count,
                                        const uint32_t dsize_key,
                                        const uint32_t dsize_value,
-                                       const hash_t hash_fn_ptr,
                                        open3d::Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
@@ -126,7 +110,7 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
-                       hash_fn_ptr, slab_list_allocator_->getContext(),
+                       slab_list_allocator_->getContext(),
                        pair_allocator_->gpu_context_);
 }
 
@@ -227,7 +211,6 @@ __host__ void CUDAHashmapImplContext<Hash>::Setup(
         const uint32_t num_buckets,
         const uint32_t dsize_key,
         const uint32_t dsize_value,
-        const hash_t hash_fn_ptr,
         const InternalNodeManagerContext& allocator_ctx,
         const InternalMemoryManagerContext& pair_allocator_ctx) {
     bucket_list_head_ = bucket_list_head;
@@ -238,8 +221,6 @@ __host__ void CUDAHashmapImplContext<Hash>::Setup(
 
     slab_list_allocator_ctx_ = allocator_ctx;
     pair_allocator_ctx_ = pair_allocator_ctx;
-
-    // hash_fn_ = hash_fn_ptr;
 }
 
 /// Device functions
@@ -811,9 +792,8 @@ template <typename Hash>
 CUDAHashmap<Hash>::CUDAHashmap(uint32_t max_keys,
                                uint32_t dsize_key,
                                uint32_t dsize_value,
-                               open3d::Device device,
-                               hash_t hash_fn_ptr)
-    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
+                               open3d::Device device)
+    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /
                    expected_keys_per_bucket;
@@ -831,7 +811,7 @@ CUDAHashmap<Hash>::CUDAHashmap(uint32_t max_keys,
     //                                        sizeof(hash_t)));
     cuda_hashmap_impl_ = std::make_shared<CUDAHashmapImpl<Hash>>(
             this->num_buckets_, this->max_keys_, this->dsize_key_,
-            this->dsize_value_, hash_fn_ptr, this->device_);
+            this->dsize_value_, this->device_);
 }
 
 template <typename Hash>

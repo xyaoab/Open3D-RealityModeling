@@ -32,9 +32,8 @@ template <typename Hash>
 CPUHashmap<Hash>::CPUHashmap(uint32_t max_keys,
                              uint32_t dsize_key,
                              uint32_t dsize_value,
-                             open3d::Device device,
-                             hash_t hash_fn_ptr)
-    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device, hash_fn_ptr) {
+                             open3d::Device device)
+    : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device) {
     utility::LogError("CPUHashmap is unimplemented!");
 };
 

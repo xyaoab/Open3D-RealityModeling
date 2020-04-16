@@ -75,9 +75,9 @@ void TEST_SIMPLE() {
             thrust::raw_pointer_cast(query_keys_cuda.data()));
 
     /// Hashmap creation
-    auto hashmap = std::make_shared<CUDAHashmap<DefaultHash>>(
-            max_keys, sizeof(int), sizeof(int), open3d::Device("CUDA:0"),
-            dummy_hash_fn);
+    auto hashmap =
+            CreateHashmap<DefaultHash>(max_keys, sizeof(int), sizeof(int),
+                                       open3d::Device("CUDA:0"));
 
     /// Hashmap insertion
     hashmap->Insert(insert_keys_ptr_cuda, insert_vals_ptr_cuda,
@@ -192,7 +192,8 @@ void TEST_SIMPLE() {
 //             hashmap->Search(query_keys_ptr_cuda, query_keys_cuda.size());
 //     timer.Stop();
 //     duration = timer.GetDuration();
-//     utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s", key_size,
+//     utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s",
+//     key_size,
 //                      duration, 1000 * key_size / duration);
 
 //     /// Result parsing
@@ -232,11 +233,13 @@ void TEST_SIMPLE() {
 
 // template <typename T, size_t D>
 // struct CoordinateHashFunc {
-//     __device__ __host__ uint64_t operator()(const Coordinate<T, D>& key) const {
+//     __device__ __host__ uint64_t operator()(const Coordinate<T, D>& key)
+//     const {
 //         uint64_t hash = UINT64_C(14695981039346656037);
 
 //         /** We only support 4-byte and 8-byte types **/
-//         using input_t = typename std::conditional<sizeof(T) == sizeof(uint32_t),
+//         using input_t = typename std::conditional<sizeof(T) ==
+//         sizeof(uint32_t),
 //                                                   uint32_t, uint64_t>::type;
 //         for (size_t i = 0; i < D; ++i) {
 //             hash ^= *((input_t*)(&key[i]));
@@ -289,8 +292,10 @@ void TEST_SIMPLE() {
 //             thrust::raw_pointer_cast(query_keys_cuda.data()));
 
 //     /// Hashmap creation
-//     auto hashmap = open3d::CreateHashmap(key_size, sizeof(Coordinate<int, D>),
-//                                          sizeof(int), open3d::Device("CUDA:0"),
+//     auto hashmap = open3d::CreateHashmap(key_size, sizeof(Coordinate<int,
+//     D>),
+//                                          sizeof(int),
+//                                          open3d::Device("CUDA:0"),
 //                                          dummy_hash_fn);
 //     utility::Timer timer;
 
@@ -311,7 +316,8 @@ void TEST_SIMPLE() {
 //             hashmap->Search(query_keys_ptr_cuda, query_keys_cuda.size());
 //     timer.Stop();
 //     duration = timer.GetDuration();
-//     utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s", key_size,
+//     utility::LogInfo("{} pairs searched in {} ms, avg {} queries/s",
+//     key_size,
 //                      duration, 1000 * key_size / duration);
 
 //     /// Result parsing

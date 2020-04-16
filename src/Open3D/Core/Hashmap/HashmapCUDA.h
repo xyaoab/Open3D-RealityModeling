@@ -64,7 +64,6 @@ public:
                         const uint32_t num_buckets,
                         const uint32_t dsize_key,
                         const uint32_t dsize_value,
-                        const hash_t hash_fn_ptr,
                         const InternalNodeManagerContext& allocator_ctx,
                         const InternalMemoryManagerContext& pair_allocator_ctx);
 
@@ -140,7 +139,6 @@ public:
                     const uint32_t max_keyvalue_count,
                     const uint32_t dsize_key,
                     const uint32_t dsize_value,
-                    const hash_t hash_fn_ptr,
                     open3d::Device device);
 
     ~CUDAHashmapImpl();
@@ -186,8 +184,7 @@ public:
     CUDAHashmap(uint32_t max_keys,
                 uint32_t dsize_key,
                 uint32_t dsize_value,
-                open3d::Device device,
-                hash_t hash_fn_ptr);
+                open3d::Device device);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,
