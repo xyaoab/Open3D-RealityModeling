@@ -257,7 +257,8 @@ private:
     // hash a warp id to a memory block index
     uint32_t hash_coef_;  // a random 32-bit
 
-    InternalNodeManagerContext slab_alloc_context_;
+public:
+    InternalNodeManagerContext gpu_context_;
     Device device_;
 
 public:
@@ -290,11 +291,9 @@ public:
         }
 
         // initializing the slab context:
-        slab_alloc_context_.Setup(super_blocks_, hash_coef_);
+        gpu_context_.Setup(super_blocks_, hash_coef_);
     }
     ~InternalNodeManager() { MemoryManager::Free(super_blocks_, device_); }
-
-    InternalNodeManagerContext& getContext() { return slab_alloc_context_; }
 
     std::vector<int> CountSlabsPerSuperblock() {
         const uint32_t num_super_blocks = NUM_SUPER_BLOCKS_;
@@ -313,7 +312,7 @@ public:
         int num_mem_units = NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
         int num_cuda_blocks = (num_mem_units + blocksize - 1) / blocksize;
         CountSlabsPerSuperblockKernel<<<num_cuda_blocks, blocksize>>>(
-                slab_alloc_context_,
+                gpu_context_,
                 thrust::raw_pointer_cast(slabs_per_superblock.data()));
 
         std::vector<int> result(num_super_blocks);

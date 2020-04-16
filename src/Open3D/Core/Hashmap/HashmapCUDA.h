@@ -130,7 +130,7 @@ public:
                     const uint32_t max_keyvalue_count,
                     const uint32_t dsize_key,
                     const uint32_t dsize_value,
-                    open3d::Device device);
+                    Device device);
 
     ~CUDAHashmapImpl();
 
@@ -164,7 +164,7 @@ private:
     std::shared_ptr<InternalMemoryManager> mem_mgr_;
     std::shared_ptr<InternalNodeManager> node_mgr_;
 
-    open3d::Device device_;
+    Device device_;
 };
 
 template <typename Hash>
@@ -175,7 +175,7 @@ public:
     CUDAHashmap(uint32_t max_keys,
                 uint32_t dsize_key,
                 uint32_t dsize_value,
-                open3d::Device device);
+                Device device);
 
     std::pair<iterator_t*, uint8_t*> Insert(uint8_t* input_keys,
                                             uint8_t* input_values,

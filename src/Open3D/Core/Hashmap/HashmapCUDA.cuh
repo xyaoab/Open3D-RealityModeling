@@ -95,7 +95,7 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
-                       node_mgr_->getContext(), mem_mgr_->gpu_context_);
+                       node_mgr_->gpu_context_, mem_mgr_->gpu_context_);
 }
 
 template <typename Hash>
@@ -170,7 +170,7 @@ double CUDAHashmapImpl<Hash>::ComputeLoadFactor() {
     int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
                                              elems_per_bucket.end(), 0);
 
-    node_mgr_->getContext() = gpu_context_.node_mgr_ctx_;
+    node_mgr_->gpu_context_ = gpu_context_.node_mgr_ctx_;
     auto slabs_per_bucket = node_mgr_->CountSlabsPerSuperblock();
     int total_slabs_stored = std::accumulate(
             slabs_per_bucket.begin(), slabs_per_bucket.end(), num_buckets_);

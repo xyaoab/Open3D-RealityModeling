@@ -39,7 +39,7 @@ public:
     Hashmap(uint32_t max_keys,
             uint32_t dsize_key,
             uint32_t dsize_value,
-            open3d::Device device)
+            Device device)
         : max_keys_(max_keys),
           dsize_key_(dsize_key),
           dsize_value_(dsize_value),
@@ -60,7 +60,7 @@ protected:
     uint32_t dsize_key_;
     uint32_t dsize_value_;
 
-    open3d::Device device_;
+    Device device_;
 };
 
 /// Factory
@@ -68,5 +68,5 @@ template <typename Hash>
 std::shared_ptr<Hashmap<Hash>> CreateHashmap(uint32_t max_keys,
                                              uint32_t dsize_key,
                                              uint32_t dsize_value,
-                                             open3d::Device device);
+                                             Device device);
 }  // namespace open3d
