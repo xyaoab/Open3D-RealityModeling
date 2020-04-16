@@ -32,12 +32,10 @@
 
 namespace open3d {
 
-/// Base class
+/// Base class: shared interface
 template <typename Hash>
 class Hashmap {
 public:
-    using MemMgr = open3d::MemoryManager;
-
     Hashmap(uint32_t max_keys,
             uint32_t dsize_key,
             uint32_t dsize_value,

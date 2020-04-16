@@ -50,9 +50,9 @@
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 
-#include "Hashmap.h"
-#include "InternalMemoryManager.h"
-#include "InternalNodeManager.h"
+#include "Open3D/Core/Hashmap/Hashmap.h"
+#include "Open3D/Core/Hashmap/InternalMemoryManager.h"
+#include "Open3D/Core/Hashmap/InternalNodeManager.h"
 
 namespace open3d {
 
@@ -60,15 +60,14 @@ template <typename Hash>
 class CUDAHashmapImplContext {
 public:
     CUDAHashmapImplContext();
+
     __host__ void Setup(Slab* bucket_list_head,
                         const uint32_t num_buckets,
                         const uint32_t dsize_key,
                         const uint32_t dsize_value,
-                        const InternalNodeManagerContext& allocator_ctx,
-                        const InternalMemoryManagerContext& pair_allocator_ctx);
+                        const InternalNodeManagerContext& node_mgr_ctx,
+                        const InternalMemoryManagerContext& mem_mgr_ctx);
 
-    /* Core SIMT operations, shared by both simplistic and verbose
-     * interfaces */
     __device__ Pair<ptr_t, uint8_t> Insert(uint8_t& lane_active,
                                            const uint32_t lane_id,
                                            const uint32_t bucket_id,
@@ -89,17 +88,9 @@ public:
     __device__ __host__ uint32_t ComputeBucket(uint8_t* key_ptr) const;
     __device__ __host__ uint32_t bucket_size() const { return num_buckets_; }
 
-    __device__ __host__ InternalNodeManagerContext& get_slab_alloc_ctx() {
-        return slab_list_allocator_ctx_;
-    }
-    __device__ __host__ InternalMemoryManagerContext& get_pair_alloc_ctx() {
-        return pair_allocator_ctx_;
-    }
-
     __device__ __forceinline__ ptr_t* get_unit_ptr_from_list_nodes(
             const ptr_t slab_ptr, const uint32_t lane_id) {
-        return slab_list_allocator_ctx_.get_unit_ptr_from_slab(slab_ptr,
-                                                               lane_id);
+        return node_mgr_ctx_.get_unit_ptr_from_slab(slab_ptr, lane_id);
     }
     __device__ __forceinline__ ptr_t* get_unit_ptr_from_list_head(
             const uint32_t bucket_id, const uint32_t lane_id) {
@@ -127,8 +118,8 @@ public:
     Hash hash_fn_;
 
     Slab* bucket_list_head_;
-    InternalNodeManagerContext slab_list_allocator_ctx_;
-    InternalMemoryManagerContext pair_allocator_ctx_;
+    InternalNodeManagerContext node_mgr_ctx_;
+    InternalMemoryManagerContext mem_mgr_ctx_;
 };
 
 template <typename Hash>
@@ -170,8 +161,8 @@ private:
 
     CUDAHashmapImplContext<Hash> gpu_context_;
 
-    std::shared_ptr<InternalMemoryManager<MemoryManager>> pair_allocator_;
-    std::shared_ptr<InternalNodeManager<MemoryManager>> slab_list_allocator_;
+    std::shared_ptr<InternalMemoryManager> mem_mgr_;
+    std::shared_ptr<InternalNodeManager> node_mgr_;
 
     open3d::Device device_;
 };

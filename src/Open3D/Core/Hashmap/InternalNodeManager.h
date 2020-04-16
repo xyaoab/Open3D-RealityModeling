@@ -48,8 +48,8 @@
 #include <memory>
 #include <random>
 
-#include "Consts.h"
 #include "Open3D/Core/CUDAUtils.h"
+#include "Open3D/Core/Hashmap/Consts.h"
 #include "Open3D/Core/MemoryManager.h"
 
 namespace open3d {
@@ -250,7 +250,6 @@ __global__ void CountSlabsPerSuperblockKernel(
 /*
  * This class owns the memory for the allocator on the device
  */
-template <class MemMgr>
 class InternalNodeManager {
 private:
     uint32_t* super_blocks_;
@@ -259,10 +258,10 @@ private:
     uint32_t hash_coef_;  // a random 32-bit
 
     InternalNodeManagerContext slab_alloc_context_;
-    open3d::Device device_;
+    Device device_;
 
 public:
-    InternalNodeManager(open3d::Device device)
+    InternalNodeManager(Device device)
         : super_blocks_(nullptr), hash_coef_(0), device_(device) {
         // random coefficients for allocator's hash function
         std::mt19937 rng(time(0));
@@ -270,7 +269,7 @@ public:
 
         // In the light version, we put num_super_blocks super blocks within
         // a single array
-        super_blocks_ = static_cast<uint32_t*>(MemMgr::Malloc(
+        super_blocks_ = static_cast<uint32_t*>(MemoryManager::Malloc(
                 SUPER_BLOCK_SIZE_ * NUM_SUPER_BLOCKS_ * sizeof(uint32_t),
                 device_));
 
@@ -293,15 +292,16 @@ public:
         // initializing the slab context:
         slab_alloc_context_.Setup(super_blocks_, hash_coef_);
     }
-    ~InternalNodeManager() { MemMgr::Free(super_blocks_, device_); }
+    ~InternalNodeManager() { MemoryManager::Free(super_blocks_, device_); }
 
     InternalNodeManagerContext& getContext() { return slab_alloc_context_; }
 
     std::vector<int> CountSlabsPerSuperblock() {
         const uint32_t num_super_blocks = NUM_SUPER_BLOCKS_;
 
-        auto slabs_per_superblock_buffer = static_cast<uint32_t*>(
-                MemMgr::Malloc(NUM_SUPER_BLOCKS_ * sizeof(uint32_t), device_));
+        auto slabs_per_superblock_buffer =
+                static_cast<uint32_t*>(MemoryManager::Malloc(
+                        NUM_SUPER_BLOCKS_ * sizeof(uint32_t), device_));
         thrust::device_vector<uint32_t> slabs_per_superblock(
                 slabs_per_superblock_buffer,
                 slabs_per_superblock_buffer + num_super_blocks);
@@ -319,7 +319,7 @@ public:
         std::vector<int> result(num_super_blocks);
         thrust::copy(slabs_per_superblock.begin(), slabs_per_superblock.end(),
                      result.begin());
-        MemMgr::Free(slabs_per_superblock_buffer, device_);
+        MemoryManager::Free(slabs_per_superblock_buffer, device_);
         return std::move(result);
     }
 };

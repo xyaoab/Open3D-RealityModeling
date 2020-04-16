@@ -40,25 +40,11 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
 #include "HashmapCUDA.h"
 
-namespace open3d {
-/// Default hash function for all types
-struct DefaultHash {
-    uint64_t OPEN3D_HOST_DEVICE operator()(uint8_t* key_ptr,
-                                           uint32_t key_size) const {
-        uint64_t hash = UINT64_C(14695981039346656037);
+#include <thrust/device_vector.h>
 
-        const int chunks = key_size / sizeof(int);
-        int32_t* cast_key_ptr = (int32_t*)(key_ptr);
-        for (size_t i = 0; i < chunks; ++i) {
-            hash ^= cast_key_ptr[i];
-            hash *= UINT64_C(1099511628211);
-        }
-        return hash;
-    }
-};
+namespace open3d {
 
 /// Kernels
 template <typename Hash>
@@ -95,14 +81,13 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
                                        const uint32_t max_keyvalue_count,
                                        const uint32_t dsize_key,
                                        const uint32_t dsize_value,
-                                       open3d::Device device)
+                                       Device device)
     : num_buckets_(max_bucket_count),
       device_(device),
       bucket_list_head_(nullptr) {
-    pair_allocator_ = std::make_shared<InternalMemoryManager<MemoryManager>>(
+    mem_mgr_ = std::make_shared<InternalMemoryManager>(
             max_keyvalue_count, dsize_key + dsize_value, device_);
-    slab_list_allocator_ =
-            std::make_shared<InternalNodeManager<MemoryManager>>(device_);
+    node_mgr_ = std::make_shared<InternalNodeManager>(device_);
 
     bucket_list_head_ = static_cast<Slab*>(
             MemoryManager::Malloc(num_buckets_ * sizeof(Slab), device_));
@@ -110,8 +95,7 @@ CUDAHashmapImpl<Hash>::CUDAHashmapImpl(const uint32_t max_bucket_count,
             cudaMemset(bucket_list_head_, 0xFF, sizeof(Slab) * num_buckets_));
 
     gpu_context_.Setup(bucket_list_head_, num_buckets_, dsize_key, dsize_value,
-                       slab_list_allocator_->getContext(),
-                       pair_allocator_->gpu_context_);
+                       node_mgr_->getContext(), mem_mgr_->gpu_context_);
 }
 
 template <typename Hash>
@@ -186,8 +170,8 @@ double CUDAHashmapImpl<Hash>::ComputeLoadFactor() {
     int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
                                              elems_per_bucket.end(), 0);
 
-    slab_list_allocator_->getContext() = gpu_context_.get_slab_alloc_ctx();
-    auto slabs_per_bucket = slab_list_allocator_->CountSlabsPerSuperblock();
+    node_mgr_->getContext() = gpu_context_.node_mgr_ctx_;
+    auto slabs_per_bucket = node_mgr_->CountSlabsPerSuperblock();
     int total_slabs_stored = std::accumulate(
             slabs_per_bucket.begin(), slabs_per_bucket.end(), num_buckets_);
 
@@ -219,8 +203,8 @@ __host__ void CUDAHashmapImplContext<Hash>::Setup(
     dsize_key_ = dsize_key;
     dsize_value_ = dsize_value;
 
-    slab_list_allocator_ctx_ = allocator_ctx;
-    pair_allocator_ctx_ = pair_allocator_ctx;
+    node_mgr_ctx_ = allocator_ctx;
+    mem_mgr_ctx_ = pair_allocator_ctx;
 }
 
 /// Device functions
@@ -261,7 +245,7 @@ __device__ int32_t CUDAHashmapImplContext<Hash>::WarpFindKey(
             /* validate key addrs */
             && (ptr != EMPTY_PAIR_PTR)
             /* find keys in memory heap */
-            && cmp(pair_allocator_ctx_.extract_ptr(ptr), key_ptr, dsize_key_);
+            && cmp(mem_mgr_ctx_.extract_ptr(ptr), key_ptr, dsize_key_);
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
 }
@@ -277,13 +261,13 @@ CUDAHashmapImplContext<Hash>::WarpFindEmpty(const ptr_t ptr) {
 template <typename Hash>
 __device__ __forceinline__ ptr_t
 CUDAHashmapImplContext<Hash>::AllocateSlab(const uint32_t lane_id) {
-    return slab_list_allocator_ctx_.WarpAllocate(lane_id);
+    return node_mgr_ctx_.WarpAllocate(lane_id);
 }
 
 template <typename Hash>
 __device__ __forceinline__ void CUDAHashmapImplContext<Hash>::FreeSlab(
         const ptr_t slab_ptr) {
-    slab_list_allocator_ctx_.FreeUntouched(slab_ptr);
+    node_mgr_ctx_.FreeUntouched(slab_ptr);
 }
 
 template <typename Hash>
@@ -382,10 +366,9 @@ __device__ Pair<ptr_t, uint8_t> CUDAHashmapImplContext<Hash>::Insert(
      * results are unexpected otherwise **/
     int prealloc_pair_internal_ptr = EMPTY_PAIR_PTR;
     if (to_be_inserted) {
-        prealloc_pair_internal_ptr = pair_allocator_ctx_.Allocate();
+        prealloc_pair_internal_ptr = mem_mgr_ctx_.Allocate();
         // TODO: replace with Assign
-        uint8_t* ptr =
-                pair_allocator_ctx_.extract_ptr(prealloc_pair_internal_ptr);
+        uint8_t* ptr = mem_mgr_ctx_.extract_ptr(prealloc_pair_internal_ptr);
         for (int i = 0; i < dsize_key_; ++i) {
             *ptr++ = key[i];
         }
@@ -422,7 +405,7 @@ __device__ Pair<ptr_t, uint8_t> CUDAHashmapImplContext<Hash>::Insert(
             if (lane_id == src_lane) {
                 /* free memory heap */
                 to_be_inserted = false;
-                pair_allocator_ctx_.Free(prealloc_pair_internal_ptr);
+                mem_mgr_ctx_.Free(prealloc_pair_internal_ptr);
             }
         }
 
@@ -555,7 +538,7 @@ CUDAHashmapImplContext<Hash>::Remove(uint8_t& to_be_deleted,
                                   pair_to_delete, EMPTY_PAIR_PTR);
                 /** Branch 1.1: this thread reset, free src_addr **/
                 if (old_key_value_pair == pair_to_delete) {
-                    pair_allocator_ctx_.Free(src_pair_internal_ptr);
+                    mem_mgr_ctx_.Free(src_pair_internal_ptr);
                     mask = true;
                 }
                 /** Branch 1.2: other thread did the job, avoid double free
@@ -593,7 +576,7 @@ __global__ void SearchKernel(CUDAHashmapImplContext<Hash> slab_hash_ctx,
     }
 
     /* Initialize the memory allocator on each warp */
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
+    slab_hash_ctx.node_mgr_ctx_.Init(tid, lane_id);
 
     uint8_t lane_active = false;
     uint32_t bucket_id = 0;
@@ -612,8 +595,7 @@ __global__ void SearchKernel(CUDAHashmapImplContext<Hash> slab_hash_ctx,
     result = slab_hash_ctx.Search(lane_active, lane_id, bucket_id, key);
 
     if (tid < num_queries) {
-        iterators[tid] =
-                slab_hash_ctx.get_pair_alloc_ctx().extract_ptr(result.first);
+        iterators[tid] = slab_hash_ctx.mem_mgr_ctx_.extract_ptr(result.first);
         masks[tid] = result.second;
     }
 }
@@ -632,7 +614,7 @@ __global__ void InsertKernel(CUDAHashmapImplContext<Hash> slab_hash_ctx,
         return;
     }
 
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
+    slab_hash_ctx.node_mgr_ctx_.Init(tid, lane_id);
 
     uint8_t lane_active = false;
     uint32_t bucket_id = 0;
@@ -653,8 +635,7 @@ __global__ void InsertKernel(CUDAHashmapImplContext<Hash> slab_hash_ctx,
             slab_hash_ctx.Insert(lane_active, lane_id, bucket_id, key, value);
 
     if (tid < num_keys) {
-        iterators[tid] =
-                slab_hash_ctx.get_pair_alloc_ctx().extract_ptr(result.first);
+        iterators[tid] = slab_hash_ctx.mem_mgr_ctx_.extract_ptr(result.first);
         masks[tid] = result.second;
     }
 }
@@ -671,7 +652,7 @@ __global__ void RemoveKernel(CUDAHashmapImplContext<Hash> slab_hash_ctx,
         return;
     }
 
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
+    slab_hash_ctx.node_mgr_ctx_.Init(tid, lane_id);
 
     uint8_t lane_active = false;
     uint32_t bucket_id = 0;
@@ -760,7 +741,7 @@ __global__ void CountElemsPerBucketKernel(
         return;
     }
 
-    slab_hash_ctx.get_slab_alloc_ctx().Init(tid, lane_id);
+    slab_hash_ctx.node_mgr_ctx_.Init(tid, lane_id);
 
     uint32_t count = 0;
 
@@ -792,7 +773,7 @@ template <typename Hash>
 CUDAHashmap<Hash>::CUDAHashmap(uint32_t max_keys,
                                uint32_t dsize_key,
                                uint32_t dsize_value,
-                               open3d::Device device)
+                               Device device)
     : Hashmap<Hash>(max_keys, dsize_key, dsize_value, device) {
     const uint32_t expected_keys_per_bucket = 10;
     num_buckets_ = (max_keys + expected_keys_per_bucket - 1) /

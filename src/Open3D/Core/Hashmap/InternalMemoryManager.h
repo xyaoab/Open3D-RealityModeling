@@ -33,10 +33,10 @@
 #include <assert.h>
 #include <memory>
 #include <vector>
-#include "Open3D/Core/CUDAUtils.h"
-#include "Open3D/Core/MemoryManager.h"
 
-#include "Consts.h"
+#include "Open3D/Core/CUDAUtils.h"
+#include "Open3D/Core/Hashmap/Consts.h"
+#include "Open3D/Core/MemoryManager.h"
 
 namespace open3d {
 /// Dynamic memory allocation and free are expensive on kernels.
@@ -102,16 +102,15 @@ __global__ void ResetInternalMemoryManagerKernel(
     }
 }
 
-template <class MemMgr>
 class InternalMemoryManager {
 public:
     int max_capacity_;
     int dsize_;
     InternalMemoryManagerContext gpu_context_;
-    open3d::Device device_;
+    Device device_;
 
 public:
-    InternalMemoryManager(int max_capacity, int dsize, open3d::Device device) {
+    InternalMemoryManager(int max_capacity, int dsize, Device device) {
         device_ = device;
         max_capacity_ = max_capacity;
         dsize_ = dsize;
@@ -120,11 +119,11 @@ public:
         gpu_context_.dsize_ = dsize_;
 
         gpu_context_.heap_counter_ = static_cast<int *>(
-                MemMgr::Malloc(size_t(1) * sizeof(int), device_));
-        gpu_context_.heap_ = static_cast<ptr_t *>(
-                MemMgr::Malloc(size_t(max_capacity_) * sizeof(ptr_t), device_));
+                MemoryManager::Malloc(size_t(1) * sizeof(int), device_));
+        gpu_context_.heap_ = static_cast<ptr_t *>(MemoryManager::Malloc(
+                size_t(max_capacity_) * sizeof(ptr_t), device_));
         gpu_context_.data_ = static_cast<uint8_t *>(
-                MemMgr::Malloc(size_t(max_capacity_) * dsize_, device_));
+                MemoryManager::Malloc(size_t(max_capacity_) * dsize_, device_));
 
         const int blocks = (max_capacity_ + 128 - 1) / 128;
         const int threads = 128;
@@ -134,36 +133,36 @@ public:
         OPEN3D_CUDA_CHECK(cudaGetLastError());
 
         int heap_counter = 0;
-        MemMgr::Memcpy(gpu_context_.heap_counter_, device_, &heap_counter,
-                       open3d::Device("CPU:0"), sizeof(int));
+        MemoryManager::Memcpy(gpu_context_.heap_counter_, device_,
+                              &heap_counter, Device("CPU:0"), sizeof(int));
     }
 
     ~InternalMemoryManager() {
-        MemMgr::Free(gpu_context_.heap_counter_, device_);
-        MemMgr::Free(gpu_context_.heap_, device_);
-        MemMgr::Free(gpu_context_.data_, device_);
+        MemoryManager::Free(gpu_context_.heap_counter_, device_);
+        MemoryManager::Free(gpu_context_.heap_, device_);
+        MemoryManager::Free(gpu_context_.data_, device_);
     }
 
     std::vector<int> DownloadHeap() {
         std::vector<int> ret;
         ret.resize(max_capacity_);
-        MemMgr::Memcpy(ret.data(), open3d::Device("CPU:0"), gpu_context_.heap_,
-                       device_, sizeof(int) * max_capacity_);
+        MemoryManager::Memcpy(ret.data(), Device("CPU:0"), gpu_context_.heap_,
+                              device_, sizeof(int) * max_capacity_);
         return ret;
     }
 
     std::vector<uint8_t> DownloadValue() {
         std::vector<uint8_t> ret;
         ret.resize(max_capacity_);
-        MemMgr::Memcpy(ret.data(), open3d::Device("CPU:0"), gpu_context_.data_,
-                       device_, max_capacity_ * dsize_);
+        MemoryManager::Memcpy(ret.data(), Device("CPU:0"), gpu_context_.data_,
+                              device_, max_capacity_ * dsize_);
         return ret;
     }
 
     int heap_counter() {
         int heap_counter;
-        MemMgr::Memcpy(&heap_counter, open3d::Device("CPU:0"),
-                       gpu_context_.heap_counter_, device_, sizeof(int));
+        MemoryManager::Memcpy(&heap_counter, Device("CPU:0"),
+                              gpu_context_.heap_counter_, device_, sizeof(int));
         return heap_counter;
     }
 };
