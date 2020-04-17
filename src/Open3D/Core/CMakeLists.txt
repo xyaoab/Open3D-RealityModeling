@@ -36,7 +36,8 @@ set (HASHMAP_SRC
 )
 set (HASHMAP_CUDA_SRC
     # Hashmap/Hashmap.cu
-    #Hashmap/HashmapCUDA.cu
+    # Hashmap/HashmapCUDA.cu
+    Hashmap/TensorHashCUDA.cu
 )
 
 if (BUILD_CUDA_MODULE)
@@ -69,11 +70,7 @@ if (BUILD_CUDA_MODULE)
     cuda_add_executable(test_hashmap Hashmap/test_hashmap.cu)
     target_link_libraries(test_hashmap ${CMAKE_PROJECT_NAME})
 
-    # would not work
-    # add_library(test_func_lib Hashmap/test_func_lib.cu)
-    # cuda_add_executable(test_func Hashmap/test_func.cu)
-    # target_link_libraries(test_func test_func_lib)
+    cuda_add_executable(test_tensorhash Hashmap/test_tensorhash.cu)
+    target_link_libraries(test_tensorhash ${CMAKE_PROJECT_NAME})
 
-    # set(CUDA_SEPARABLE_COMPILATION ON)
-    # cuda_add_executable(test_func Hashmap/test_func.cu Hashmap/test_func_lib.cu)
 endif()
