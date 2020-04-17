@@ -85,7 +85,6 @@ std::pair<Tensor, Tensor> QueryTensorCoords(
         std::shared_ptr<Hashmap<DefaultHash>> hashmap, Tensor coords) {
     // TODO: sanity check
     int64_t N = coords.GetShape()[0];
-    utility::LogInfo("N = {}", N);
     auto result = hashmap->Search(
             static_cast<uint8_t*>(coords.GetBlob()->GetDataPtr()), N);
 
@@ -102,18 +101,16 @@ std::pair<Tensor, Tensor> QueryTensorCoords(
     auto ret_mask_tensor = mask_tensor.Copy(hashmap->device_);
 
     // Dispatch values
-    utility::LogInfo("Dispatch values");
     const size_t num_threads = 32;
     const size_t num_blocks = (N + num_threads - 1) / num_threads;
 
     // TODO: store value Dtype in hashmap wrapper
     auto ret_value_tensor =
             Tensor(SizeVector({N}), Dtype::Int64, hashmap->device_);
-    utility::LogInfo("{}", ret_value_tensor.ToString());
+
     size_t key_size =
             DtypeUtil::ByteSize(coords.GetDtype()) * coords.GetShape()[1];
     size_t value_size = DtypeUtil::ByteSize(Dtype::Int64);
-    utility::LogInfo("{} {}", key_size, value_size);
 
     DispatchIteratorsKernel<<<num_blocks, num_threads>>>(
             iterators_buf,
@@ -122,8 +119,6 @@ std::pair<Tensor, Tensor> QueryTensorCoords(
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 
-    utility::LogInfo("Return values");
-    utility::LogInfo("{}", ret_value_tensor.ToString());
     return std::make_pair(ret_value_tensor, ret_mask_tensor);
 }
 }  // namespace open3d
