@@ -24,10 +24,27 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Core/Hashmap/Hashmap.h"
+#include "Open3D/Core/Hashmap/HashmapBase.h"
 #include "Open3D/Core/Tensor.h"
 
 namespace open3d {
+
+class TensorHash {
+public:
+    virtual TensorHash(Tensor coords, Tensor indices) = 0;
+    virtual std::pair<Tensor, Tensor> Query(Tensor coords) = 0;
+};
+
+class CPUTensorHash {};
+
+class CUDATensorHash : public TensorHash {
+public:
+    TensorHash(Tensor coords, Tensor indices);
+    std::pair<Tensor, Tensor> Query(Tensor coords);
+
+protected:
+    std::shared_ptr<CUDAHashmap<DefaultHash>> hashmap_;
+};
 
 std::shared_ptr<Hashmap<DefaultHash>> IndexTensorCoords(Tensor coords,
                                                         Tensor indices);

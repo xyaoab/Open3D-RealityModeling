@@ -50,7 +50,7 @@
 #include "Open3D/Core/CUDAUtils.h"
 #include "Open3D/Core/MemoryManager.h"
 
-#include "Open3D/Core/Hashmap/Hashmap.h"
+#include "Open3D/Core/Hashmap/HashmapBase.h"
 #include "Open3D/Core/Hashmap/InternalMemoryManager.h"
 #include "Open3D/Core/Hashmap/InternalNodeManager.h"
 

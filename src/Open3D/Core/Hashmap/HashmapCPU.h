@@ -26,7 +26,7 @@
 
 #pragma once
 
-#include "Hashmap.h"
+#include "HashmapBase.h"
 
 namespace open3d {
 

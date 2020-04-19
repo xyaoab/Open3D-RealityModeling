@@ -24,7 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Core/Hashmap/Hashmap.cuh"
+#include "Open3D/Core/Hashmap/Hashmap.h"
 #include "Open3D/Core/Tensor.h"
 
 namespace open3d {
