@@ -35,8 +35,10 @@ std::pair<Tensor, Tensor> CPUTensorHash::Query(Tensor coords) {
     return std::make_pair(Tensor(), Tensor());
 }
 
+namespace _factory {
 std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
                                                    Tensor indices) {
     return std::make_shared<CPUTensorHash>(coords, indices);
 }
+}  // namespace _factory
 }  // namespace open3d

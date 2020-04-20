@@ -55,18 +55,14 @@ public:
 };
 
 /// Factory
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices);
+
+/// Hidden
+namespace _factory {
 std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
                                                    Tensor indices);
 std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
                                                      Tensor indices);
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices);
-
-/// Legacy
-std::shared_ptr<Hashmap<DefaultHash>> IndexTensorCoords(Tensor coords,
-                                                        Tensor indices);
-
-// Returns mapped indices and corresponding masks as Tensors
-std::pair<Tensor, Tensor> QueryTensorCoords(
-        std::shared_ptr<Hashmap<DefaultHash>> hashmap, Tensor coords);
+}  // namespace _factory
 
 }  // namespace open3d

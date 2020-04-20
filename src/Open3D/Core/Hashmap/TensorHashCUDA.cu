@@ -162,8 +162,10 @@ std::pair<Tensor, Tensor> CUDATensorHash::Query(Tensor coords) {
     return std::make_pair(ret_value_tensor, ret_mask_tensor);
 }
 
+namespace _factory {
 std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
                                                      Tensor indices) {
     return std::make_shared<CUDATensorHash>(coords, indices);
 }
+}  // namespace _factory
 }  // namespace open3d

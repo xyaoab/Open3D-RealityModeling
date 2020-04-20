@@ -35,9 +35,9 @@ std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices) {
             std::function<std::shared_ptr<TensorHash>(Tensor, Tensor)>,
             open3d::utility::hash_enum_class::hash>
             map_device_type_to_tensorhash_constructor = {
-                    {Device::DeviceType::CPU, CreateCPUTensorHash},
+                    {Device::DeviceType::CPU, _factory::CreateCPUTensorHash},
 #ifdef BUILD_CUDA_MODULE
-                    {Device::DeviceType::CUDA, CreateCUDATensorHash}
+                    {Device::DeviceType::CUDA, _factory::CreateCUDATensorHash}
 #endif
             };
 
