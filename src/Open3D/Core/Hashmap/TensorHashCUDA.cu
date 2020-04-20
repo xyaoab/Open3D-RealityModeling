@@ -48,10 +48,8 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
     if (coords_shape.size() != 2) {
         utility::LogError("TensorHashCUDA::Input coords shape must be (N, D).");
     }
-    if (values_shape.size() > 1) {
-        utility::LogError(
-                "CUDATensorHash::Input values shape must be (N, ) or "
-                "(N, 1).");
+    if (values_shape.size() == 0) {
+        utility::LogError("CUDATensorHash::Input values shape must be > 0");
     }
     if (coords_shape[0] != values_shape[0]) {
         utility::LogError(
@@ -60,8 +58,10 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
 
     // Store type and dim info
     key_type_ = coords.GetDtype();
-    value_type_ = values.GetDtype();
     key_dim_ = coords_shape[1];
+
+    value_type_ = values.GetDtype();
+    value_dim_ = coords_shape.size() == 1 ? 1 : values_shape[1];
 
     int64_t N = coords_shape[0];
 
@@ -69,7 +69,7 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
     if (key_size > MAX_KEY_BYTESIZE) {
         utility::LogError("CUDATensorHash::Unsupported key size: too large.");
     }
-    size_t value_size = DtypeUtil::ByteSize(values.GetDtype());
+    size_t value_size = DtypeUtil::ByteSize(value_type_) * value_dim_;
 
     // Create hashmap and reserve twice input size
     hashmap_ = CreateHashmap<DefaultHash>(N * 2, key_size, value_size,
