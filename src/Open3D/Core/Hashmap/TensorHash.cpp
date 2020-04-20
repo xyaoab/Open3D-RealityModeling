@@ -29,7 +29,7 @@
 #include <unordered_map>
 
 namespace open3d {
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices) {
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor values) {
     static std::unordered_map<
             open3d::Device::DeviceType,
             std::function<std::shared_ptr<TensorHash>(Tensor, Tensor)>,
@@ -41,8 +41,8 @@ std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices) {
 #endif
             };
 
-    if (coords.GetDevice() != indices.GetDevice()) {
-        utility::LogError("Tensor device mismatch between coords and indices.");
+    if (coords.GetDevice() != values.GetDevice()) {
+        utility::LogError("Tensor device mismatch between coords and values.");
     }
 
     auto device = coords.GetDevice();
@@ -53,6 +53,6 @@ std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices) {
 
     auto constructor =
             map_device_type_to_tensorhash_constructor.at(device.GetType());
-    return constructor(coords, indices);
+    return constructor(coords, values);
 }
 }  // namespace open3d

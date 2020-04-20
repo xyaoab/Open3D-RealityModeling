@@ -30,44 +30,37 @@
 
 namespace open3d {
 
-CUDATensorHash::CUDATensorHash(Tensor coords, Tensor indices) {
+CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
     // Device check
     if (coords.GetDevice().GetType() != Device::DeviceType::CUDA ||
-        indices.GetDevice().GetType() != Device::DeviceType::CUDA) {
+        values.GetDevice().GetType() != Device::DeviceType::CUDA) {
         utility::LogError("CUDATensorHash::Input tensors must be on CUDA.");
     }
 
     // Contiguous check to fit internal hashmap
-    if (!coords.IsContiguous() || !indices.IsContiguous()) {
+    if (!coords.IsContiguous() || !values.IsContiguous()) {
         utility::LogError("CUDATensorHash::Input tensors must be contiguous.");
-    }
-
-    // Type check
-    if (indices.GetDtype() != Dtype::Int64 &&
-        indices.GetDtype() != Dtype::Int32) {
-        utility::LogError(
-                "CUDATensorHash::Input indices tensor must be Integers.");
     }
 
     // Shape check
     auto coords_shape = coords.GetShape();
-    auto indices_shape = indices.GetShape();
+    auto values_shape = values.GetShape();
     if (coords_shape.size() != 2) {
         utility::LogError("TensorHashCUDA::Input coords shape must be (N, D).");
     }
-    if (indices_shape.size() > 1) {
+    if (values_shape.size() > 1) {
         utility::LogError(
-                "CUDATensorHash::Input indices shape must be (N, ) or "
+                "CUDATensorHash::Input values shape must be (N, ) or "
                 "(N, 1).");
     }
-    if (coords_shape[0] != indices_shape[0]) {
+    if (coords_shape[0] != values_shape[0]) {
         utility::LogError(
-                "CUDATensorHash::Input coords and indices size mismatch.");
+                "CUDATensorHash::Input coords and values size mismatch.");
     }
 
     // Store type and dim info
     key_type_ = coords.GetDtype();
-    value_type_ = indices.GetDtype();
+    value_type_ = values.GetDtype();
     key_dim_ = coords_shape[1];
 
     int64_t N = coords_shape[0];
@@ -76,13 +69,13 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor indices) {
     if (key_size > MAX_KEY_BYTESIZE) {
         utility::LogError("CUDATensorHash::Unsupported key size: too large.");
     }
-    size_t value_size = DtypeUtil::ByteSize(indices.GetDtype());
+    size_t value_size = DtypeUtil::ByteSize(values.GetDtype());
 
     // Create hashmap and reserve twice input size
     hashmap_ = CreateHashmap<DefaultHash>(N * 2, key_size, value_size,
                                           coords.GetDevice());
     hashmap_->Insert(static_cast<uint8_t*>(coords.GetBlob()->GetDataPtr()),
-                     static_cast<uint8_t*>(indices.GetBlob()->GetDataPtr()), N);
+                     static_cast<uint8_t*>(values.GetBlob()->GetDataPtr()), N);
 }
 
 __global__ void DispatchIteratorsKernel(iterator_t* iterators,
@@ -164,8 +157,8 @@ std::pair<Tensor, Tensor> CUDATensorHash::Query(Tensor coords) {
 
 namespace _factory {
 std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
-                                                     Tensor indices) {
-    return std::make_shared<CUDATensorHash>(coords, indices);
+                                                     Tensor values) {
+    return std::make_shared<CUDATensorHash>(coords, values);
 }
 }  // namespace _factory
 }  // namespace open3d
