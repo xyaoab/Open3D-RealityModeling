@@ -24,49 +24,35 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "Open3D/Core/Hashmap/HashmapBase.h"
-#include "Open3D/Core/Tensor.h"
+#include "TensorHash.h"
+
+#include <unordered_map>
 
 namespace open3d {
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices) {
+    static std::unordered_map<
+            open3d::Device::DeviceType,
+            std::function<std::shared_ptr<TensorHash>(Tensor, Tensor)>,
+            open3d::utility::hash_enum_class::hash>
+            map_device_type_to_tensorhash_constructor = {
+                    {Device::DeviceType::CPU, CreateCPUTensorHash},
+#ifdef BUILD_CUDA_MODULE
+                    {Device::DeviceType::CUDA, CreateCUDATensorHash}
+#endif
+            };
 
-class TensorHash {
-public:
-    // virtual TensorHash(Tensor coords, Tensor indices) = 0;
-    virtual std::pair<Tensor, Tensor> Query(Tensor coords) = 0;
+    if (coords.GetDevice() != indices.GetDevice()) {
+        utility::LogError("Tensor device mismatch between coords and indices.");
+    }
 
-protected:
-    std::shared_ptr<Hashmap<DefaultHash>> hashmap_;
-    Dtype key_type_;
-    Dtype value_type_;
+    auto device = coords.GetDevice();
+    if (map_device_type_to_tensorhash_constructor.find(device.GetType()) ==
+        map_device_type_to_tensorhash_constructor.end()) {
+        utility::LogError("CreateTensorHash: Unimplemented device");
+    }
 
-    int64_t key_dim_;
-};
-
-class CPUTensorHash : public TensorHash {
-public:
-    CPUTensorHash(Tensor coords, Tensor indices);
-    std::pair<Tensor, Tensor> Query(Tensor coords);
-};
-
-class CUDATensorHash : public TensorHash {
-public:
-    CUDATensorHash(Tensor coords, Tensor indices);
-    std::pair<Tensor, Tensor> Query(Tensor coords);
-};
-
-/// Factory
-std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
-                                                   Tensor indices);
-std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
-                                                     Tensor indices);
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices);
-
-/// Legacy
-std::shared_ptr<Hashmap<DefaultHash>> IndexTensorCoords(Tensor coords,
-                                                        Tensor indices);
-
-// Returns mapped indices and corresponding masks as Tensors
-std::pair<Tensor, Tensor> QueryTensorCoords(
-        std::shared_ptr<Hashmap<DefaultHash>> hashmap, Tensor coords);
-
+    auto constructor =
+            map_device_type_to_tensorhash_constructor.at(device.GetType());
+    return constructor(coords, indices);
+}
 }  // namespace open3d

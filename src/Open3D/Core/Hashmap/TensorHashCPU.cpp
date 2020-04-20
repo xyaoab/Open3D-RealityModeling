@@ -23,3 +23,20 @@
 // FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
+
+#include "TensorHash.h"
+
+namespace open3d {
+CPUTensorHash::CPUTensorHash(Tensor coords, Tensor indices) {
+    utility::LogError("CPUTensorHash is unimplemented!");
+}
+
+std::pair<Tensor, Tensor> CPUTensorHash::Query(Tensor coords) {
+    return std::make_pair(Tensor(), Tensor());
+}
+
+std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
+                                                   Tensor indices) {
+    return std::make_shared<CPUTensorHash>(coords, indices);
+}
+}  // namespace open3d

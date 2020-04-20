@@ -25,7 +25,10 @@
 // ----------------------------------------------------------------------------
 
 #include "Open3D/Core/Hashmap/HashmapCPU.hpp"
+
+#ifdef BUILD_CUDA_MODULE
 #include "Open3D/Core/Hashmap/HashmapCUDA.cuh"
+#endif
 
 #include <unordered_map>
 
@@ -56,22 +59,20 @@ std::shared_ptr<Hashmap<Hash>> CreateHashmap(uint32_t max_keys,
                                              uint32_t dsize_key,
                                              uint32_t dsize_value,
                                              open3d::Device device) {
-    static std::unordered_map<
-            open3d::Device::DeviceType,
-            std::function<std::shared_ptr<Hashmap<Hash>>(
-                    uint32_t, uint32_t, uint32_t, open3d::Device)>,
-            open3d::utility::hash_enum_class::hash>
+    static std::unordered_map<Device::DeviceType,
+                              std::function<std::shared_ptr<Hashmap<Hash>>(
+                                      uint32_t, uint32_t, uint32_t, Device)>,
+                              utility::hash_enum_class::hash>
             map_device_type_to_hashmap_constructor = {
-                    {open3d::Device::DeviceType::CPU, CreateCPUHashmap<Hash>},
+                    {Device::DeviceType::CPU, CreateCPUHashmap<Hash>},
 #ifdef BUILD_CUDA_MODULE
-                    {open3d::Device::DeviceType::CUDA, CreateCUDAHashmap<Hash>}
+                    {Device::DeviceType::CUDA, CreateCUDAHashmap<Hash>}
 #endif
             };
 
     if (map_device_type_to_hashmap_constructor.find(device.GetType()) ==
         map_device_type_to_hashmap_constructor.end()) {
-        open3d::utility::LogError(
-                "MemoryManager::GetDeviceMemoryManager: Unimplemented device");
+        utility::LogError("CreateHashmap: Unimplemented device");
     }
 
     auto constructor =

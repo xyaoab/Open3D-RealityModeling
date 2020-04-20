@@ -70,7 +70,7 @@ public:
 
     virtual uint8_t* Remove(uint8_t* input_keys, uint32_t input_key_size) = 0;
 
-protected:
+public:
     uint32_t max_keys_;
     uint32_t dsize_key_;
     uint32_t dsize_value_;

@@ -37,8 +37,8 @@ int main() {
     Tensor indices(std::vector<int64_t>({0, 1, 2, 3, 4}), {5}, Dtype::Int64,
                    device);
 
-    auto hashmap = IndexTensorCoords(insert_coords, indices);
-    auto results = QueryTensorCoords(hashmap, query_coords);
+    auto tensor_hash = CreateTensorHash(insert_coords, indices);
+    auto results = tensor_hash->Query(query_coords);
 
     /// IndexTensor [0 3 1 4 0]
     /// Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7fce3de01800]
