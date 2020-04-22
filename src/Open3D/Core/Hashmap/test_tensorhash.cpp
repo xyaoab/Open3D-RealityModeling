@@ -66,10 +66,23 @@ int main() {
     utility::LogInfo("IndexTensor {}", results.first.ToString());
     utility::LogInfo("MaskTensor {}", results.second.ToString());
 
+    /// Test Unique
     Tensor duplicate_coords(
             std::vector<float>({0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 4, 4, 3, 3}),
             {7, 2}, Dtype::Float32, device);
     results = duplicate_coords.Unique();
+
+    // [Open3D INFO] IndexTensor [[0 0],
+    //                            [1 1],
+    //                            [2 2],
+    //                            [3 3],
+    //                            [0 0],
+    //                            [4 4],
+    //                            [0 0]]
+    // Tensor[shape={7, 2}, stride={2, 1}, Float32, CUDA:0, 0x7ff65de03200]
+    // [Open3D INFO] MaskTensor [1 1 1 1 0 1 0]
+    // Tensor[shape={7}, stride={1}, UInt8, CUDA:0, 0x7ff65de03400]
+    // -> [[0 0], [1 1], [2 2], [3 3], [4 4]] after advanced indexing with masks
     utility::LogInfo("IndexTensor {}", results.first.ToString());
     utility::LogInfo("MaskTensor {}", results.second.ToString());
 }
