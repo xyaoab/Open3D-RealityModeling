@@ -31,8 +31,8 @@ namespace open3d {
 
 class TensorHash {
 public:
-    // virtual TensorHash(Tensor coords, Tensor indices) = 0;
     virtual std::pair<Tensor, Tensor> Query(Tensor coords) = 0;
+    virtual Tensor Assign(Tensor coords, Tensor values) = 0;
 
 protected:
     std::shared_ptr<Hashmap<DefaultHash>> hashmap_;
@@ -40,29 +40,32 @@ protected:
     Dtype value_type_;
 
     int64_t key_dim_;
+    int64_t value_dim_;
 };
 
 class CPUTensorHash : public TensorHash {
 public:
-    CPUTensorHash(Tensor coords, Tensor indices);
+    CPUTensorHash(Tensor coords, Tensor values);
     std::pair<Tensor, Tensor> Query(Tensor coords);
+    Tensor Assign(Tensor coords, Tensor values);
 };
 
 class CUDATensorHash : public TensorHash {
 public:
-    CUDATensorHash(Tensor coords, Tensor indices);
+    CUDATensorHash(Tensor coords, Tensor values);
     std::pair<Tensor, Tensor> Query(Tensor coords);
+    Tensor Assign(Tensor coords, Tensor values);
 };
 
 /// Factory
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor indices);
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor values);
 
 /// Hidden
 namespace _factory {
 std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
-                                                   Tensor indices);
+                                                   Tensor values);
 std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
-                                                     Tensor indices);
+                                                     Tensor values);
 }  // namespace _factory
 
 }  // namespace open3d

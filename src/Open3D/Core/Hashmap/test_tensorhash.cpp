@@ -30,21 +30,39 @@ using namespace open3d;
 
 int main() {
     Device device("CUDA:0");
-    Tensor insert_coords(std::vector<float>({0, 0, 1, 1, 2, 2, 3, 3, 4, 4}),
-                         {5, 2}, Dtype::Float32, device);
+
+    /// Init
+    Tensor init_coords(std::vector<float>({0, 0, 1, 1, 2, 2, 3, 3, 4, 4}),
+                       {5, 2}, Dtype::Float32, device);
+    Tensor init_values(std::vector<int64_t>({0, 1, 2, 3, 4}), {5}, Dtype::Int64,
+                       device);
+    auto tensor_hash = CreateTensorHash(init_coords, init_values);
+
+    /// Query
     Tensor query_coords(std::vector<float>({0, 0, 3, 3, 1, 1, 4, 4, 8, 8}),
                         {5, 2}, Dtype::Float32, device);
-    Tensor indices(std::vector<int64_t>({0, 1, 2, 3, 4}), {5}, Dtype::Int64,
-                   device);
-
-    auto tensor_hash = CreateTensorHash(insert_coords, indices);
     auto results = tensor_hash->Query(query_coords);
 
-    /// IndexTensor [0 3 1 4 0]
-    /// Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7fce3de01800]
+    // [Open3D INFO] IndexTensor [2 1 0 3 4]
+    // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f8615e01e00]
+    // [Open3D INFO] MaskTensor [1 1 1 1 1]
+    // Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7f8615e02000]
     utility::LogInfo("IndexTensor {}", results.first.ToString());
+    utility::LogInfo("MaskTensor {}", results.second.ToString());
 
-    /// MaskTensor [1 1 1 1 0]
-    /// Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7fce3de01600]
+    /// Assign: tensor[(0, 0)] = 2, tensor[(2, 2)] = 0
+    Tensor assign_coords(std::vector<float>({0, 0, 2, 2}), {2, 2},
+                         Dtype::Float32, device);
+    Tensor assign_values(std::vector<int64_t>({2, 0}), {2}, Dtype::Int64,
+                         device);
+    tensor_hash->Assign(assign_coords, assign_values);
+
+    /// Query init after reassignment
+    results = tensor_hash->Query(init_coords);
+    // [Open3D INFO] IndexTensor [2 1 0 3 4]
+    // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f8615e01e00]
+    // [Open3D INFO] MaskTensor [1 1 1 1 1]
+    // Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7f8615e02000]
+    utility::LogInfo("IndexTensor {}", results.first.ToString());
     utility::LogInfo("MaskTensor {}", results.second.ToString());
 }
