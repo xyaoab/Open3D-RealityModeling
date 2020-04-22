@@ -42,23 +42,11 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
         utility::LogError("CUDATensorHash::Input tensors must be contiguous.");
     }
 
-    // Type check
-    if (values.GetDtype() != Dtype::Int64 &&
-        values.GetDtype() != Dtype::Int32) {
-        utility::LogError(
-                "CUDATensorHash::Input values tensor must be Integers.");
-    }
-
     // Shape check
     auto coords_shape = coords.GetShape();
     auto values_shape = values.GetShape();
     if (coords_shape.size() != 2) {
-        utility::LogError("TensorHashCUDA::Input coords shape must be (N, D).");
-    }
-    if (values_shape.size() > 1) {
-        utility::LogError(
-                "CUDATensorHash::Input values shape must be (N, ) or "
-                "(N, 1).");
+        utility::LogError("CUDATensorHash::Input coords shape must be (N, D).");
     }
     if (coords_shape[0] != values_shape[0]) {
         utility::LogError(
@@ -69,14 +57,19 @@ CUDATensorHash::CUDATensorHash(Tensor coords, Tensor values) {
     key_type_ = coords.GetDtype();
     value_type_ = values.GetDtype();
     key_dim_ = coords_shape[1];
+    value_dim_ = values_shape.size() == 1 ? 1 : values_shape[1];
 
     int64_t N = coords_shape[0];
 
     size_t key_size = DtypeUtil::ByteSize(key_type_) * key_dim_;
     if (key_size > MAX_KEY_BYTESIZE) {
-        utility::LogError("CUDATensorHash::Unsupported key size: too large.");
+        utility::LogError(
+                "CUDATensorHash::Unsupported key size: at most {} bytes per "
+                "key is "
+                "supported, received {} bytes per key",
+                MAX_KEY_BYTESIZE, key_size);
     }
-    size_t value_size = DtypeUtil::ByteSize(values.GetDtype());
+    size_t value_size = DtypeUtil::ByteSize(value_type_) * value_dim_;
 
     // Create hashmap and reserve twice input size
     hashmap_ = CreateHashmap<DefaultHash>(N * 2, key_size, value_size,
@@ -123,7 +116,7 @@ std::pair<Tensor, Tensor> CUDATensorHash::Query(Tensor coords) {
     }
     auto coords_shape = coords.GetShape();
     if (coords_shape.size() != 2 || coords_shape[1] != key_dim_) {
-        utility::LogError("TensorHashCUDA::Input coords shape mismatch.");
+        utility::LogError("CUDATensorHash::Input coords shape mismatch.");
     }
     int64_t N = coords.GetShape()[0];
 
@@ -162,12 +155,13 @@ std::pair<Tensor, Tensor> CUDATensorHash::Query(Tensor coords) {
     return std::make_pair(ret_value_tensor, ret_mask_tensor);
 }
 
+/// TODO: move these iterator dispatchers to Hashmap interfaces
 __global__ void AssignIteratorsKernel(iterator_t* iterators,
-                                        uint8_t* masks,
-                                        uint8_t* values,
-                                        size_t key_size,
-                                        size_t value_size,
-                                        size_t N) {
+                                      uint8_t* masks,
+                                      uint8_t* values,
+                                      size_t key_size,
+                                      size_t value_size,
+                                      size_t N) {
     size_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
     // Valid queries
@@ -189,18 +183,28 @@ Tensor CUDATensorHash::Assign(Tensor coords, Tensor values) {
     }
 
     // Contiguous check to fit internal hashmap
-    if (!coords.IsContiguous()) {
+    if (!coords.IsContiguous() || !values.IsContiguous()) {
         utility::LogError("CUDATensorHash::Input tensors must be contiguous.");
     }
 
     // Type and shape check
-    if (key_type_ != coords.GetDtype()) {
-        utility::LogError("CUDATensorHash::Input coords key type mismatch.");
+    if (key_type_ != coords.GetDtype() || value_type_ != values.GetDtype()) {
+        utility::LogError("CUDATensorHash::Input key/value type mismatch.");
     }
+
     auto coords_shape = coords.GetShape();
-    if (coords_shape.size() != 2 || coords_shape[1] != key_dim_) {
-        utility::LogError("TensorHashCUDA::Input coords shape mismatch.");
+    auto values_shape = values.GetShape();
+    if (coords_shape.size() == 0 || coords_shape.size() == 0) {
+        utility::LogError("CUDATensorHash::Inputs are empty tensors");
     }
+    if (coords_shape.size() != 2 || coords_shape[1] != key_dim_) {
+        utility::LogError("CUDATensorHash::Input coords shape mismatch.");
+    }
+    auto value_dim = values_shape.size() == 1 ? 1 : values_shape[1];
+    if (value_dim != value_dim_) {
+        utility::LogError("CUDATensorHash::Input values shape mismatch.");
+    }
+
     int64_t N = coords.GetShape()[0];
 
     // Search
@@ -211,7 +215,7 @@ Tensor CUDATensorHash::Assign(Tensor coords, Tensor values) {
     auto iterators_buf = result.first;
     auto masks_buf = result.second;
 
-    // Dispatch values
+    // Assign values
     const size_t num_threads = 32;
     const size_t num_blocks = (N + num_threads - 1) / num_threads;
 
