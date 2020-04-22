@@ -43,10 +43,10 @@ int main() {
                         {5, 2}, Dtype::Float32, device);
     auto results = tensor_hash->Query(query_coords);
 
-    // [Open3D INFO] IndexTensor [2 1 0 3 4]
-    // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f8615e01e00]
-    // [Open3D INFO] MaskTensor [1 1 1 1 1]
-    // Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7f8615e02000]
+    // [Open3D INFO] IndexTensor [0 3 1 4 0]
+    // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f85dde01600]
+    // [Open3D INFO] MaskTensor [1 1 1 1 0]
+    // Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7f85dde01800]
     utility::LogInfo("IndexTensor {}", results.first.ToString());
     utility::LogInfo("MaskTensor {}", results.second.ToString());
 
