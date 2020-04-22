@@ -27,7 +27,9 @@
 #include "TensorHash.h"
 
 namespace open3d {
-CPUTensorHash::CPUTensorHash(Tensor coords, Tensor values) {
+CPUTensorHash::CPUTensorHash(Tensor coords,
+                             Tensor values,
+                             bool insert /* = true */) {
     utility::LogError("CPUTensorHash is unimplemented!");
 }
 
@@ -35,12 +37,17 @@ std::pair<Tensor, Tensor> CPUTensorHash::Query(Tensor coords) {
     return std::make_pair(Tensor(), Tensor());
 }
 
+std::pair<Tensor, Tensor> CPUTensorHash::Insert(Tensor coords, Tensor values) {
+    return std::make_pair(Tensor(), Tensor());
+}
+
 Tensor CPUTensorHash::Assign(Tensor coords, Tensor values) { return Tensor(); }
 
 namespace _factory {
 std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
-                                                   Tensor values) {
-    return std::make_shared<CPUTensorHash>(coords, values);
+                                                   Tensor values,
+                                                   bool insert) {
+    return std::make_shared<CPUTensorHash>(coords, values, insert);
 }
 }  // namespace _factory
 }  // namespace open3d

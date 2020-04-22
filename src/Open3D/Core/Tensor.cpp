@@ -500,6 +500,16 @@ Tensor Tensor::T() const {
     }
 }
 
+std::pair<Tensor, Tensor> Tensor::Unique() {
+    /// TODO: sanity checks and multiple axises
+    std::vector<int64_t> indices_data(GetShape()[0]);
+    std::iota(indices_data.begin(), indices_data.end(), 0);
+    Tensor indices(indices_data, {GetShape()[0]}, Dtype::Int64, GetDevice());
+
+    auto tensor_hash = CreateTensorHash(*this, indices, false);
+    return tensor_hash->Insert(*this, indices);
+}
+
 Tensor Tensor::Add(const Tensor& value) const {
     Tensor dst_tensor(BroadcastedShape(shape_, value.shape_), dtype_,
                       GetDevice());

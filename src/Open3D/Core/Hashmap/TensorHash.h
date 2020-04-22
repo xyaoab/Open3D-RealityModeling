@@ -24,6 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
+#pragma once
 #include "Open3D/Core/Hashmap/HashmapBase.h"
 #include "Open3D/Core/Tensor.h"
 
@@ -31,7 +32,11 @@ namespace open3d {
 
 class TensorHash {
 public:
+    /// <Value, Mask>
     virtual std::pair<Tensor, Tensor> Query(Tensor coords) = 0;
+    /// <Key, Mask>
+    virtual std::pair<Tensor, Tensor> Insert(Tensor coords, Tensor values) = 0;
+    /// Mask
     virtual Tensor Assign(Tensor coords, Tensor values) = 0;
 
 protected:
@@ -45,27 +50,33 @@ protected:
 
 class CPUTensorHash : public TensorHash {
 public:
-    CPUTensorHash(Tensor coords, Tensor values);
+    CPUTensorHash(Tensor coords, Tensor values, bool insert = true);
+    std::pair<Tensor, Tensor> Insert(Tensor coords, Tensor values);
     std::pair<Tensor, Tensor> Query(Tensor coords);
     Tensor Assign(Tensor coords, Tensor values);
 };
 
 class CUDATensorHash : public TensorHash {
 public:
-    CUDATensorHash(Tensor coords, Tensor values);
+    CUDATensorHash(Tensor coords, Tensor values, bool insert = true);
+    std::pair<Tensor, Tensor> Insert(Tensor coords, Tensor values);
     std::pair<Tensor, Tensor> Query(Tensor coords);
     Tensor Assign(Tensor coords, Tensor values);
 };
 
 /// Factory
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor values);
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords,
+                                             Tensor values,
+                                             bool insert = true);
 
 /// Hidden
 namespace _factory {
 std::shared_ptr<CPUTensorHash> CreateCPUTensorHash(Tensor coords,
-                                                   Tensor values);
+                                                   Tensor values,
+                                                   bool insert);
 std::shared_ptr<CUDATensorHash> CreateCUDATensorHash(Tensor coords,
-                                                     Tensor values);
+                                                     Tensor values,
+                                                     bool insert);
 }  // namespace _factory
 
 }  // namespace open3d

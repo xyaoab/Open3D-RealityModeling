@@ -29,10 +29,12 @@
 #include <unordered_map>
 
 namespace open3d {
-std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor values) {
+std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords,
+                                             Tensor values,
+                                             bool insert) {
     static std::unordered_map<
             open3d::Device::DeviceType,
-            std::function<std::shared_ptr<TensorHash>(Tensor, Tensor)>,
+            std::function<std::shared_ptr<TensorHash>(Tensor, Tensor, bool)>,
             open3d::utility::hash_enum_class::hash>
             map_device_type_to_tensorhash_constructor = {
                     {Device::DeviceType::CPU, _factory::CreateCPUTensorHash},
@@ -53,6 +55,6 @@ std::shared_ptr<TensorHash> CreateTensorHash(Tensor coords, Tensor values) {
 
     auto constructor =
             map_device_type_to_tensorhash_constructor.at(device.GetType());
-    return constructor(coords, values);
+    return constructor(coords, values, insert);
 }
 }  // namespace open3d

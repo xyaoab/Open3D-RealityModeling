@@ -65,4 +65,11 @@ int main() {
     // Tensor[shape={5}, stride={1}, UInt8, CUDA:0, 0x7f8615e02000]
     utility::LogInfo("IndexTensor {}", results.first.ToString());
     utility::LogInfo("MaskTensor {}", results.second.ToString());
+
+    Tensor duplicate_coords(
+            std::vector<float>({0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 4, 4, 3, 3}),
+            {7, 2}, Dtype::Float32, device);
+    results = duplicate_coords.Unique();
+    utility::LogInfo("IndexTensor {}", results.first.ToString());
+    utility::LogInfo("MaskTensor {}", results.second.ToString());
 }

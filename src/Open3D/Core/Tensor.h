@@ -35,6 +35,7 @@
 #include "Open3D/Core/DLPack/dlpack.h"
 #include "Open3D/Core/Device.h"
 #include "Open3D/Core/Dtype.h"
+#include "Open3D/Core/Hashmap/TensorHash.h"
 #include "Open3D/Core/SizeVector.h"
 #include "Open3D/Core/TensorKey.h"
 
@@ -379,6 +380,8 @@ public:
         MemoryManager::MemcpyToHost(&value, data_ptr_, GetDevice(), sizeof(T));
         return value;
     }
+
+    std::pair<Tensor, Tensor> Unique();
 
     /// Adds a tensor and returns the resulting tensor.
     Tensor Add(const Tensor& value) const;
