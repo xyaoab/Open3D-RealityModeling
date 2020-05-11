@@ -86,6 +86,10 @@ public:
             const geometry::Image &depth_to_camera_distance_multiplier,
             const bool deintegrate);
 
+    void ProjectToRGBD(const geometry::RGBDImage &image,
+                       const camera::PinholeCameraIntrinsic &intrinsic,
+                       const Eigen::Matrix4d &extrinsic);
+
     inline int IndexOf(int x, int y, int z) const {
         return x * resolution_ * resolution_ + y * resolution_ + z;
     }

@@ -40,10 +40,7 @@ void PrintHelp() {
     utility::LogInfo("Basic options:");
     utility::LogInfo("    --help, -h                : Print help information.");
     utility::LogInfo("    --match file              : The match file of an RGBD stream. Must have.");
-    utility::LogInfo("    --save_pointcloud         : Save a point cloud created by marching cubes.");
     utility::LogInfo("    --save_mesh               : Save a mesh created by marching cubes.");
-    utility::LogInfo("    --save_voxel              : Save a point cloud of the TSDF voxel.");
-    utility::LogInfo("    --every_k_frames k        : Save/reset every k frames. Default: 0 (none).");
     utility::LogInfo("    --length l                : Length of the volume, in meters. Default: 4.0.");
     utility::LogInfo("    --resolution r            : Resolution of the voxel grid. Default: 512.");
     utility::LogInfo("    --sdf_trunc_percentage t  : TSDF truncation percentage, of the volume length. Default: 0.01.");
@@ -62,14 +59,7 @@ int main(int argc, char *argv[]) {
 
     std::string match_filename =
             utility::GetProgramOptionAsString(argc, argv, "--match");
-    // bool save_pointcloud =
-    //         utility::ProgramOptionExists(argc, argv, "--save_pointcloud");
     bool save_mesh = utility::ProgramOptionExists(argc, argv, "--save_mesh");
-    // bool save_voxel = utility::ProgramOptionExists(argc, argv,
-    // "--save_voxel");
-    // int every_k_frames =
-    //         utility::GetProgramOptionAsInt(argc, argv, "--every_k_frames",
-    //         0);
     double length =
             utility::GetProgramOptionAsDouble(argc, argv, "--length", 4.0);
     int resolution =
@@ -103,37 +93,62 @@ int main(int argc, char *argv[]) {
     geometry::Image depth, color;
     std::shared_ptr<geometry::RGBDImage> prev_rgbd = nullptr;
 
-    Eigen::Matrix4d extrinsics = Eigen::Matrix4d::Identity();
+    std::vector<std::shared_ptr<geometry::RGBDImage>> rgbd_frames;
+    std::vector<Eigen::Matrix4d> poses;
+    Eigen::Matrix4d f2w = Eigen::Matrix4d::Identity();
 
+    /// Initial odometry and integration
     while (fgets(buffer, DEFAULT_IO_BUFFER_SIZE, file)) {
         std::vector<std::string> st;
         utility::SplitString(st, buffer, "\t\r\n ");
 
-        if (st.size() >= 2) {
-            utility::LogInfo("Processing frame {:d} ...", index);
-            io::ReadImage(st[0], depth);
-            io::ReadImage(st[1], color);
+        utility::LogInfo("Processing frame {:d} ...", index);
+        io::ReadImage(st[0], depth);
+        io::ReadImage(st[1], color);
 
-            auto curr_rgbd = geometry::RGBDImage::CreateFromColorAndDepth(
-                    color, depth, 1000.0, 4.0, false);
+        auto curr_rgbd = geometry::RGBDImage::CreateFromColorAndDepth(
+                color, depth, 1000.0, 4.0, false);
+        rgbd_frames.push_back(curr_rgbd);
 
-            Eigen::Matrix4d init_odo = Eigen::Matrix4d::Identity();
-            if (prev_rgbd != nullptr) {
-                std::tuple<bool, Eigen::Matrix4d, Eigen::Matrix6d> rgbd_odo =
-                        odometry::ComputeRGBDOdometry(
-                                *curr_rgbd, *prev_rgbd, intrinsic, init_odo,
-                                odometry::RGBDOdometryJacobianFromHybridTerm(),
-                                odometry::OdometryOption());
-                extrinsics = std::get<1>(rgbd_odo) * extrinsics;
-            }
-
-            volume.Integrate(*curr_rgbd, intrinsic, extrinsics.inverse());
-            prev_rgbd = curr_rgbd;
-
-            index++;
+        Eigen::Matrix4d init_odo = Eigen::Matrix4d::Identity();
+        if (prev_rgbd != nullptr) {
+            std::tuple<bool, Eigen::Matrix4d, Eigen::Matrix6d> rgbd_odo =
+                    odometry::ComputeRGBDOdometry(
+                            *curr_rgbd, *prev_rgbd, intrinsic, init_odo,
+                            odometry::RGBDOdometryJacobianFromHybridTerm(),
+                            odometry::OdometryOption());
+            f2w = std::get<1>(rgbd_odo) * f2w;
         }
+
+        /// Extrinsics are w2f
+        volume.Integrate(*curr_rgbd, intrinsic, f2w.inverse());
+        prev_rgbd = curr_rgbd;
+
+        index++;
+        poses.push_back(f2w);
     }
     fclose(file);
+
+    /// Deintegrate (working)
+    utility::LogInfo(
+            "{} active subvolumes, each with {} voxels",
+            volume.volume_units_.size(),
+            volume.volume_units_.begin()->second.volume_->voxels_.size());
+
+    utility::Timer timer;
+
+    /// Iterate over frames
+    for (size_t i = 0; i < poses.size(); ++i) {
+        timer.Start();
+        /// Iterate over voxels to get voxel - pixel correspondences
+        for (auto subvolume_iter : volume.volume_units_) {
+            auto &subvolume = subvolume_iter.second.volume_;
+            subvolume->ProjectToRGBD(*rgbd_frames[i], intrinsic, poses[i]);
+        }
+        timer.Stop();
+        double ms = timer.GetDuration();
+        utility::LogInfo("TSDF projection takes {:.2f} for frame {}", ms, i);
+    }
 
     if (save_mesh) {
         utility::LogInfo("Saving mesh ...");

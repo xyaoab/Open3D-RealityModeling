@@ -100,4 +100,3 @@ public:
 
 }  // namespace integration
 }  // namespace open3d
-0
