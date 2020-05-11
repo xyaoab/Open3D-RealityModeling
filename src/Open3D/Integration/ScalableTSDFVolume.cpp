@@ -53,7 +53,8 @@ void ScalableTSDFVolume::Reset() { volume_units_.clear(); }
 void ScalableTSDFVolume::Integrate(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
-        const Eigen::Matrix4d &extrinsic) {
+        const Eigen::Matrix4d &extrinsic,
+        const bool deintegrate /* = false */) {
     if ((image.depth_.num_of_channels_ != 1) ||
         (image.depth_.bytes_per_channel_ != 4) ||
         (image.depth_.width_ != intrinsic.width_) ||
@@ -97,7 +98,7 @@ void ScalableTSDFVolume::Integrate(
                         auto volume = OpenVolumeUnit(Eigen::Vector3i(x, y, z));
                         volume->IntegrateWithDepthToCameraDistanceMultiplier(
                                 image, intrinsic, extrinsic,
-                                *depth2cameradistance);
+                                *depth2cameradistance, deintegrate);
                     }
                 }
             }

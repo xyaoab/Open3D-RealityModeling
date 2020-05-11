@@ -177,7 +177,7 @@ def run(config):
         from joblib import Parallel, delayed
         import multiprocessing
         import subprocess
-        MAX_THREAD = min(multiprocessing.cpu_count(), n_fragments)
+        MAX_THREAD = min(multiprocessing.cpu_count() // 2, n_fragments)
         Parallel(n_jobs=MAX_THREAD)(delayed(process_single_fragment)(
             fragment_id, color_files, depth_files, n_files, n_fragments, config)
                                     for fragment_id in range(n_fragments))

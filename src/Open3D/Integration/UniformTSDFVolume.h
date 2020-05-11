@@ -67,7 +67,8 @@ public:
     void Reset() override;
     void Integrate(const geometry::RGBDImage &image,
                    const camera::PinholeCameraIntrinsic &intrinsic,
-                   const Eigen::Matrix4d &extrinsic) override;
+                   const Eigen::Matrix4d &extrinsic,
+                   const bool deintegrate = false) override;
     std::shared_ptr<geometry::PointCloud> ExtractPointCloud() override;
     std::shared_ptr<geometry::TriangleMesh> ExtractTriangleMesh() override;
 
@@ -82,7 +83,8 @@ public:
             const geometry::RGBDImage &image,
             const camera::PinholeCameraIntrinsic &intrinsic,
             const Eigen::Matrix4d &extrinsic,
-            const geometry::Image &depth_to_camera_distance_multiplier);
+            const geometry::Image &depth_to_camera_distance_multiplier,
+            const bool deintegrate);
 
     inline int IndexOf(int x, int y, int z) const {
         return x * resolution_ * resolution_ + y * resolution_ + z;

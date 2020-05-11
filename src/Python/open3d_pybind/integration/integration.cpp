@@ -41,9 +41,10 @@ public:
     void Reset() override { PYBIND11_OVERLOAD_PURE(void, TSDFVolumeBase, ); }
     void Integrate(const geometry::RGBDImage &image,
                    const camera::PinholeCameraIntrinsic &intrinsic,
-                   const Eigen::Matrix4d &extrinsic) override {
+                   const Eigen::Matrix4d &extrinsic,
+                   const bool deintegrate = false) override {
         PYBIND11_OVERLOAD_PURE(void, TSDFVolumeBase, image, intrinsic,
-                               extrinsic);
+                               extrinsic, deintegrate);
     }
     std::shared_ptr<geometry::PointCloud> ExtractPointCloud() override {
         PYBIND11_OVERLOAD_PURE(std::shared_ptr<geometry::PointCloud>,
@@ -88,7 +89,8 @@ In SIGGRAPH, 1996)");
                  "Function to reset the integration::TSDFVolume")
             .def("integrate", &integration::TSDFVolume::Integrate,
                  "Function to integrate an RGB-D image into the volume",
-                 "image"_a, "intrinsic"_a, "extrinsic"_a)
+                 "image"_a, "intrinsic"_a, "extrinsic"_a,
+                 "deintegrate"_a = false)
             .def("extract_point_cloud",
                  &integration::TSDFVolume::ExtractPointCloud,
                  "Function to extract a point cloud with normals")

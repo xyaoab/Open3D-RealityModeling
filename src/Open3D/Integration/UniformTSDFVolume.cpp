@@ -58,7 +58,8 @@ void UniformTSDFVolume::Reset() { voxels_.clear(); }
 void UniformTSDFVolume::Integrate(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
-        const Eigen::Matrix4d &extrinsic) {
+        const Eigen::Matrix4d &extrinsic,
+        const bool deintegrate /* = false */) {
     // This function goes through the voxels, and scan convert the relative
     // depth/color value into the voxel.
     // The following implementation is a highly optimized version.
@@ -84,8 +85,8 @@ void UniformTSDFVolume::Integrate(
     auto depth2cameradistance =
             geometry::Image::CreateDepthToCameraDistanceMultiplierFloatImage(
                     intrinsic);
-    IntegrateWithDepthToCameraDistanceMultiplier(image, intrinsic, extrinsic,
-                                                 *depth2cameradistance);
+    IntegrateWithDepthToCameraDistanceMultiplier(
+            image, intrinsic, extrinsic, *depth2cameradistance, deintegrate);
 }
 
 std::shared_ptr<geometry::PointCloud> UniformTSDFVolume::ExtractPointCloud() {
@@ -285,7 +286,8 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
         const Eigen::Matrix4d &extrinsic,
-        const geometry::Image &depth_to_camera_distance_multiplier) {
+        const geometry::Image &depth_to_camera_distance_multiplier,
+        const bool deintegrate) {
     const float fx = static_cast<float>(intrinsic.GetFocalLength().first);
     const float fy = static_cast<float>(intrinsic.GetFocalLength().second);
     const float cx = static_cast<float>(intrinsic.GetPrincipalPoint().first);
@@ -298,6 +300,12 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
     const Eigen::Matrix4f extrinsic_scaled_f = extrinsic_f * voxel_length_f;
     const float safe_width_f = intrinsic.width_ - 0.0001f;
     const float safe_height_f = intrinsic.height_ - 0.0001f;
+
+    auto op_float = [=](const float &a) { return deintegrate ? -a : a; };
+
+    auto op_vec3d = [=](const Eigen::Vector3d &a) {
+        return deintegrate ? -a.eval() : a.eval();
+    };
 
 #ifdef _OPENMP
 #ifdef _WIN32
@@ -344,12 +352,13 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
                         (*depth_to_camera_distance_multiplier.PointerAt<float>(
                                 u, v));
                 if (sdf > -sdf_trunc_f) {
-                    // integrate
+                    // integrate / deintegrate
                     float tsdf = std::min(1.0f, sdf * sdf_trunc_inv_f);
                     voxels_[v_ind].tsdf_ =
                             (voxels_[v_ind].tsdf_ * voxels_[v_ind].weight_ +
-                             tsdf) /
-                            (voxels_[v_ind].weight_ + 1.0f);
+                             op_float(tsdf)) /
+                            (voxels_[v_ind].weight_ + op_float(1.0f));
+
                     if (color_type_ == TSDFVolumeColorType::RGB8) {
                         const uint8_t *rgb =
                                 image.color_.PointerAt<uint8_t>(u, v, 0);
@@ -357,18 +366,19 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
                         voxels_[v_ind].color_ =
                                 (voxels_[v_ind].color_ *
                                          voxels_[v_ind].weight_ +
-                                 rgb_f) /
-                                (voxels_[v_ind].weight_ + 1.0f);
+                                 op_vec3d(rgb_f)) /
+                                (voxels_[v_ind].weight_ + op_float(1.0f));
                     } else if (color_type_ == TSDFVolumeColorType::Gray32) {
                         const float *intensity =
                                 image.color_.PointerAt<float>(u, v, 0);
                         voxels_[v_ind].color_ =
                                 (voxels_[v_ind].color_.array() *
                                          voxels_[v_ind].weight_ +
-                                 (*intensity)) /
-                                (voxels_[v_ind].weight_ + 1.0f);
+                                 op_float(*intensity)) /
+                                (voxels_[v_ind].weight_ + op_float(1.0f));
                     }
-                    voxels_[v_ind].weight_ += 1.0f;
+                    voxels_[v_ind].weight_ =
+                            voxels_[v_ind].weight_ + op_float(1.0f);
                 }
             }
         }
