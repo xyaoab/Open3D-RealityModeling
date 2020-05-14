@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
             utility::GetProgramOptionAsInt(argc, argv, "--resolution", 512);
     double sdf_trunc_percentage = utility::GetProgramOptionAsDouble(
             argc, argv, "--sdf_trunc_percentage", 0.01);
-    int verbose = utility::GetProgramOptionAsInt(argc, argv, "--verbose", 5);
+    int verbose = utility::GetProgramOptionAsInt(argc, argv, "--verbose", 2);
     utility::SetVerbosityLevel((utility::VerbosityLevel)verbose);
 
     /// Buffer for IO
@@ -98,7 +98,9 @@ int main(int argc, char *argv[]) {
     Eigen::Matrix4d f2w = Eigen::Matrix4d::Identity();
 
     /// Initial odometry and integration
-    while (fgets(buffer, DEFAULT_IO_BUFFER_SIZE, file)) {
+    int frames_to_process = 2;
+    while (fgets(buffer, DEFAULT_IO_BUFFER_SIZE, file) &&
+           index < frames_to_process) {
         std::vector<std::string> st;
         utility::SplitString(st, buffer, "\t\r\n ");
 
@@ -129,26 +131,51 @@ int main(int argc, char *argv[]) {
     }
     fclose(file);
 
-    /// Deintegrate (working)
     utility::LogInfo(
             "{} active subvolumes, each with {} voxels",
             volume.volume_units_.size(),
             volume.volume_units_.begin()->second.volume_->voxels_.size());
+    auto mesh = volume.ExtractTriangleMesh();
+    visualization::DrawGeometries({mesh});
 
     utility::Timer timer;
-
-    /// Iterate over frames
-    for (size_t i = 0; i < poses.size(); ++i) {
+    /// Step 1 - update poses
+    for (size_t i = 1; i < poses.size(); ++i) {
         timer.Start();
-        /// Iterate over voxels to get voxel - pixel correspondences
-        for (auto subvolume_iter : volume.volume_units_) {
-            auto &subvolume = subvolume_iter.second.volume_;
-            subvolume->ProjectToRGBD(*rgbd_frames[i], intrinsic, poses[i]);
+
+        for (int iter = 0; iter < 10; ++iter) {
+            /// Iterate over voxels to get voxel - pixel correspondences
+            Eigen::MatrixXd JtJ = Eigen::MatrixXd::Zero(6, 6);
+            Eigen::VectorXd Jtr = Eigen::VectorXd::Zero(6);
+            float sum_r2 = 0;
+
+            for (auto subvolume_iter : volume.volume_units_) {
+                auto &subvolume = subvolume_iter.second.volume_;
+                auto linear_system = subvolume->BuildLinearSystemForRGBD(
+                        *rgbd_frames[i], intrinsic, poses[i].inverse());
+                auto J = linear_system.first;
+                auto r = linear_system.second;
+
+                JtJ += J.transpose() * J;
+                Jtr += J.transpose() * r;
+                sum_r2 += r.transpose() * r;
+            }
+
+            bool is_success;
+            Eigen::Matrix4d dTw2f;
+            std::tie(is_success, dTw2f) =
+                    utility::SolveJacobianSystemAndObtainExtrinsicMatrix(
+                            JtJ + 1e6f * Eigen::MatrixXd::Identity(6, 6), Jtr);
+            // Tf2w = (dTw2f * Tf2w.inverse()).inverse()
+            poses[i] = poses[i] * dTw2f.inverse();
+            utility::LogInfo("Error = {} for iteration {}", sum_r2, iter);
         }
         timer.Stop();
         double ms = timer.GetDuration();
         utility::LogInfo("TSDF projection takes {:.2f} for frame {}", ms, i);
     }
+
+    /// Step 2 - update TSDF
 
     if (save_mesh) {
         utility::LogInfo("Saving mesh ...");

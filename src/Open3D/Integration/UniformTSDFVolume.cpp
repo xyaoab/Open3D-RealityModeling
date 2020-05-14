@@ -59,7 +59,7 @@ void UniformTSDFVolume::Integrate(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
         const Eigen::Matrix4d &extrinsic,
-        const bool deintegrate /* = false */) {
+        const float factor /* = 1.0 */) {
     // This function goes through the voxels, and scan convert the relative
     // depth/color value into the voxel.
     // The following implementation is a highly optimized version.
@@ -85,8 +85,8 @@ void UniformTSDFVolume::Integrate(
     auto depth2cameradistance =
             geometry::Image::CreateDepthToCameraDistanceMultiplierFloatImage(
                     intrinsic);
-    IntegrateWithDepthToCameraDistanceMultiplier(
-            image, intrinsic, extrinsic, *depth2cameradistance, deintegrate);
+    IntegrateWithDepthToCameraDistanceMultiplier(image, intrinsic, extrinsic,
+                                                 *depth2cameradistance, factor);
 }
 
 std::shared_ptr<geometry::PointCloud> UniformTSDFVolume::ExtractPointCloud() {
@@ -287,7 +287,7 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
         const camera::PinholeCameraIntrinsic &intrinsic,
         const Eigen::Matrix4d &extrinsic,
         const geometry::Image &depth_to_camera_distance_multiplier,
-        const bool deintegrate) {
+        const float factor) {
     const float fx = static_cast<float>(intrinsic.GetFocalLength().first);
     const float fy = static_cast<float>(intrinsic.GetFocalLength().second);
     const float cx = static_cast<float>(intrinsic.GetPrincipalPoint().first);
@@ -300,12 +300,6 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
     const Eigen::Matrix4f extrinsic_scaled_f = extrinsic_f * voxel_length_f;
     const float safe_width_f = intrinsic.width_ - 0.0001f;
     const float safe_height_f = intrinsic.height_ - 0.0001f;
-
-    auto op_float = [=](const float &a) { return deintegrate ? -a : a; };
-
-    auto op_vec3d = [=](const Eigen::Vector3d &a) {
-        return deintegrate ? -a.eval() : a.eval();
-    };
 
 #ifdef _OPENMP
 #ifdef _WIN32
@@ -347,17 +341,13 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
                 }
 
                 int v_ind = IndexOf(x, y, z);
-                float sdf =
-                        (d - pt_camera(2)) *
-                        (*depth_to_camera_distance_multiplier.PointerAt<float>(
-                                u, v));
+                float sdf = (d - pt_camera(2));
                 if (sdf > -sdf_trunc_f) {
-                    // integrate / deintegrate
                     float tsdf = std::min(1.0f, sdf * sdf_trunc_inv_f);
                     voxels_[v_ind].tsdf_ =
                             (voxels_[v_ind].tsdf_ * voxels_[v_ind].weight_ +
-                             op_float(tsdf)) /
-                            (voxels_[v_ind].weight_ + op_float(1.0f));
+                             factor * tsdf) /
+                            (voxels_[v_ind].weight_ + factor);
 
                     if (color_type_ == TSDFVolumeColorType::RGB8) {
                         const uint8_t *rgb =
@@ -366,26 +356,26 @@ void UniformTSDFVolume::IntegrateWithDepthToCameraDistanceMultiplier(
                         voxels_[v_ind].color_ =
                                 (voxels_[v_ind].color_ *
                                          voxels_[v_ind].weight_ +
-                                 op_vec3d(rgb_f)) /
-                                (voxels_[v_ind].weight_ + op_float(1.0f));
+                                 rgb_f * factor) /
+                                (voxels_[v_ind].weight_ + factor);
                     } else if (color_type_ == TSDFVolumeColorType::Gray32) {
                         const float *intensity =
                                 image.color_.PointerAt<float>(u, v, 0);
                         voxels_[v_ind].color_ =
                                 (voxels_[v_ind].color_.array() *
                                          voxels_[v_ind].weight_ +
-                                 op_float(*intensity)) /
-                                (voxels_[v_ind].weight_ + op_float(1.0f));
+                                 *intensity * factor) /
+                                (voxels_[v_ind].weight_ + factor);
                     }
-                    voxels_[v_ind].weight_ =
-                            voxels_[v_ind].weight_ + op_float(1.0f);
+                    voxels_[v_ind].weight_ += factor;
                 }
             }
         }
     }
 }
 
-void UniformTSDFVolume::ProjectToRGBD(
+std::pair<Eigen::MatrixXd, Eigen::VectorXd>
+UniformTSDFVolume::BuildLinearSystemForRGBD(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
         const Eigen::Matrix4d &extrinsic) {
@@ -397,16 +387,23 @@ void UniformTSDFVolume::ProjectToRGBD(
     const float voxel_length_f = static_cast<float>(voxel_length_);
     const float half_voxel_length_f = voxel_length_f * 0.5f;
     const float sdf_trunc_f = static_cast<float>(sdf_trunc_);
-    // const float sdf_trunc_inv_f = 1.0f / sdf_trunc_f;
+    const float sdf_trunc_inv_f = 1.0f / sdf_trunc_f;
     const Eigen::Matrix4f extrinsic_scaled_f = extrinsic_f * voxel_length_f;
-    const float safe_width_f = intrinsic.width_ - 0.0001f;
-    const float safe_height_f = intrinsic.height_ - 0.0001f;
+    const float safe_width_f = intrinsic.width_ - 1.0001f;
+    const float safe_height_f = intrinsic.height_ - 1.0001f;
 
     auto depth2cameradistance =
             geometry::Image::CreateDepthToCameraDistanceMultiplierFloatImage(
                     intrinsic);
     const geometry::Image depth_to_camera_distance_multiplier =
             *depth2cameradistance;
+
+    /// Prepare gradient
+    auto depth_dx = *image.depth_.Filter(geometry::Image::FilterType::Sobel3Dx);
+    auto depth_dy = *image.depth_.Filter(geometry::Image::FilterType::Sobel3Dy);
+
+    Eigen::MatrixXd J = Eigen::MatrixXd::Zero(voxels_.size(), 6);
+    Eigen::VectorXd r = Eigen::VectorXd::Zero(voxels_.size());
 
 #ifdef _OPENMP
 #ifdef _WIN32
@@ -447,16 +444,60 @@ void UniformTSDFVolume::ProjectToRGBD(
                     continue;
                 }
 
-                // int v_ind = IndexOf(x, y, z);
-                float sdf =
-                        (d - pt_camera(2)) *
-                        (*depth_to_camera_distance_multiplier.PointerAt<float>(
-                                u, v));
-                if (sdf > -sdf_trunc_f) {
+                int v_ind = IndexOf(x, y, z);
+                float sdf = (d - pt_camera(2));
+                // (*depth_to_camera_distance_multiplier.PointerAt<float>(
+                //         u, v));
+                float tsdf_observed = std::min(1.0f, sdf * sdf_trunc_inv_f);
+                float tsdf = voxels_[v_ind].tsdf_;
+
+                if (sdf > -sdf_trunc_f && tsdf_observed < 1.0f) {
+                    r(v_ind) = tsdf_observed - tsdf;
+
+                    const float SOBEL_FACTOR = 0.125f;
+                    float dx = *depth_dx.PointerAt<float>(u, v) * SOBEL_FACTOR;
+                    float dy = *depth_dy.PointerAt<float>(u, v) * SOBEL_FACTOR;
+                    float scale = sdf_trunc_inv_f;
+
+                    // clang-format off
+                    // scale * (D[u, v] - [0, 0, 1] * pt_camera)
+                    // Term 1:
+                    // d D(u, v) / d (u, v) * d(u, v) / d(pt_camera) * d(pt_camera) / dT
+                    // => (x, y, z = pt_camera)
+                    // [dx, dy] [fx / z, 0, -fx x / z^2] [1 0 0 | 0 z -y]
+                    //          [0, fy / z, -fy y / z^2] [0 1 0 | -z 0 x]
+                    //                                   [0 0 1 | y -x 0]
+                    //
+                    // Term 2:
+                    // [0, 0, 1] * d(pt_camera) / dT
+                    // => (x, y, z = pt_camera)
+                    // [0 0 1] [1 0 0 | 0 z -y]
+                    //         [0 1 0 | -z 0 x]
+                    //         [0 0 1 | y -x 0]
+                    // = [0 0 1 | y -x 0]
+                    // clang-format on
+                    double inv_z = 1.0 / pt_camera(2);
+                    double d0 = dx * fx * inv_z;
+                    double d1 = dy * fy * inv_z;
+                    double d2 =
+                            -(d0 * pt_camera(0) + d1 * pt_camera(1)) * inv_z;
+
+                    J(v_ind, 0) = (-pt_camera(2) * d1 + pt_camera(1) * d2) -
+                                  pt_camera(1);
+                    J(v_ind, 1) = (pt_camera(2) * d0 - pt_camera(0) * d2) +
+                                  pt_camera(0);
+                    J(v_ind, 2) = -pt_camera(1) * d0 + pt_camera(0) * d1;
+                    J(v_ind, 3) = d0;
+                    J(v_ind, 4) = d1;
+                    J(v_ind, 5) = d2 - 1.0;
+
+                    J(v_ind) *= scale;
                 }
             }
         }
     }
+
+    return std::make_pair(J, r);
 }
 
 Eigen::Vector3d UniformTSDFVolume::GetNormalAt(const Eigen::Vector3d &p) {
