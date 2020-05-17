@@ -59,11 +59,12 @@ int main(int argc, char *argv[]) {
 
     std::string match_filename =
             utility::GetProgramOptionAsString(argc, argv, "--match");
-    bool save_mesh = utility::ProgramOptionExists(argc, argv, "--save_mesh");
     double length =
             utility::GetProgramOptionAsDouble(argc, argv, "--length", 4.0);
     int resolution =
             utility::GetProgramOptionAsInt(argc, argv, "--resolution", 512);
+    // double obstacle_truncation = utility::GetProgramOptionAsDouble(
+    //         argc, argv, "--obstacle_trunc", 0.1);
     double sdf_trunc_percentage = utility::GetProgramOptionAsDouble(
             argc, argv, "--sdf_trunc_percentage", 0.01);
     int verbose = utility::GetProgramOptionAsInt(argc, argv, "--verbose", 2);
@@ -97,8 +98,11 @@ int main(int argc, char *argv[]) {
     std::vector<Eigen::Matrix4d> poses;
     Eigen::Matrix4d f2w = Eigen::Matrix4d::Identity();
 
+    Eigen::Matrix4d flip_trans;
+    flip_trans << 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1;
+
     /// Initial odometry and integration
-    int frames_to_process = 2;
+    int frames_to_process = 20;
     while (fgets(buffer, DEFAULT_IO_BUFFER_SIZE, file) &&
            index < frames_to_process) {
         std::vector<std::string> st;
@@ -136,53 +140,57 @@ int main(int argc, char *argv[]) {
             volume.volume_units_.size(),
             volume.volume_units_.begin()->second.volume_->voxels_.size());
     auto mesh = volume.ExtractTriangleMesh();
-    visualization::DrawGeometries({mesh});
+    io::WriteTriangleMesh("mesh_init.ply", *mesh);
 
-    utility::Timer timer;
-    /// Step 1 - update poses
-    for (size_t i = 1; i < poses.size(); ++i) {
-        timer.Start();
+    for (int refinement_iter = 0; refinement_iter < 10; ++refinement_iter) {
+        /// Step 1 - update poses
+        for (size_t i = 0; i < poses.size(); ++i) {
+            for (int pose_iter = 0; pose_iter < 5; ++pose_iter) {
+                /// Iterate over voxels to get voxel - pixel correspondences
+                Eigen::MatrixXd JtJ = Eigen::MatrixXd::Zero(6, 6);
+                Eigen::VectorXd Jtr = Eigen::VectorXd::Zero(6);
+                float sum_r2 = 0;
+                float valid = 0;
 
-        for (int iter = 0; iter < 10; ++iter) {
-            /// Iterate over voxels to get voxel - pixel correspondences
-            Eigen::MatrixXd JtJ = Eigen::MatrixXd::Zero(6, 6);
-            Eigen::VectorXd Jtr = Eigen::VectorXd::Zero(6);
-            float sum_r2 = 0;
+                for (auto subvolume_iter : volume.volume_units_) {
+                    auto &subvolume = subvolume_iter.second.volume_;
+                    auto linear_system = subvolume->BuildLinearSystemForRGBD(
+                            *rgbd_frames[i], intrinsic, poses[i].inverse(),
+                            /* obstacle_threshold = */ 1.0);
+                    auto J = linear_system.first;
+                    auto r = linear_system.second;
 
-            for (auto subvolume_iter : volume.volume_units_) {
-                auto &subvolume = subvolume_iter.second.volume_;
-                auto linear_system = subvolume->BuildLinearSystemForRGBD(
-                        *rgbd_frames[i], intrinsic, poses[i].inverse());
-                auto J = linear_system.first;
-                auto r = linear_system.second;
+                    JtJ += J.transpose() * J;
+                    Jtr += J.transpose() * r;
+                    sum_r2 += r.transpose() * r;
+                    for (int k = 0; k < r.rows(); ++k) {
+                        if (r(k) != 0) {
+                            valid++;
+                        }
+                    }
+                }
 
-                JtJ += J.transpose() * J;
-                Jtr += J.transpose() * r;
-                sum_r2 += r.transpose() * r;
+                bool is_success;
+                Eigen::Matrix4d dTw2f;
+                std::tie(is_success, dTw2f) =
+                        utility::SolveJacobianSystemAndObtainExtrinsicMatrix(
+                                JtJ, Jtr);
+                // Tf2w = (dTw2f * Tf2w.inverse()).inverse()
+                poses[i] = poses[i] * dTw2f.inverse();
+                utility::LogInfo("Error = {}/{} = {} for iteration {}", sum_r2,
+                                 valid, sum_r2 / valid, pose_iter);
             }
-
-            bool is_success;
-            Eigen::Matrix4d dTw2f;
-            std::tie(is_success, dTw2f) =
-                    utility::SolveJacobianSystemAndObtainExtrinsicMatrix(
-                            JtJ + 1e6f * Eigen::MatrixXd::Identity(6, 6), Jtr);
-            // Tf2w = (dTw2f * Tf2w.inverse()).inverse()
-            poses[i] = poses[i] * dTw2f.inverse();
-            utility::LogInfo("Error = {} for iteration {}", sum_r2, iter);
         }
-        timer.Stop();
-        double ms = timer.GetDuration();
-        utility::LogInfo("TSDF projection takes {:.2f} for frame {}", ms, i);
+
+        volume.Reset();
+        for (size_t i = 0; i < poses.size(); ++i) {
+            volume.Integrate(*rgbd_frames[i], intrinsic, poses[i].inverse());
+        }
+        utility::LogInfo("Total iter: {}", refinement_iter);
     }
 
-    /// Step 2 - update TSDF
-
-    if (save_mesh) {
-        utility::LogInfo("Saving mesh ...");
-        auto mesh = volume.ExtractTriangleMesh();
-        visualization::DrawGeometries({mesh});
-        io::WriteTriangleMesh("integrated.ply", *mesh);
-    }
+    mesh = volume.ExtractTriangleMesh();
+    io::WriteTriangleMesh("mesh_final.ply", *mesh);
 
     return 0;
 }

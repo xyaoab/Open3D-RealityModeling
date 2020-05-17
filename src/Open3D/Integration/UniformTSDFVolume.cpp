@@ -378,7 +378,8 @@ std::pair<Eigen::MatrixXd, Eigen::VectorXd>
 UniformTSDFVolume::BuildLinearSystemForRGBD(
         const geometry::RGBDImage &image,
         const camera::PinholeCameraIntrinsic &intrinsic,
-        const Eigen::Matrix4d &extrinsic) {
+        const Eigen::Matrix4d &extrinsic,
+        const float obstacle_threshold) {
     const float fx = static_cast<float>(intrinsic.GetFocalLength().first);
     const float fy = static_cast<float>(intrinsic.GetFocalLength().second);
     const float cx = static_cast<float>(intrinsic.GetPrincipalPoint().first);
@@ -446,12 +447,11 @@ UniformTSDFVolume::BuildLinearSystemForRGBD(
 
                 int v_ind = IndexOf(x, y, z);
                 float sdf = (d - pt_camera(2));
-                // (*depth_to_camera_distance_multiplier.PointerAt<float>(
-                //         u, v));
                 float tsdf_observed = std::min(1.0f, sdf * sdf_trunc_inv_f);
                 float tsdf = voxels_[v_ind].tsdf_;
 
-                if (sdf > -sdf_trunc_f && tsdf_observed < 1.0f) {
+                if (sdf > -sdf_trunc_f && tsdf_observed < 1.0f &&
+                    abs(tsdf_observed - tsdf) < obstacle_threshold) {
                     r(v_ind) = tsdf_observed - tsdf;
 
                     const float SOBEL_FACTOR = 0.125f;

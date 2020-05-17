@@ -89,7 +89,8 @@ public:
     std::pair<Eigen::MatrixXd, Eigen::VectorXd> BuildLinearSystemForRGBD(
             const geometry::RGBDImage &image,
             const camera::PinholeCameraIntrinsic &intrinsic,
-            const Eigen::Matrix4d &extrinsic);
+            const Eigen::Matrix4d &extrinsic,
+            const float obstacle_threshold);
 
     inline int IndexOf(int x, int y, int z) const {
         return x * resolution_ * resolution_ + y * resolution_ + z;
