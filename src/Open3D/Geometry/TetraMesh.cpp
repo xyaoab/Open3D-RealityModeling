@@ -40,97 +40,8 @@ namespace open3d {
 namespace geometry {
 
 TetraMesh &TetraMesh::Clear() {
-    vertices_.clear();
+    MeshBase::Clear();
     tetras_.clear();
-    return *this;
-}
-
-bool TetraMesh::IsEmpty() const { return !HasVertices(); }
-
-Eigen::Vector3d TetraMesh::GetMinBound() const {
-    if (!HasVertices()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    return std::accumulate(
-            vertices_.begin(), vertices_.end(), vertices_[0],
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a.array().min(b.array()).matrix();
-            });
-}
-
-Eigen::Vector3d TetraMesh::GetMaxBound() const {
-    if (!HasVertices()) {
-        return Eigen::Vector3d(0.0, 0.0, 0.0);
-    }
-    return std::accumulate(
-            vertices_.begin(), vertices_.end(), vertices_[0],
-            [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
-                return a.array().max(b.array()).matrix();
-            });
-}
-
-Eigen::Vector3d TetraMesh::GetCenter() const {
-    Eigen::Vector3d center(0, 0, 0);
-    if (!HasVertices()) {
-        return center;
-    }
-    center = std::accumulate(vertices_.begin(), vertices_.end(), center);
-    center /= double(vertices_.size());
-    return center;
-}
-
-AxisAlignedBoundingBox TetraMesh::GetAxisAlignedBoundingBox() const {
-    return AxisAlignedBoundingBox::CreateFromPoints(vertices_);
-}
-
-OrientedBoundingBox TetraMesh::GetOrientedBoundingBox() const {
-    return OrientedBoundingBox::CreateFromPoints(vertices_);
-}
-
-TetraMesh &TetraMesh::Transform(const Eigen::Matrix4d &transformation) {
-    for (auto &vertex : vertices_) {
-        Eigen::Vector4d new_point =
-                transformation *
-                Eigen::Vector4d(vertex(0), vertex(1), vertex(2), 1.0);
-        vertex = new_point.head<3>() / new_point(3);
-    }
-    return *this;
-}
-
-TetraMesh &TetraMesh::Translate(const Eigen::Vector3d &translation,
-                                bool relative) {
-    Eigen::Vector3d transform = translation;
-    if (!relative) {
-        transform -= GetCenter();
-    }
-    for (auto &vertex : vertices_) {
-        vertex += transform;
-    }
-    return *this;
-}
-
-TetraMesh &TetraMesh::Scale(const double scale, bool center) {
-    Eigen::Vector3d vertex_center(0, 0, 0);
-    if (center && !vertices_.empty()) {
-        vertex_center = GetCenter();
-    }
-    for (auto &vertex : vertices_) {
-        vertex = (vertex - vertex_center) * scale + vertex_center;
-    }
-    return *this;
-}
-
-TetraMesh &TetraMesh::Rotate(const Eigen::Vector3d &rotation,
-                             bool center,
-                             RotationType type) {
-    Eigen::Vector3d vertex_center(0, 0, 0);
-    if (center && !vertices_.empty()) {
-        vertex_center = GetCenter();
-    }
-    const Eigen::Matrix3d R = GetRotationMatrix(rotation, type);
-    for (auto &vertex : vertices_) {
-        vertex = R * (vertex - vertex_center) + vertex_center;
-    }
     return *this;
 }
 
@@ -138,16 +49,11 @@ TetraMesh &TetraMesh::operator+=(const TetraMesh &mesh) {
     typedef decltype(tetras_)::value_type Vector4i;
     if (mesh.IsEmpty()) return (*this);
     size_t old_vert_num = vertices_.size();
-    size_t add_vert_num = mesh.vertices_.size();
-    size_t new_vert_num = old_vert_num + add_vert_num;
     size_t old_tetra_num = tetras_.size();
     size_t add_tetra_num = mesh.tetras_.size();
-    vertices_.resize(new_vert_num);
-    for (size_t i = 0; i < add_vert_num; i++)
-        vertices_[old_vert_num + i] = mesh.vertices_[i];
-
+    MeshBase::operator+=(mesh);
     tetras_.resize(tetras_.size() + mesh.tetras_.size());
-    Vector4i index_shift = Vector4i::Constant((int64_t)old_vert_num);
+    Vector4i index_shift = Vector4i::Constant(static_cast<int>(old_vert_num));
     for (size_t i = 0; i < add_tetra_num; i++) {
         tetras_[old_tetra_num + i] = mesh.tetras_[i] + index_shift;
     }
@@ -189,7 +95,7 @@ TetraMesh &TetraMesh::RemoveDuplicatedVertices() {
         }
     }
     utility::LogDebug(
-            "[RemoveDuplicatedVertices] {:d} vertices have been removed.\n",
+            "[RemoveDuplicatedVertices] {:d} vertices have been removed.",
             (int)(old_vertex_num - k));
 
     return *this;
@@ -219,9 +125,8 @@ TetraMesh &TetraMesh::RemoveDuplicatedTetras() {
         }
     }
     tetras_.resize(k);
-    utility::LogDebug(
-            "[RemoveDuplicatedTetras] {:d} tetras have been removed.\n",
-            (int)(old_tetra_num - k));
+    utility::LogDebug("[RemoveDuplicatedTetras] {:d} tetras have been removed.",
+                      (int)(old_tetra_num - k));
 
     return *this;
 }
@@ -257,7 +162,7 @@ TetraMesh &TetraMesh::RemoveUnreferencedVertices() {
         }
     }
     utility::LogDebug(
-            "[RemoveUnreferencedVertices] {:d} vertices have been removed.\n",
+            "[RemoveUnreferencedVertices] {:d} vertices have been removed.",
             (int)(old_vertex_num - k));
 
     return *this;
@@ -278,7 +183,7 @@ TetraMesh &TetraMesh::RemoveDegenerateTetras() {
     tetras_.resize(k);
     utility::LogDebug(
             "[RemoveDegenerateTetras] {:d} tetras have been "
-            "removed.\n",
+            "removed.",
             (int)(old_tetra_num - k));
     return *this;
 }
@@ -292,10 +197,9 @@ std::shared_ptr<TriangleMesh> TetraMesh::ExtractTriangleMesh(
     auto triangle_mesh = std::make_shared<TriangleMesh>();
 
     if (values.size() != vertices_.size()) {
-        utility::LogWarning(
+        utility::LogError(
                 "[ExtractTriangleMesh] number of values does not match the "
-                "number of vertices.\n");
-        return triangle_mesh;
+                "number of vertices.");
     }
 
     auto SurfaceIntersectionTest = [](double v0, double v1, double level) {
@@ -348,7 +252,7 @@ std::shared_ptr<TriangleMesh> TetraMesh::ExtractTriangleMesh(
         const auto &tetra = tetras_[tetra_i];
 
         std::array<Eigen::Vector3d, 4> verts;
-        std::array<Index2, 4> keys;
+        std::array<Index2, 4> keys;  // keys for the edges
         std::array<Index, 4> verts_indices;
         std::array<Eigen::Vector3d, 4> edge_dirs;
         int num_verts = 0;
@@ -376,12 +280,12 @@ std::shared_ptr<TriangleMesh> TetraMesh::ExtractTriangleMesh(
         // add vertices and get the vertex indices
         for (int i = 0; i < num_verts; ++i) {
             if (intersecting_edges.count(keys[i]) == 0) {
-                Index idx = intersecting_edges.size();
+                Index idx = static_cast<Index>(intersecting_edges.size());
                 verts_indices[i] = idx;
                 intersecting_edges[keys[i]] = idx;
                 triangle_mesh->vertices_.push_back(verts[i]);
             } else {
-                verts_indices[i] = intersecting_edges[keys[i]];
+                verts_indices[i] = Index(intersecting_edges[keys[i]]);
             }
         }
 
@@ -400,7 +304,7 @@ std::shared_ptr<TriangleMesh> TetraMesh::ExtractTriangleMesh(
 
             triangle_mesh->triangles_.push_back(tri);
         } else if (4 == num_verts) {
-            std::array<int, 4> order;
+            std::array<int, 4> order = {-1, 0, 0, 0};
             if (HasCommonVertexIndex(keys[0], keys[1]) &&
                 HasCommonVertexIndex(keys[0], keys[2])) {
                 order = {1, 0, 2, 3};
@@ -412,37 +316,46 @@ std::shared_ptr<TriangleMesh> TetraMesh::ExtractTriangleMesh(
                 order = {2, 0, 3, 1};
             }
 
-            // accumulate to improve robustness of the triangle orientation test
-            double dot = 0;
-            for (int i = 0; i < 4; ++i) {
-                Eigen::Vector3d tri_normal = ComputeTriangleNormal(
-                        verts[order[(4 + i - 1) % 4]], verts[order[i]],
-                        verts[order[(i + 1) % 4]]);
-                dot += tri_normal.dot(edge_dirs[order[i]]);
-            }
-            if (dot < 0) std::reverse(order.begin(), order.end());
+            if (order[0] != -1) {
+                // accumulate to improve robustness of the triangle orientation
+                // test
+                double dot = 0;
+                for (int i = 0; i < 4; ++i) {
+                    Eigen::Vector3d tri_normal = ComputeTriangleNormal(
+                            verts[order[(4 + i - 1) % 4]], verts[order[i]],
+                            verts[order[(i + 1) % 4]]);
+                    dot += tri_normal.dot(edge_dirs[order[i]]);
+                }
+                if (dot < 0) std::reverse(order.begin(), order.end());
 
-            std::array<Eigen::Vector3i, 2> tris;
-            if ((verts[order[0]] - verts[order[2]]).squaredNorm() <
-                (verts[order[1]] - verts[order[3]]).squaredNorm()) {
-                tris[0] << verts_indices[order[0]], verts_indices[order[1]],
-                        verts_indices[order[2]];
-                tris[1] << verts_indices[order[2]], verts_indices[order[3]],
-                        verts_indices[order[0]];
+                std::array<Eigen::Vector3i, 2> tris;
+                if ((verts[order[0]] - verts[order[2]]).squaredNorm() <
+                    (verts[order[1]] - verts[order[3]]).squaredNorm()) {
+                    tris[0] << verts_indices[order[0]], verts_indices[order[1]],
+                            verts_indices[order[2]];
+                    tris[1] << verts_indices[order[2]], verts_indices[order[3]],
+                            verts_indices[order[0]];
+                } else {
+                    tris[0] << verts_indices[order[0]], verts_indices[order[1]],
+                            verts_indices[order[3]];
+                    tris[1] << verts_indices[order[1]], verts_indices[order[2]],
+                            verts_indices[order[3]];
+                }
+
+                triangle_mesh->triangles_.insert(
+                        triangle_mesh->triangles_.end(), {tris[0], tris[1]});
             } else {
-                tris[0] << verts_indices[order[0]], verts_indices[order[1]],
-                        verts_indices[order[3]];
-                tris[1] << verts_indices[order[1]], verts_indices[order[2]],
-                        verts_indices[order[3]];
+                utility::LogWarning(
+                        "[ExtractTriangleMesh] failed to create triangles for "
+                        "tetrahedron {:d}: invalid edge configuration for "
+                        "tetrahedron",
+                        int(tetra_i));
             }
-
-            triangle_mesh->triangles_.insert(triangle_mesh->triangles_.end(),
-                                             {tris[0], tris[1]});
         } else if (0 != num_verts) {
             utility::LogWarning(
                     "[ExtractTriangleMesh] failed to create triangles for "
-                    "tetrahedron {:d}\n",
-                    int(tetra_i));
+                    "tetrahedron {:d}: unexpected number of vertices {:d}",
+                    int(tetra_i), num_verts);
         }
     }
 

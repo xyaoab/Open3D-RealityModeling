@@ -28,6 +28,7 @@
 
 #include "Open3D/IO/ClassIO/PointCloudIO.h"
 #include "Open3D/Utility/Console.h"
+#include "Open3D/Utility/FileSystem.h"
 
 namespace open3d {
 namespace io {
@@ -35,9 +36,9 @@ namespace io {
 bool ReadPointCloudFromXYZRGB(const std::string &filename,
                               geometry::PointCloud &pointcloud,
                               bool print_progress) {
-    FILE *file = fopen(filename.c_str(), "r");
+    FILE *file = utility::filesystem::FOpen(filename, "r");
     if (file == NULL) {
-        utility::LogWarning("Read XYZRGB failed: unable to open file: {}\n",
+        utility::LogWarning("Read XYZRGB failed: unable to open file: {}",
                             filename);
         return false;
     }
@@ -67,9 +68,9 @@ bool WritePointCloudToXYZRGB(const std::string &filename,
         return false;
     }
 
-    FILE *file = fopen(filename.c_str(), "w");
+    FILE *file = utility::filesystem::FOpen(filename, "w");
     if (file == NULL) {
-        utility::LogWarning("Write XYZRGB failed: unable to open file: {}\n",
+        utility::LogWarning("Write XYZRGB failed: unable to open file: {}",
                             filename);
         return false;
     }
@@ -79,9 +80,8 @@ bool WritePointCloudToXYZRGB(const std::string &filename,
         const Eigen::Vector3d &color = pointcloud.colors_[i];
         if (fprintf(file, "%.10f %.10f %.10f %.10f %.10f %.10f\n", point(0),
                     point(1), point(2), color(0), color(1), color(2)) < 0) {
-            utility::LogWarning(
-                    "Write XYZRGB failed: unable to write file: {}\n",
-                    filename);
+            utility::LogWarning("Write XYZRGB failed: unable to write file: {}",
+                                filename);
             fclose(file);
             return false;  // error happens during writing.
         }

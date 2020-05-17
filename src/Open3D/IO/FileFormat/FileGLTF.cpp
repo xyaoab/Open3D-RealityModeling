@@ -31,10 +31,7 @@
 #include "Open3D/Utility/Console.h"
 #include "Open3D/Utility/FileSystem.h"
 
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "tinygltf/tiny_gltf.h"
+#include <tiny_gltf.h>
 
 namespace open3d {
 namespace io {
@@ -107,7 +104,7 @@ bool ReadTriangleMeshFromGLTF(const std::string& filename,
     }
 
     if (!warn.empty() || !err.empty()) {
-        utility::LogWarning("Read GLTF failed: unable to open file {}\n",
+        utility::LogWarning("Read GLTF failed: unable to open file {}",
                             filename);
     }
     if (!ret) {
@@ -117,7 +114,7 @@ bool ReadTriangleMeshFromGLTF(const std::string& filename,
     if (model.meshes.size() > 1) {
         utility::LogInfo(
                 "The file contains more than one mesh. All meshes will be "
-                "loaded as a single mesh.\n");
+                "loaded as a single mesh.");
     }
 
     mesh.Clear();
@@ -237,7 +234,7 @@ bool ReadTriangleMeshFromGLTF(const std::string& filename,
                             default: {
                                 utility::LogWarning(
                                         "Unrecognized component type for "
-                                        "vertex colors\n");
+                                        "vertex colors");
                                 break;
                             }
                         }
@@ -392,7 +389,13 @@ bool WriteTriangleMeshToGLTF(const std::string& filename,
                              bool compressed /* = false*/,
                              bool write_vertex_normals /* = true*/,
                              bool write_vertex_colors /* = true*/,
+                             bool write_triangle_uvs /* = true*/,
                              bool print_progress) {
+    if (write_triangle_uvs && mesh.HasTriangleUvs()) {
+        utility::LogWarning(
+                "This file format does not support writing textures and uv "
+                "coordinates. Consider using .obj");
+    }
     tinygltf::Model model;
     model.asset.generator = "Open3D";
     model.asset.version = "2.0";
@@ -504,8 +507,8 @@ bool WriteTriangleMeshToGLTF(const std::string& filename,
     positions_accessor.maxValues.push_back(max_bound[1]);
     positions_accessor.maxValues.push_back(max_bound[2]);
     model.accessors.push_back(positions_accessor);
-    gltf_primitive.attributes.insert(
-            std::make_pair("POSITION", model.accessors.size() - 1));
+    gltf_primitive.attributes.insert(std::make_pair(
+            "POSITION", static_cast<int>(model.accessors.size()) - 1));
 
     write_vertex_normals = write_vertex_normals && mesh.HasVertexNormals();
     if (write_vertex_normals) {
@@ -533,8 +536,8 @@ bool WriteTriangleMeshToGLTF(const std::string& filename,
         }
 
         model.accessors.push_back(normals_accessor);
-        gltf_primitive.attributes.insert(
-                std::make_pair("NORMAL", model.accessors.size() - 1));
+        gltf_primitive.attributes.insert(std::make_pair(
+                "NORMAL", static_cast<int>(model.accessors.size()) - 1));
     }
 
     write_vertex_colors = write_vertex_colors && mesh.HasVertexColors();
@@ -563,8 +566,8 @@ bool WriteTriangleMeshToGLTF(const std::string& filename,
         }
 
         model.accessors.push_back(colors_accessor);
-        gltf_primitive.attributes.insert(
-                std::make_pair("COLOR_0", model.accessors.size() - 1));
+        gltf_primitive.attributes.insert(std::make_pair(
+                "COLOR_0", static_cast<int>(model.accessors.size()) - 1));
     }
 
     gltf_primitive.mode = TINYGLTF_MODE_TRIANGLES;
@@ -588,13 +591,13 @@ bool WriteTriangleMeshToGLTF(const std::string& filename,
     if (filename_ext == "glb") {
         if (!loader.WriteGltfSceneToFile(&model, filename, false, true, true,
                                          true)) {
-            utility::LogWarning("Write GLTF failed.\n");
+            utility::LogWarning("Write GLTF failed.");
             return false;
         }
     } else {
         if (!loader.WriteGltfSceneToFile(&model, filename, false, true, true,
                                          false)) {
-            utility::LogWarning("Write GLTF failed.\n");
+            utility::LogWarning("Write GLTF failed.");
             return false;
         }
     }

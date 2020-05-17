@@ -23,7 +23,17 @@ Open3D: A Modern Library for 3D Data Processing
     getting_started
     compilation
     builddocs
-    contribute
+
+.. _contribute_guide:
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Contribute
+
+    contribute/contribute
+    contribute/contribution_recipes
+    contribute/styleguide
+
 
 .. _tutorial_index:
 
@@ -46,6 +56,7 @@ Open3D: A Modern Library for 3D Data Processing
 
     python_api/open3d.camera
     python_api/open3d.color_map
+    python_api/open3d.cuda
     python_api/open3d.geometry
     python_api/open3d.io
     python_api/open3d.integration

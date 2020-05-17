@@ -26,6 +26,7 @@
 
 #include "Open3D/Visualization/Visualizer/RenderOption.h"
 
+#include <GL/glew.h>
 #include <json/json.h>
 
 #include "Open3D/Utility/Console.h"
@@ -119,14 +120,14 @@ bool RenderOption::ConvertToJsonValue(Json::Value &value) const {
 bool RenderOption::ConvertFromJsonValue(const Json::Value &value) {
     if (value.isObject() == false) {
         utility::LogWarning(
-                "ViewTrajectory read JSON failed: unsupported json format.\n");
+                "ViewTrajectory read JSON failed: unsupported json format.");
         return false;
     }
     if (value.get("class_name", "").asString() != "RenderOption" ||
         value.get("version_major", 1).asInt() != 1 ||
         value.get("version_minor", 0).asInt() != 0) {
         utility::LogWarning(
-                "ViewTrajectory read JSON failed: unsupported json format.\n");
+                "ViewTrajectory read JSON failed: unsupported json format.");
         return false;
     }
 
@@ -249,6 +250,28 @@ bool RenderOption::ConvertFromJsonValue(const Json::Value &value) {
     show_coordinate_frame_ =
             value.get("show_coordinate_frame", show_coordinate_frame_).asBool();
     return true;
+}
+
+int RenderOption::GetGLDepthFunc() const {
+    switch (depthFunc_) {
+        case DepthFunc::Never:
+            return GL_NEVER;
+        case DepthFunc::Less:
+            return GL_LESS;
+        case DepthFunc::Equal:
+            return GL_EQUAL;
+        case DepthFunc::LEqual:
+            return GL_LEQUAL;
+        case DepthFunc::Greater:
+            return GL_GREATER;
+        case DepthFunc::NotEqual:
+            return GL_NOTEQUAL;
+        case DepthFunc::GEqual:
+            return GL_GEQUAL;
+        case DepthFunc::Always:
+            return GL_ALWAYS;
+    }
+    return GL_LESS;  // never hit, makes GCC happy
 }
 
 }  // namespace visualization

@@ -42,30 +42,30 @@ else()
     message(STATUS "NASM assembler not found - libjpeg-turbo performance may suffer")
 endif()
 
+if (STATIC_WINDOWS_RUNTIME)
+    set(WITH_CRT_DLL OFF)
+else()
+    set(WITH_CRT_DLL ON)
+endif()
+message(STATUS "libturbojpeg: WITH_CRT_DLL=${WITH_CRT_DLL}")
+
 ExternalProject_Add(
     ext_turbojpeg
     PREFIX turbojpeg
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libjpeg-turbo/libjpeg-turbo
+    SOURCE_DIR ${Open3D_3RDPARTY_DIR}/libjpeg-turbo/libjpeg-turbo
     UPDATE_COMMAND ""
     CMAKE_GENERATOR ${CMAKE_GENERATOR}
     CMAKE_GENERATOR_PLATFORM ${CMAKE_GENERATOR_PLATFORM}
     CMAKE_GENERATOR_TOOLSET ${CMAKE_GENERATOR_TOOLSET}
     CMAKE_ARGS
-        -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
-        -DCMAKE_C_FLAGS=${DCMAKE_C_FLAGS}
-        -DCMAKE_C_FLAGS_RELEASE=${CMAKE_C_FLAGS_RELEASE}
-        -DCMAKE_C_FLAGS_DEBUG=${CMAKE_C_FLAGS_DEBUG}
-        -DCMAKE_CXX_FLAGS_RELEASE=${CMAKE_CXX_FLAGS_RELEASE}
-        -DCMAKE_CXX_FLAGS_DEBUG=${CMAKE_CXX_FLAGS_DEBUG}
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+        -DWITH_CRT_DLL=${WITH_CRT_DLL}
         -DENABLE_STATIC=ON
         -DENABLE_SHARED=OFF
         -DWITH_SIMD=${WITH_SIMD}
-        -DCMAKE_INSTALL_PREFIX=${3RDPARTY_INSTALL_PREFIX}
+        -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/libjpeg-turbo-install
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
 )
-
-add_library(turbojpeg INTERFACE)
-add_dependencies(turbojpeg ext_turbojpeg)
 
 # If MSVC, the OUTPUT_NAME was set to turbojpeg-static
 if(MSVC)
@@ -76,23 +76,3 @@ endif()
 
 # For linking with Open3D's after installation
 set(JPEG_TURBO_LIBRARIES ${lib_name})
-
-set(turbojpeg_LIB_FILES
-    ${3RDPARTY_INSTALL_PREFIX}/${LIBDIR}/${CMAKE_STATIC_LIBRARY_PREFIX}${lib_name}${CMAKE_STATIC_LIBRARY_SUFFIX}
-)
-
-target_include_directories(turbojpeg SYSTEM INTERFACE
-    ${3RDPARTY_INSTALL_PREFIX}/include
-)
-target_link_libraries(turbojpeg INTERFACE
-    ${turbojpeg_LIB_FILES}
-)
-
-if (NOT BUILD_SHARED_LIBS)
-    install(FILES ${turbojpeg_LIB_FILES}
-            DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
-endif()
-
-add_dependencies(build_all_3rd_party_libs turbojpeg)
-
-

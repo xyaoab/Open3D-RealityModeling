@@ -50,7 +50,7 @@ std::shared_ptr<OctreeNode> OctreeNode::ConstructFromJsonValue(
         } else if (class_name == "OctreeColorLeafNode") {
             node = std::make_shared<OctreeColorLeafNode>();
         } else {
-            utility::LogWarning("Unhandled class name {}\n", class_name);
+            utility::LogError("Unhandled class name {}", class_name);
         }
     }
     // Convert from json
@@ -67,7 +67,7 @@ std::shared_ptr<OctreeNodeInfo> OctreeInternalNode::GetInsertionNodeInfo(
         const std::shared_ptr<OctreeNodeInfo>& node_info,
         const Eigen::Vector3d& point) {
     if (!Octree::IsPointInBound(point, node_info->origin_, node_info->size_)) {
-        throw std::runtime_error(
+        utility::LogError(
                 "Internal error: cannot insert to child since point not in "
                 "parent node bound.");
     }
@@ -106,13 +106,12 @@ bool OctreeInternalNode::ConvertFromJsonValue(const Json::Value& value) {
     if (value.isObject() == false) {
         utility::LogWarning(
                 "ConvertFromJsonValue read JSON failed: unsupported json "
-                "format.\n");
+                "format.");
         return false;
     }
     std::string class_name = value.get("class_name", "").asString();
     if (class_name != "OctreeInternalNode") {
-        utility::LogWarning("class_name {} != OctreeInternalNode\n",
-                            class_name);
+        utility::LogWarning("class_name {} != OctreeInternalNode", class_name);
         return false;
     }
     bool rc = true;
@@ -140,7 +139,7 @@ OctreeColorLeafNode::GetUpdateFunction(const Eigen::Vector3d& color) {
                             node)) {
             color_leaf_node->color_ = color;
         } else {
-            throw std::runtime_error(
+            utility::LogError(
                     "Internal error: leaf node must be OctreeLeafNode");
         }
     };
@@ -171,7 +170,7 @@ bool OctreeColorLeafNode::ConvertFromJsonValue(const Json::Value& value) {
     if (value.isObject() == false) {
         utility::LogWarning(
                 "OctreeColorLeafNode read JSON failed: unsupported json "
-                "format.\n");
+                "format.");
         return false;
     }
     if (value.get("class_name", "") != "OctreeColorLeafNode") {
@@ -202,7 +201,7 @@ Octree::Octree(const Octree& src_octree)
                                    src_node)) {
             map_src_to_dst_node[src_leaf_node] = src_leaf_node->Clone();
         } else {
-            throw std::runtime_error("Internal error: unknown node type");
+            utility::LogError("Internal error: unknown node type");
         }
     };
     src_octree.Traverse(f_build_map);
@@ -371,31 +370,29 @@ OrientedBoundingBox Octree::GetOrientedBoundingBox() const {
 }
 
 Octree& Octree::Transform(const Eigen::Matrix4d& transformation) {
-    throw std::runtime_error("Not implemented");
+    utility::LogError("Not implemented");
     return *this;
 }
 
 Octree& Octree::Translate(const Eigen::Vector3d& translation, bool relative) {
-    throw std::runtime_error("Not implemented");
+    utility::LogError("Not implemented");
     return *this;
 }
 
 Octree& Octree::Scale(const double scale, bool center) {
-    throw std::runtime_error("Not implemented");
+    utility::LogError("Not implemented");
     return *this;
 }
 
-Octree& Octree::Rotate(const Eigen::Vector3d& rotation,
-                       bool center,
-                       RotationType type) {
-    throw std::runtime_error("Not implemented");
+Octree& Octree::Rotate(const Eigen::Matrix3d& R, bool center) {
+    utility::LogError("Not implemented");
     return *this;
 }
 
 void Octree::ConvertFromPointCloud(const geometry::PointCloud& point_cloud,
                                    double size_expand) {
     if (size_expand > 1 || size_expand < 0) {
-        throw std::runtime_error("size_expand shall be between 0 and 1");
+        utility::LogError("size_expand shall be between 0 and 1");
     }
 
     // Set bounds
@@ -452,7 +449,7 @@ void Octree::InsertPointRecurse(
         if (auto leaf_node = std::dynamic_pointer_cast<OctreeLeafNode>(node)) {
             f_update(leaf_node);
         } else {
-            throw std::runtime_error(
+            utility::LogError(
                     "Internal error: leaf node must be OctreeLeafNode");
         }
     } else {
@@ -477,7 +474,7 @@ void Octree::InsertPointRecurse(
             InsertPointRecurse(internal_node->children_[child_index],
                                child_node_info, point, f_init, f_update);
         } else {
-            throw std::runtime_error(
+            utility::LogError(
                     "Internal error: internal node must be "
                     "OctreeInternalNode");
         }
@@ -541,7 +538,7 @@ void Octree::TraverseRecurse(
                        std::dynamic_pointer_cast<OctreeLeafNode>(node)) {
         f(leaf_node, node_info);
     } else {
-        throw std::runtime_error("Internal error: unknown node type");
+        utility::LogError("Internal error: unknown node type");
     }
 }
 
@@ -592,7 +589,7 @@ bool Octree::ConvertToJsonValue(Json::Value& value) const {
 bool Octree::ConvertFromJsonValue(const Json::Value& value) {
     if (value.isObject() == false) {
         utility::LogWarning(
-                "Octree read JSON failed: unsupported json format.\n");
+                "Octree read JSON failed: unsupported json format.");
         return false;
     }
     if (value.get("class_name", "") != "Octree") {
@@ -614,14 +611,14 @@ void Octree::CreateFromVoxelGrid(const geometry::VoxelGrid& voxel_grid) {
     origin_ = voxel_grid.origin_;
     size_ = (voxel_grid.GetMaxBound() - origin_).maxCoeff();
     double half_voxel_size = voxel_grid.voxel_size_ / 2.;
-    for (size_t vid = 0; vid < voxel_grid.voxels_.size(); ++vid) {
-        Eigen::Vector3d mid_point =
-                half_voxel_size + origin_.array() +
-                voxel_grid.voxels_[vid].grid_index_.array().cast<double>() *
-                        voxel_grid.voxel_size_;
-        InsertPoint(mid_point, geometry::OctreeColorLeafNode::GetInitFunction(),
-                    geometry::OctreeColorLeafNode::GetUpdateFunction(
-                            voxel_grid.voxels_[vid].color_));
+    for (const auto& voxel_iter : voxel_grid.voxels_) {
+        const geometry::Voxel& voxel = voxel_iter.second;
+        Eigen::Vector3d mid_point = half_voxel_size + origin_.array() +
+                                    voxel.grid_index_.array().cast<double>() *
+                                            voxel_grid.voxel_size_;
+        InsertPoint(
+                mid_point, geometry::OctreeColorLeafNode::GetInitFunction(),
+                geometry::OctreeColorLeafNode::GetUpdateFunction(voxel.color_));
     }
 }
 

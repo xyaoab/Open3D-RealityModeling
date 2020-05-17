@@ -114,7 +114,7 @@ bool SimpleBlackShaderForPointCloudNormal::PrepareRendering(
         return false;
     }
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    glDepthFunc(GLenum(option.GetGLDepthFunc()));
     return true;
 }
 
@@ -136,7 +136,7 @@ bool SimpleBlackShaderForPointCloudNormal::PrepareBinding(
     }
     points.resize(pointcloud.points_.size() * 2);
     double line_length =
-            option.point_size_ * 0.01 * view.GetBoundingBox().GetMaxExtend();
+            option.point_size_ * 0.01 * view.GetBoundingBox().GetMaxExtent();
     for (size_t i = 0; i < pointcloud.points_.size(); i++) {
         const auto &point = pointcloud.points_[i];
         const auto &normal = pointcloud.normals_[i];

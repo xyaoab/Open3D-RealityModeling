@@ -31,7 +31,7 @@
 #include <memory>
 #include <vector>
 
-#include "Open3D/Geometry/Geometry3D.h"
+#include "Open3D/Geometry/MeshBase.h"
 #include "Open3D/Utility/Eigen.h"
 #include "Open3D/Utility/Helper.h"
 
@@ -41,73 +41,79 @@ namespace geometry {
 class PointCloud;
 class TriangleMesh;
 
-class TetraMesh : public Geometry3D {
+/// \class TetraMesh
+///
+/// \brief Tetra mesh contains vertices and tetrahedra represented by the
+/// indices to the vertices.
+class TetraMesh : public MeshBase {
 public:
-    TetraMesh() : Geometry3D(Geometry::GeometryType::TetraMesh) {}
+    /// \brief Default Constructor.
+    TetraMesh() : MeshBase(Geometry::GeometryType::TetraMesh) {}
+    /// \brief Parameterized Constructor.
+    ///
+    /// \param vertices Vertex coordinates.
+    /// \param tetras List of tetras denoted by the index of points forming the
+    /// tetra.
+    TetraMesh(const std::vector<Eigen::Vector3d> &vertices,
+              const std::vector<Eigen::Vector4i, utility::Vector4i_allocator>
+                      &tetras)
+        : MeshBase(Geometry::GeometryType::TetraMesh, vertices),
+          tetras_(tetras) {}
     ~TetraMesh() override {}
 
 public:
     TetraMesh &Clear() override;
-    bool IsEmpty() const override;
-    Eigen::Vector3d GetMinBound() const override;
-    Eigen::Vector3d GetMaxBound() const override;
-    Eigen::Vector3d GetCenter() const override;
-    AxisAlignedBoundingBox GetAxisAlignedBoundingBox() const override;
-    OrientedBoundingBox GetOrientedBoundingBox() const override;
-    TetraMesh &Transform(const Eigen::Matrix4d &transformation) override;
-    TetraMesh &Translate(const Eigen::Vector3d &translation,
-                         bool relative = true) override;
-    TetraMesh &Scale(const double scale, bool center = true) override;
-    TetraMesh &Rotate(const Eigen::Vector3d &rotation,
-                      bool center = true,
-                      RotationType type = RotationType::XYZ) override;
 
 public:
     TetraMesh &operator+=(const TetraMesh &mesh);
     TetraMesh operator+(const TetraMesh &mesh) const;
 
-    /// Function that removes duplicated verties, i.e., vertices that have
-    /// identical coordinates.
+    /// \brief Function that removes duplicated verties, i.e., vertices that
+    /// have identical coordinates.
     TetraMesh &RemoveDuplicatedVertices();
 
-    /// Function that removes duplicated tetrahedra, i.e., removes tetrahedra
-    /// that reference the same four vertices, independent of their order.
+    /// \brief Function that removes duplicated tetrahedra, i.e., removes
+    /// tetrahedra that reference the same four vertices, independent of their
+    /// order.
     TetraMesh &RemoveDuplicatedTetras();
 
-    /// This function removes vertices from the tetra mesh that are not
+    /// \brief This function removes vertices from the tetra mesh that are not
     /// referenced in any tetrahedron of the mesh.
     TetraMesh &RemoveUnreferencedVertices();
 
-    /// Function that removes degenerate tetrahedra, i.e., tetrahedra that
-    /// reference a single vertex multiple times in a single tetrahedron.
+    /// \brief Function that removes degenerate tetrahedra, i.e., tetrahedra
+    /// that reference a single vertex multiple times in a single tetrahedron.
     /// They are usually the product of removing duplicated vertices.
     TetraMesh &RemoveDegenerateTetras();
 
-    bool HasVertices() const { return vertices_.size() > 0; }
-
+    /// Returns `true` if the mesh contains tetras.
     bool HasTetras() const {
         return vertices_.size() > 0 && tetras_.size() > 0;
     }
 
-    /// Function to extract a triangle mesh of the specified iso-surface at
-    /// \param level. \param values are values per-vertex.
-    /// This method applies primal contouring and generates triangles for each
-    /// tetrahedron.
+    /// \brief Function to extract a triangle mesh of the specified iso-surface
+    /// at a level This method applies primal contouring and generates triangles
+    /// for each tetrahedron.
+    ///
+    /// \param level specifies the level.
+    /// \param values specifies values per-vertex.
     std::shared_ptr<TriangleMesh> ExtractTriangleMesh(
             const std::vector<double> &values, double level);
 
-    /// Function that creates a tetrahedral mesh (TetraMeshFactory.cpp).
-    /// from a point cloud. The method creates the Delaunay triangulation
+    /// \brief Function that creates a tetrahedral mesh (TetraMeshFactory.cpp).
+    /// from a point cloud.
+    ///
+    /// The method creates the Delaunay triangulation
     /// using the implementation from Qhull.
-    static std::shared_ptr<TetraMesh> CreateFromPointCloud(
-            const PointCloud &point_cloud);
+    static std::tuple<std::shared_ptr<TetraMesh>, std::vector<size_t>>
+    CreateFromPointCloud(const PointCloud &point_cloud);
 
 protected:
     // Forward child class type to avoid indirect nonvirtual base
-    TetraMesh(Geometry::GeometryType type) : Geometry3D(type) {}
+    TetraMesh(Geometry::GeometryType type) : MeshBase(type) {}
 
 public:
-    std::vector<Eigen::Vector3d> vertices_;
+    /// List of tetras denoted by the index of points forming the tetra.
     std::vector<Eigen::Vector4i, utility::Vector4i_allocator> tetras_;
 };
 

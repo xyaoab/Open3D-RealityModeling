@@ -30,8 +30,12 @@
 #include <string>
 #include <vector>
 
+#ifndef FMT_HEADER_ONLY
 #define FMT_HEADER_ONLY 1
+#endif
+#ifndef FMT_STRING_ALIAS
 #define FMT_STRING_ALIAS 1
+#endif
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <fmt/ranges.h>
@@ -42,12 +46,23 @@ namespace open3d {
 namespace utility {
 
 enum class VerbosityLevel {
-    Off = 0,
-    Fatal = 1,
-    Error = 2,
-    Warning = 3,
-    Info = 4,
-    Debug = 5,
+    /// LogError throws now a runtime_error with the given error message. This
+    /// should be used if there is no point in continuing the given algorithm at
+    /// some point and the error is not returned in another way (e.g., via a
+    /// bool/int as return value).
+    Error = 0,
+    /// LogWarning is used if an error occured, but the error is also signaled
+    /// via a return value (i.e., there is no need to throw an exception). This
+    /// warning should further be used, if the algorithms encounters a state
+    /// that does not break its continuation, but the output is likely not to be
+    /// what the user expected.
+    Warning = 1,
+    /// LogInfo is used to inform the user with expected output, e.g, pressed a
+    /// key in the visualizer prints helping information.
+    Info = 2,
+    /// LogDebug is used to print debug/additional information on the state of
+    /// the algorithm.
+    Debug = 3,
 };
 
 class Logger {
@@ -72,146 +87,94 @@ public:
         return instance;
     }
 
-    /// Internal function to change text color for the console
-    /// Note there is no security check for parameters.
-    /// \param text_color, from 0 to 7, they are black, red, green, yellow,
-    /// blue, magenta, cyan, white \param emphasis_text is 0 or 1
-    void ChangeConsoleColor(TextColor text_color, int highlight_text);
-    void ResetConsoleColor();
-
-    void VFatal(const char *format, fmt::format_args args) {
-        if (verbosity_level_ >= VerbosityLevel::Fatal) {
-            ChangeConsoleColor(TextColor::Red, 1);
-            fmt::print("[Open3D FATAL] ");
-            fmt::vprint(format, args);
-            ResetConsoleColor();
-            exit(-1);
-        }
+    void VError[[noreturn]](const char *format, fmt::format_args args) const {
+        std::string err_msg = fmt::vformat(format, args);
+        err_msg = fmt::format("[Open3D ERROR] {}", err_msg);
+        err_msg = ColorString(err_msg, TextColor::Red, 1);
+        throw std::runtime_error(err_msg);
     }
 
-    void VError(const char *format, fmt::format_args args) {
-        if (verbosity_level_ >= VerbosityLevel::Error) {
-            ChangeConsoleColor(TextColor::Red, 1);
-            fmt::print("[Open3D ERROR] ");
-            fmt::vprint(format, args);
-            ResetConsoleColor();
-        }
-    }
-
-    void VWarning(const char *format, fmt::format_args args) {
+    void VWarning(const char *format, fmt::format_args args) const {
         if (verbosity_level_ >= VerbosityLevel::Warning) {
-            ChangeConsoleColor(TextColor::Yellow, 1);
-            fmt::print("[Open3D WARNING] ");
-            fmt::vprint(format, args);
-            ResetConsoleColor();
+            std::string err_msg = fmt::vformat(format, args);
+            err_msg = fmt::format("[Open3D WARNING] {}", err_msg);
+            err_msg = ColorString(err_msg, TextColor::Yellow, 1);
+            print_fcn_(err_msg);
         }
     }
 
-    void VInfo(const char *format, fmt::format_args args) {
+    void VInfo(const char *format, fmt::format_args args) const {
         if (verbosity_level_ >= VerbosityLevel::Info) {
-            fmt::print("[Open3D INFO] ");
-            fmt::vprint(format, args);
+            std::string err_msg = fmt::vformat(format, args);
+            err_msg = fmt::format("[Open3D INFO] {}", err_msg);
+            print_fcn_(err_msg);
         }
     }
 
-    void VDebug(const char *format, fmt::format_args args) {
+    void VDebug(const char *format, fmt::format_args args) const {
         if (verbosity_level_ >= VerbosityLevel::Debug) {
-            fmt::print("[Open3D DEBUG] ");
-            fmt::vprint(format, args);
+            std::string err_msg = fmt::vformat(format, args);
+            err_msg = fmt::format("[Open3D DEBUG] {}", err_msg);
+            print_fcn_(err_msg);
         }
     }
 
     template <typename... Args>
-    void Fatal(const char *format, const Args &... args) {
-        VFatal(format, fmt::make_format_args(args...));
-    }
-
-    template <typename... Args>
-    void Error(const char *format, const Args &... args) {
+    void Error[[noreturn]](const char *format, const Args &... args) const {
         VError(format, fmt::make_format_args(args...));
     }
 
     template <typename... Args>
-    void Warning(const char *format, const Args &... args) {
+    void Warning(const char *format, const Args &... args) const {
         VWarning(format, fmt::make_format_args(args...));
     }
 
     template <typename... Args>
-    void Info(const char *format, const Args &... args) {
+    void Info(const char *format, const Args &... args) const {
         VInfo(format, fmt::make_format_args(args...));
     }
 
     template <typename... Args>
-    void Debug(const char *format, const Args &... args) {
+    void Debug(const char *format, const Args &... args) const {
         VDebug(format, fmt::make_format_args(args...));
     }
 
-    template <typename... Args>
-    void Fatalf(const char *format, const Args &... args) {
-        if (verbosity_level_ >= VerbosityLevel::Fatal) {
-            ChangeConsoleColor(TextColor::Red, 1);
-            fmt::print("[Open3D FATAL] ");
-            fmt::printf(format, args...);
-            ResetConsoleColor();
-            exit(-1);
-        }
-    }
-
-    template <typename... Args>
-    void Errorf(const char *format, const Args &... args) {
-        if (verbosity_level_ >= VerbosityLevel::Error) {
-            ChangeConsoleColor(TextColor::Red, 1);
-            fmt::print("[Open3D ERROR] ");
-            fmt::printf(format, args...);
-            ResetConsoleColor();
-        }
-    }
-
-    template <typename... Args>
-    void Warningf(const char *format, const Args &... args) {
-        if (verbosity_level_ >= VerbosityLevel::Warning) {
-            ChangeConsoleColor(TextColor::Yellow, 1);
-            fmt::print("[Open3D WARNING] ");
-            fmt::printf(format, args...);
-            ResetConsoleColor();
-        }
-    }
-
-    template <typename... Args>
-    void Infof(const char *format, const Args &... args) {
-        if (verbosity_level_ >= VerbosityLevel::Info) {
-            fmt::print("[Open3D INFO] ");
-            fmt::printf(format, args...);
-        }
-    }
-
-    template <typename... Args>
-    void Debugf(const char *format, const Args &... args) {
-        if (verbosity_level_ >= VerbosityLevel::Debug) {
-            fmt::print("[Open3D DEBUG] ");
-            fmt::printf(format, args...);
-        }
-    }
+protected:
+    /// Internal function to change text color for the console
+    /// Note there is no security check for parameters.
+    /// \param text_color, from 0 to 7, they are black, red, green, yellow,
+    /// blue, magenta, cyan, white \param emphasis_text is 0 or 1
+    void ChangeConsoleColor(TextColor text_color, int highlight_text) const;
+    void ResetConsoleColor() const;
+    /// Colorize and reset the color of a string, does not work on Windows
+    std::string ColorString(const std::string &text,
+                            TextColor text_color,
+                            int highlight_text) const;
 
 public:
     VerbosityLevel verbosity_level_;
+    std::function<void(const std::string &)> print_fcn_ =
+            [](const std::string &msg) {
+                fmt::print(msg);
+                fmt::print("\n");
+            };
 };
 
+/// Set global verbosity level of Open3D
+///
+/// \param level Messages with equal or less than verbosity_level verbosity will
+/// be printed.
 inline void SetVerbosityLevel(VerbosityLevel level) {
     Logger::i().verbosity_level_ = level;
 }
 
+/// Get global verbosity level of Open3D.
 inline VerbosityLevel GetVerbosityLevel() {
     return Logger::i().verbosity_level_;
 }
 
 template <typename... Args>
-inline void LogFatal(const char *format, const Args &... args) {
-    Logger::i().VFatal(format, fmt::make_format_args(args...));
-}
-
-template <typename... Args>
-inline void LogError(const char *format, const Args &... args) {
+inline void LogError[[noreturn]](const char *format, const Args &... args) {
     Logger::i().VError(format, fmt::make_format_args(args...));
 }
 
@@ -230,30 +193,21 @@ inline void LogDebug(const char *format, const Args &... args) {
     Logger::i().VDebug(format, fmt::make_format_args(args...));
 }
 
-template <typename... Args>
-inline void LogFatalf(const char *format, const Args &... args) {
-    Logger::i().Fatalf(format, args...);
-}
+class VerbosityContextManager {
+public:
+    VerbosityContextManager(VerbosityLevel level) : level_(level) {}
 
-template <typename... Args>
-inline void LogErrorf(const char *format, const Args &... args) {
-    Logger::i().Errorf(format, args...);
-}
+    void enter() {
+        level_backup_ = Logger::i().verbosity_level_;
+        Logger::i().verbosity_level_ = level_;
+    }
 
-template <typename... Args>
-inline void LogWarningf(const char *format, const Args &... args) {
-    Logger::i().Warningf(format, args...);
-}
+    void exit() { Logger::i().verbosity_level_ = level_backup_; }
 
-template <typename... Args>
-inline void LogInfof(const char *format, const Args &... args) {
-    Logger::i().Infof(format, args...);
-}
-
-template <typename... Args>
-inline void LogDebugf(const char *format, const Args &... args) {
-    Logger::i().Debugf(format, args...);
-}
+private:
+    VerbosityLevel level_;
+    VerbosityLevel level_backup_;
+};
 
 class ConsoleProgressBar {
 public:
@@ -267,7 +221,7 @@ public:
                const std::string &progress_info,
                bool active) {
         expected_count_ = expected_count;
-        current_count_ = -1;
+        current_count_ = static_cast<size_t>(-1);  // Guaranteed to wraparound
         progress_info_ = progress_info;
         progress_pixel_ = 0;
         active_ = active;
@@ -335,5 +289,6 @@ bool ProgramOptionExists(int argc, char **argv, const std::string &option);
 bool ProgramOptionExistsAny(int argc,
                             char **argv,
                             const std::vector<std::string> &options);
+
 }  // namespace utility
 }  // namespace open3d
