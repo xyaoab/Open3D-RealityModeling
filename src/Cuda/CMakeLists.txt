@@ -1,12 +1,11 @@
 # Modified to add cuda files
-macro(ADD_CUDA_SOURCE_GROUP MODULE_NAME)
-    file(GLOB MODULE_CUDA_HEADER_FILES "${MODULE_NAME}/*.cuh")
-    source_group("Header Files\\${MODULE_NAME}" FILES
-            ${MODULE_CUDA_HEADER_FILES})
-    file(GLOB MODULE_CUDA_SOURCE_FILES "${MODULE_NAME}/*.cu")
-    source_group("Source Files\\${MODULE_NAME}" FILES
-            ${MODULE_CUDA_SOURCE_FILES})
-endmacro(ADD_CUDA_SOURCE_GROUP)
+macro(add_cuda_source_group module_name)
+    file(GLOB MODULE_HEADER_FILES "${module_name}/*.cuh")
+    source_group("Header Files\\${module_name}" FILES ${MODULE_HEADER_FILES})
+    file(GLOB MODULE_SOURCE_FILES "${module_name}/*.cu")
+    source_group("Source Files\\${module_name}" FILES ${MODULE_SOURCE_FILES})
+endmacro()
+
 
 find_package(CUDA 8.0 REQUIRED)
 # NOTE: Eigen <= 3.3.5 has problem with CUDA >= 9.0
@@ -53,30 +52,30 @@ target_link_libraries(${OPEN3D_CUDA_MODULE} ${3RDPARTY_LIBRARIES} -lz) # for zli
 target_include_directories(${OPEN3D_CUDA_MODULE} PUBLIC ${3RDPARTY_INCLUDE_DIRS})
 
 # create subgroups
-ADD_SOURCE_GROUP(Common)
-ADD_SOURCE_GROUP(Camera)
-ADD_SOURCE_GROUP(Container)
-ADD_SOURCE_GROUP(Geometry)
-ADD_SOURCE_GROUP(Integration)
-ADD_SOURCE_GROUP(Registration)
-ADD_SOURCE_GROUP(IO)
-ADD_SOURCE_GROUP(Odometry)
-ADD_SOURCE_GROUP(Visualization)
+add_source_group(Common)
+add_source_group(Camera)
+add_source_group(Container)
+add_source_group(Geometry)
+add_source_group(Integration)
+add_source_group(Registration)
+add_source_group(IO)
+add_source_group(Odometry)
+add_source_group(Visualization)
 
 # and also for cuda
-ADD_CUDA_SOURCE_GROUP(Common)
-ADD_CUDA_SOURCE_GROUP(Camera)
-ADD_CUDA_SOURCE_GROUP(Container)
-ADD_CUDA_SOURCE_GROUP(Geometry)
-ADD_CUDA_SOURCE_GROUP(Integration)
-ADD_CUDA_SOURCE_GROUP(Registration)
-ADD_CUDA_SOURCE_GROUP(IO)
-ADD_CUDA_SOURCE_GROUP(Odometry)
-ADD_CUDA_SOURCE_GROUP(Visualization)
+add_cuda_source_group(Common)
+add_cuda_source_group(Camera)
+add_cuda_source_group(Container)
+add_cuda_source_group(Geometry)
+add_cuda_source_group(Integration)
+add_cuda_source_group(Registration)
+add_cuda_source_group(IO)
+add_cuda_source_group(Odometry)
+add_cuda_source_group(Visualization)
 
-Directories(. CUDA_INCLUDE_DIRS)
-set(CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS} PARENT_SCOPE)
-# target_include_directories(Cuda PUBLIC ${CUDA_INCLUDE_DIRS})
+# Directories(. CUDA_INCLUDE_DIRS)
+# set(CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS} PARENT_SCOPE)
+target_include_directories(${OPEN3D_CUDA_MODULE} PUBLIC ${CUDA_INCLUDE_DIRS})
 
 #install headers
 install(DIRECTORY "."

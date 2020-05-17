@@ -388,13 +388,8 @@ bool Visualizer::AddGeometry(
         ResetViewPoint();
     }
     utility::LogDebug(
-<<<<<<< HEAD
-            "Add geometry and update bounding box to {}\n",
-            view_control_ptr_->GetBoundingBox().GetLogInfo().c_str());
-=======
             "Add geometry and update bounding box to {}",
             view_control_ptr_->GetBoundingBox().GetPrintInfo().c_str());
->>>>>>> refactor-cmake-buildsystem
     return UpdateGeometry();
 }
 
