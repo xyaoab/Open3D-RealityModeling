@@ -58,7 +58,6 @@ add_library(${OPEN3D_CUDA_MODULE}
 # open3d_show_and_abort_on_warning(${OPEN3D_CUDA_MODULE})
 open3d_set_global_properties(${OPEN3D_CUDA_MODULE})
 open3d_link_3rdparty_libraries(${OPEN3D_CUDA_MODULE})
-# target_link_libraries(${OPEN3D_CUDA_MODULE} PUBLIC CUDA::curand)
 
 add_library(${PROJECT_NAME}::${OPEN3D_CUDA_MODULE} ALIAS ${OPEN3D_CUDA_MODULE})
 
