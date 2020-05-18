@@ -155,7 +155,7 @@ void PhongShader::SetLighting(const ViewControl &view,
     for (int i = 0; i < 4; i++) {
         light_position_world_data_.block<3, 1>(0, i) =
                 box.GetCenter().cast<GLfloat>() +
-                (float)box.GetMaxExtend() *
+                (float)box.GetMaxExtent() *
                         ((float)option.light_position_relative_[i](0) *
                                  view.GetRight() +
                          (float)option.light_position_relative_[i](1) *
@@ -194,7 +194,7 @@ bool PhongShaderForPointCloud::PrepareRendering(
         return false;
     }
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    glDepthFunc(GLenum(option.GetGLDepthFunc()));
     glPointSize(GLfloat(option.point_size_));
     SetLighting(view, option);
     return true;
@@ -280,7 +280,7 @@ bool PhongShaderForTriangleMesh::PrepareRendering(
         glEnable(GL_CULL_FACE);
     }
     glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LESS);
+    glDepthFunc(GLenum(option.GetGLDepthFunc()));
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     if (option.mesh_show_wireframe_) {
         glEnable(GL_POLYGON_OFFSET_FILL);

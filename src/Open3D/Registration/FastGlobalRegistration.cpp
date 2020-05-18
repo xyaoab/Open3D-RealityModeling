@@ -26,14 +26,12 @@
 
 #include "Open3D/Registration/FastGlobalRegistration.h"
 
-#include <ctime>
-
 #include "Open3D/Geometry/KDTreeFlann.h"
 #include "Open3D/Geometry/PointCloud.h"
 #include "Open3D/Registration/Feature.h"
 #include "Open3D/Registration/Registration.h"
 #include "Open3D/Utility/Console.h"
-#include "Open3D/Utility/Eigen.h"
+#include "Open3D/Utility/Helper.h"
 
 namespace open3d {
 
@@ -46,7 +44,7 @@ std::vector<std::pair<int, int>> AdvancedMatching(
         const FastGlobalRegistrationOption& option) {
     // STEP 0) Swap source and target if necessary
     int fi = 0, fj = 1;
-    utility::LogDebug("Advanced matching : [{:d} - {:d}]\n", fi, fj);
+    utility::LogDebug("Advanced matching : [{:d} - {:d}]", fi, fj);
     bool swapped = false;
     if (point_cloud_vec[fj].points_.size() >
         point_cloud_vec[fi].points_.size()) {
@@ -92,7 +90,7 @@ std::vector<std::pair<int, int>> AdvancedMatching(
     for (int j = 0; j < ncorres_ji; ++j)
         corres.push_back(
                 std::pair<int, int>(corres_ji[j].first, corres_ji[j].second));
-    utility::LogDebug("points are remained : {:d}\n", (int)corres.size());
+    utility::LogDebug("points are remained : {:d}", (int)corres.size());
 
     // STEP 2) CROSS CHECK
     utility::LogDebug("\t[cross check] ");
@@ -118,21 +116,21 @@ std::vector<std::pair<int, int>> AdvancedMatching(
             }
         }
     }
-    utility::LogDebug("points are remained : %d\n", (int)corres_cross.size());
+    utility::LogDebug("points are remained : %d", (int)corres_cross.size());
 
     // STEP 3) TUPLE CONSTRAINT
     utility::LogDebug("\t[tuple constraint] ");
-    std::srand((unsigned int)std::time(0));
     int rand0, rand1, rand2, i, cnt = 0;
     int idi0, idi1, idi2, idj0, idj1, idj2;
     double scale = option.tuple_scale_;
     int ncorr = static_cast<int>(corres_cross.size());
     int number_of_trial = ncorr * 100;
+
     std::vector<std::pair<int, int>> corres_tuple;
     for (i = 0; i < number_of_trial; i++) {
-        rand0 = rand() % ncorr;
-        rand1 = rand() % ncorr;
-        rand2 = rand() % ncorr;
+        rand0 = utility::UniformRandInt(0, ncorr - 1);
+        rand1 = utility::UniformRandInt(0, ncorr - 1);
+        rand2 = utility::UniformRandInt(0, ncorr - 1);
         idi0 = corres_cross[rand0].first;
         idj0 = corres_cross[rand0].second;
         idi1 = corres_cross[rand1].first;
@@ -166,7 +164,7 @@ std::vector<std::pair<int, int>> AdvancedMatching(
         }
         if (cnt >= option.maximum_tuple_count_) break;
     }
-    utility::LogDebug("{:d} tuples ({:d} trial, {:d} actual).\n", cnt,
+    utility::LogDebug("{:d} tuples ({:d} trial, {:d} actual).", cnt,
                       number_of_trial, i);
 
     if (swapped) {
@@ -177,7 +175,7 @@ std::vector<std::pair<int, int>> AdvancedMatching(
         corres_tuple.clear();
         corres_tuple = temp;
     }
-    utility::LogDebug("\t[final] matches {:d}.\n", (int)corres_tuple.size());
+    utility::LogDebug("\t[final] matches {:d}.", (int)corres_tuple.size());
     return corres_tuple;
 }
 
@@ -201,7 +199,7 @@ std::tuple<std::vector<Eigen::Vector3d>, double, double> NormalizePointCloud(
         mean = mean / npti;
         pcd_mean_vec.push_back(mean);
 
-        utility::LogDebug("normalize points :: mean = [{:f} {:f} {:f}]\n",
+        utility::LogDebug("normalize points :: mean = [{:f} {:f} {:f}]",
                           mean(0), mean(1), mean(2));
         for (int ii = 0; ii < npti; ++ii)
             point_cloud_vec[i].points_[ii] -= mean;
@@ -221,8 +219,7 @@ std::tuple<std::vector<Eigen::Vector3d>, double, double> NormalizePointCloud(
         scale_global = scale;
         scale_start = 1.0;
     }
-    utility::LogDebug("normalize points :: global scale : {:f}\n",
-                      scale_global);
+    utility::LogDebug("normalize points :: global scale : {:f}", scale_global);
 
     for (int i = 0; i < num; ++i) {
         int npti = static_cast<int>(point_cloud_vec[i].points_.size());
@@ -238,7 +235,7 @@ Eigen::Matrix4d OptimizePairwiseRegistration(
         const std::vector<std::pair<int, int>>& corres,
         double scale_start,
         const FastGlobalRegistrationOption& option) {
-    utility::LogDebug("Pairwise rigid pose optimization\n");
+    utility::LogDebug("Pairwise rigid pose optimization");
     double par = scale_start;
     int numIter = option.iteration_number_;
 
@@ -344,6 +341,8 @@ RegistrationResult FastGlobalRegistration(
         const FastGlobalRegistrationOption& option /* =
         FastGlobalRegistrationOption()*/) {
     std::vector<geometry::PointCloud> point_cloud_vec;
+    geometry::PointCloud source_orig = source;
+    geometry::PointCloud target_orig = target;
     point_cloud_vec.push_back(source);
     point_cloud_vec.push_back(target);
 
@@ -363,11 +362,11 @@ RegistrationResult FastGlobalRegistration(
 
     // as the original code T * point_cloud_vec[1] is aligned with
     // point_cloud_vec[0] matrix inverse is applied here.
-    // clang-format off
-    return RegistrationResult(GetTransformationOriginalScale(transformation,
-                                                             pcd_mean_vec,
-                                                             scale_global).inverse());
-    // clang-format on
+    return EvaluateRegistration(
+            source_orig, target_orig, option.maximum_correspondence_distance_,
+            GetTransformationOriginalScale(transformation, pcd_mean_vec,
+                                           scale_global)
+                    .inverse());
 }
 
 }  // namespace registration

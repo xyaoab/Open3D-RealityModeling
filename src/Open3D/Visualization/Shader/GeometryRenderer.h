@@ -36,6 +36,8 @@
 #include "Open3D/Visualization/Shader/Simple2DShader.h"
 #include "Open3D/Visualization/Shader/SimpleBlackShader.h"
 #include "Open3D/Visualization/Shader/SimpleShader.h"
+#include "Open3D/Visualization/Shader/TexturePhongShader.h"
+#include "Open3D/Visualization/Shader/TextureSimpleShader.h"
 
 namespace open3d {
 namespace visualization {
@@ -66,6 +68,11 @@ public:
     bool HasGeometry() const { return bool(geometry_ptr_); }
     std::shared_ptr<const geometry::Geometry> GetGeometry() const {
         return geometry_ptr_;
+    }
+
+    bool HasGeometry(
+            std::shared_ptr<const geometry::Geometry> geometry_ptr) const {
+        return geometry_ptr_ == geometry_ptr;
     }
 
     bool IsVisible() const { return is_visible_; }
@@ -176,7 +183,9 @@ public:
 
 protected:
     SimpleShaderForTriangleMesh simple_mesh_shader_;
+    TextureSimpleShaderForTriangleMesh texture_simple_mesh_shader_;
     PhongShaderForTriangleMesh phong_mesh_shader_;
+    TexturePhongShaderForTriangleMesh texture_phong_mesh_shader_;
     NormalShaderForTriangleMesh normal_mesh_shader_;
     SimpleBlackShaderForTriangleMeshWireFrame simpleblack_wireframe_shader_;
 };

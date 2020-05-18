@@ -12,7 +12,7 @@ class VisualizerWithCudaModule : public VisualizerWithKeyCallback {
 public:
     /// Visualizer should be updated accordingly.
     virtual bool AddGeometry(
-        std::shared_ptr<const geometry::Geometry> geometry_ptr) override;
+        std::shared_ptr<const geometry::Geometry> geometry_ptr, bool reset_bounding_box = true) override;
 };
 } // visualization
 } // open3d

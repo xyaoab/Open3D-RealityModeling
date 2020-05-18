@@ -39,16 +39,16 @@ int main(int argc, char **argv) {
     if (argc < 2) {
         PrintOpen3DVersion();
         // clang-format off
-        utility::LogInfo("Usage:\n");
-        utility::LogInfo("    > LineSet [filename]\n");
-        utility::LogInfo("    The program will :\n");
-        utility::LogInfo("    1. load the pointcloud in [filename].\n");
-        utility::LogInfo("    2. use KDTreeFlann to compute 50 nearest neighbors of point0.\n");
-        utility::LogInfo("    3. convert the correspondences to LineSet and render it.\n");
-        utility::LogInfo("    4. rotate the point cloud slightly to get another point cloud.\n");
-        utility::LogInfo("    5. find closest point of the original point cloud on the new point cloud, mark as correspondences.\n");
-        utility::LogInfo("    6. convert to LineSet and render it.\n");
-        utility::LogInfo("    7. distance below 0.05 are rendered as red, others as black.\n");
+        utility::LogInfo("Usage:");
+        utility::LogInfo("    > LineSet [filename]");
+        utility::LogInfo("    The program will :");
+        utility::LogInfo("    1. load the pointcloud in [filename].");
+        utility::LogInfo("    2. use KDTreeFlann to compute 50 nearest neighbors of point0.");
+        utility::LogInfo("    3. convert the correspondences to LineSet and render it.");
+        utility::LogInfo("    4. rotate the point cloud slightly to get another point cloud.");
+        utility::LogInfo("    5. find closest point of the original point cloud on the new point cloud, mark as correspondences.");
+        utility::LogInfo("    6. convert to LineSet and render it.");
+        utility::LogInfo("    7. distance below 0.05 are rendered as red, others as black.");
         // clang-format on
         return 1;
     }
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < new_lineset_ptr->lines_.size(); i++) {
         auto point_pair = new_lineset_ptr->GetLineCoordinate(i);
         if ((point_pair.first - point_pair.second).norm() <
-            0.05 * bounding_box.GetMaxExtend()) {
+            0.05 * bounding_box.GetMaxExtent()) {
             new_lineset_ptr->colors_[i] = Eigen::Vector3d(1.0, 0.0, 0.0);
         } else {
             new_lineset_ptr->colors_[i] = Eigen::Vector3d(0.0, 0.0, 0.0);

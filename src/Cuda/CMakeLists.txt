@@ -1,45 +1,50 @@
+
 # Modified to add cuda files
-macro(ADD_CUDA_SOURCE_GROUP MODULE_NAME)
-    file(GLOB MODULE_CUDA_HEADER_FILES "${MODULE_NAME}/*.cuh")
-    source_group("Header Files\\${MODULE_NAME}" FILES
-            ${MODULE_CUDA_HEADER_FILES})
-    file(GLOB MODULE_CUDA_SOURCE_FILES "${MODULE_NAME}/*.cu")
-    source_group("Source Files\\${MODULE_NAME}" FILES
-            ${MODULE_CUDA_SOURCE_FILES})
-endmacro(ADD_CUDA_SOURCE_GROUP)
+macro(add_cuda_source_group module_name)
+    file(GLOB MODULE_HEADER_FILES "${module_name}/*.cuh")
+    source_group("Header Files\\${module_name}" FILES ${MODULE_HEADER_FILES})
+    file(GLOB MODULE_SOURCE_FILES "${module_name}/*.cu")
+    source_group("Source Files\\${module_name}" FILES ${MODULE_SOURCE_FILES})
+endmacro()
 
-find_package(CUDA 8.0 REQUIRED)
-# NOTE: Eigen <= 3.3.5 has problem with CUDA >= 9.0
-# Source code have to be modified in Eigen/Core to ignore fp16:
-# Comment the following lines:
-# #include "src/Core/arch/CUDA/Half.h"
-# #include "src/Core/arch/CUDA/PacketMathHalf.h"
-# #include "src/Core/arch/CUDA/TypeCasting.h"
+find_package(CUDAToolkit REQUIRED)
 
-list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE})
-list(APPEND 3RDPARTY_LIBRARIES
-        ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY})
-include_directories(${PROJECT_SOURCE_DIR}/src)
-include_directories(${3RDPARTY_INCLUDE_DIRS})
-link_directories(${3RDPARTY_LIBRARY_DIRS})
-
-# build
+# GLOB all required files in this subdirectory
 file(GLOB_RECURSE CUDA_ALL_HEADER_FILES "*.h")
 file(GLOB_RECURSE CUDA_ALL_SOURCE_FILES "*.cpp")
 file(GLOB_RECURSE CUDA_ALL_CUDA_HEADER_FILES "*.cuh")
 file(GLOB_RECURSE CUDA_ALL_CUDA_SOURCE_FILES "*.cu")
 
-# (testing) flags for cuda code generation
-set(CUDA_NVCC_FLAGS
-        -gencode=arch=compute_50,code=sm_60
-        -gencode=arch=compute_50,code=sm_50
-        --expt-relaxed-constexpr)
+# create subgroups
+add_source_group(Common)
+add_source_group(Camera)
+add_source_group(Container)
+add_source_group(Geometry)
+add_source_group(Integration)
+add_source_group(Registration)
+add_source_group(IO)
+add_source_group(Odometry)
+add_source_group(Visualization)
+
+# and also for cuda
+add_cuda_source_group(Common)
+add_cuda_source_group(Camera)
+add_cuda_source_group(Container)
+add_cuda_source_group(Geometry)
+add_cuda_source_group(Integration)
+add_cuda_source_group(Registration)
+add_cuda_source_group(IO)
+add_cuda_source_group(Odometry)
+add_cuda_source_group(Visualization)
 
 # create (should be static) library
 set(OPEN3D_CUDA_MODULE "Open3DCuda" CACHE STRING "CUDA component library")
-cuda_add_library(${OPEN3D_CUDA_MODULE}
-        ${CUDA_ALL_HEADER_FILES} ${CUDA_ALL_SOURCE_FILES}
-        ${CUDA_ALL_CUDA_HEADER_FILES} ${CUDA_ALL_CUDA_SOURCE_FILES}
+
+add_library(${OPEN3D_CUDA_MODULE}
+        ${CUDA_ALL_HEADER_FILES}
+        ${CUDA_ALL_SOURCE_FILES}
+        ${CUDA_ALL_CUDA_HEADER_FILES}
+        ${CUDA_ALL_CUDA_SOURCE_FILES}
         $<TARGET_OBJECTS:Camera>
         $<TARGET_OBJECTS:ColorMap>
         $<TARGET_OBJECTS:Geometry>
@@ -49,39 +54,36 @@ cuda_add_library(${OPEN3D_CUDA_MODULE}
         $<TARGET_OBJECTS:Utility>
         $<TARGET_OBJECTS:IO>
         $<TARGET_OBJECTS:Visualization>)
-target_link_libraries(${OPEN3D_CUDA_MODULE} ${3RDPARTY_LIBRARIES} -lz) # for zlib
-target_include_directories(${OPEN3D_CUDA_MODULE} PUBLIC ${3RDPARTY_INCLUDE_DIRS})
+# Suppressing this since there are too many warnings
+# open3d_show_and_abort_on_warning(${OPEN3D_CUDA_MODULE})
+open3d_set_global_properties(${OPEN3D_CUDA_MODULE})
+open3d_link_3rdparty_libraries(${OPEN3D_CUDA_MODULE})
+# target_link_libraries(${OPEN3D_CUDA_MODULE} PUBLIC CUDA::curand)
 
-# create subgroups
-ADD_SOURCE_GROUP(Common)
-ADD_SOURCE_GROUP(Camera)
-ADD_SOURCE_GROUP(Container)
-ADD_SOURCE_GROUP(Geometry)
-ADD_SOURCE_GROUP(Integration)
-ADD_SOURCE_GROUP(Registration)
-ADD_SOURCE_GROUP(IO)
-ADD_SOURCE_GROUP(Odometry)
-ADD_SOURCE_GROUP(Visualization)
+add_library(${PROJECT_NAME}::${OPEN3D_CUDA_MODULE} ALIAS ${OPEN3D_CUDA_MODULE})
 
-# and also for cuda
-ADD_CUDA_SOURCE_GROUP(Common)
-ADD_CUDA_SOURCE_GROUP(Camera)
-ADD_CUDA_SOURCE_GROUP(Container)
-ADD_CUDA_SOURCE_GROUP(Geometry)
-ADD_CUDA_SOURCE_GROUP(Integration)
-ADD_CUDA_SOURCE_GROUP(Registration)
-ADD_CUDA_SOURCE_GROUP(IO)
-ADD_CUDA_SOURCE_GROUP(Odometry)
-ADD_CUDA_SOURCE_GROUP(Visualization)
-
-Directories(. CUDA_INCLUDE_DIRS)
-set(CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS} PARENT_SCOPE)
-# target_include_directories(Cuda PUBLIC ${CUDA_INCLUDE_DIRS})
+# Installation
+install(TARGETS ${OPEN3D_CUDA_MODULE} EXPORT ${OPEN3D_CUDA_MODULE}Targets
+        RUNTIME DESTINATION ${Open3D_INSTALL_BIN_DIR}
+        LIBRARY DESTINATION ${Open3D_INSTALL_LIB_DIR}
+        ARCHIVE DESTINATION ${Open3D_INSTALL_LIB_DIR}
+)
 
 #install headers
-install(DIRECTORY "."
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/include/${CMAKE_PROJECT_NAME}"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        DESTINATION "${Open3D_INSTALL_INCLUDE_DIR}"
         PATTERN "*.cpp" EXCLUDE
         PATTERN "*.cuh" EXCLUDE
         PATTERN "*.cu" EXCLUDE
         PATTERN "*.txt" EXCLUDE)
+
+# uninstall target
+if (NOT TARGET uninstall)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+                   IMMEDIATE @ONLY)
+
+    add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P
+                      ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif()
+

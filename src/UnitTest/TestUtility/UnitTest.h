@@ -40,6 +40,13 @@
 #include "UnitTest/TestUtility/Rand.h"
 #include "UnitTest/TestUtility/Sort.h"
 
+#include "Open3D/Macro.h"
+
+// GPU_CONDITIONAL_COMPILE_STR is "" if gpu is available, otherwise "DISABLED_"
+// The GPU_CONDITIONAL_COMPILE_STR value is configured in CMake
+#define CUDA_CONDITIONAL_TEST(test_name) \
+    OPEN3D_CONCATENATE(GPU_CONDITIONAL_TEST_STR, test_name)
+
 namespace unit_test {
 // thresholds for comparing floating point values
 const double THRESHOLD_1E_6 = 1e-6;
@@ -135,18 +142,26 @@ void ExpectEQ(const int* const v0, const int* const v1, const size_t& size);
 void ExpectEQ(const std::vector<int>& v0, const std::vector<int>& v1);
 
 // Test equality of two arrays of float.
-void ExpectEQ(const float* const v0, const float* const v1, const size_t& size);
+void ExpectEQ(const float* const v0,
+              const float* const v1,
+              const size_t& size,
+              float threshold = THRESHOLD_1E_6);
 
 // Test equality of two vectors of float.
-void ExpectEQ(const std::vector<float>& v0, const std::vector<float>& v1);
+void ExpectEQ(const std::vector<float>& v0,
+              const std::vector<float>& v1,
+              float threshold = THRESHOLD_1E_6);
 
 // Test equality of two arrays of double.
 void ExpectEQ(const double* const v0,
               const double* const v1,
-              const size_t& size);
+              const size_t& size,
+              double threshold = THRESHOLD_1E_6);
 
 // Test equality of two vectors of double.
-void ExpectEQ(const std::vector<double>& v0, const std::vector<double>& v1);
+void ExpectEQ(const std::vector<double>& v0,
+              const std::vector<double>& v1,
+              double threshold = THRESHOLD_1E_6);
 
 // Reinterpret cast from uint8_t* to float*.
 template <class T>
