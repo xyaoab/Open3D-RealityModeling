@@ -11,13 +11,13 @@ macro(EXAMPLE_CUDA EXAMPLE_CUDA_NAME)
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/examples")
 endmacro(EXAMPLE_CUDA)
 
-find_package(CUDA 8.0 REQUIRED)
-list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE})
-list(APPEND 3RDPARTY_LIBRARIES
-        ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY})
-include_directories(${PROJECT_SOURCE_DIR})
-include_directories(${3RDPARTY_INCLUDE_DIRS})
-link_directories(${3RDPARTY_LIBRARY_DIRS})
+# find_package(CUDA 8.0 REQUIRED)
+# list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE})
+# list(APPEND 3RDPARTY_LIBRARIES
+#         ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY})
+# include_directories(${PROJECT_SOURCE_DIR})
+# include_directories(${3RDPARTY_INCLUDE_DIRS})
+# link_directories(${3RDPARTY_LIBRARY_DIRS})
 
 add_subdirectory(Demo)
 add_subdirectory(ReconstructionSystem)

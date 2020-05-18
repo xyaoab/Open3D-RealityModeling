@@ -1,7 +1,7 @@
 {
   "name": "Stanford - lounge",
-  "path_dataset": "/media/wei/Data/data/bundlefusion/apt0",
-  "path_intrinsic": "/home/wei/Work/projects/dense_mapping/Open3D/examples/Cuda/ReconstructionSystem/config/intrinsics/camera_bf.json",
+  "path_dataset": "/home/akashsharma/Documents/projects/Open3D/examples/Python/ReconstructionSystem/dataset/copyroom/",
+  "path_intrinsic": "/home/akashsharma/Documents/projects/Open3D/examples/Python/ReconstructionSystem/dataset/copyroom/camera-intrinsics.json",
   "max_depth": 3.0,
   "voxel_size": 0.05,
   "max_depth_diff": 0.07,

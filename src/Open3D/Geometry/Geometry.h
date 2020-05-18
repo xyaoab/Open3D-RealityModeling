@@ -64,7 +64,12 @@ public:
         OrientedBoundingBox = 11,
         /// AxisAlignedBoundingBox
         AxisAlignedBoundingBox = 12,
-    };
+        /// PointCloudCuda
+        PointCloudCuda = 13,
+        /// TriangleMeshCuda
+        TriangleMeshCuda = 14,
+        /// ImageCuda
+        ImageCuda = 15   };
 
 public:
     virtual ~Geometry() {}

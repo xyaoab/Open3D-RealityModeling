@@ -5,6 +5,7 @@ option(BUILD_SHARED_LIBS         "Build shared libraries"                   OFF)
 option(WITH_OPENMP               "Use OpenMP multi-threading"               ON)
 option(ENABLE_HEADLESS_RENDERING "Use OSMesa for headless rendering"        OFF)
 option(BUILD_CPP_EXAMPLES        "Build the Open3D example programs"        ON)
+option(BUILD_CUDA_EXAMPLES       "Build the Open3D CUDA examples programs"  ON)
 option(BUILD_UNIT_TESTS          "Build the Open3D unit tests"              OFF)
 option(BUILD_GOOGLETEST          "Build googletest framework from source"   ON)
 option(BUILD_BENCHMARKS          "Build the micro benchmarks"               OFF)
@@ -280,6 +281,11 @@ add_subdirectory(examples)
 # Install CMake configuration files
 install(EXPORT ${PROJECT_NAME}Targets NAMESPACE ${PROJECT_NAME}:: DESTINATION ${Open3D_INSTALL_CMAKE_DIR})
 export(EXPORT ${PROJECT_NAME}Targets NAMESPACE ${PROJECT_NAME}::)
+
+if(BUILD_CUDA_MODULE)
+    install(EXPORT Open3DCudaTargets NAMESPACE ${PROJECT_NAME}:: DESTINATION ${Open3D_INSTALL_CMAKE_DIR})
+    export(EXPORT Open3DCudaTargets NAMESPACE ${PROJECT_NAME}::)
+endif()
 
 # `make check-style` errors if styling is not compliant
 add_custom_target(check-style

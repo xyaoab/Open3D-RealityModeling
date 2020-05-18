@@ -84,7 +84,7 @@ int Run(DatasetConfig &config) {
     mesher.MarchingCubes(tsdf_volume);
     auto mesh = mesher.mesh().Download();
 
-    WriteTriangleMeshToPLY(config.GetReconstructedSceneFile(), *mesh);
+    WriteTriangleMesh(config.GetReconstructedSceneFile(), *mesh);
     timer.Stop();
     LogInfo("IntegrateScene takes {} s\n", timer.GetDuration() * 1e-3);
 

@@ -83,11 +83,11 @@ function(build_3rdparty_library name)
             else()
                 get_filename_component(incl_path "${incl}" DIRECTORY)
             endif()
-            target_include_directories(${name} SYSTEM PUBLIC 
+            target_include_directories(${name} SYSTEM PUBLIC
                 $<BUILD_INTERFACE:${incl_path}>
             )
         endforeach()
-        target_include_directories(${name} PUBLIC 
+        target_include_directories(${name} PUBLIC
             $<INSTALL_INTERFACE:${Open3D_INSTALL_INCLUDE_DIR}/${PROJECT_NAME}/3rdparty>
         )
         if (NOT HAS_GLIBCXX_USE_CXX11_ABI)
@@ -112,7 +112,7 @@ function(build_3rdparty_library name)
             else()
                 get_filename_component(incl_path "${incl}" DIRECTORY)
             endif()
-            target_include_directories(${name} SYSTEM INTERFACE 
+            target_include_directories(${name} SYSTEM INTERFACE
                 $<BUILD_INTERFACE:${incl_path}>
             )
         endforeach()
@@ -700,6 +700,20 @@ if(BUILD_FMT)
 endif()
 list(APPEND Open3D_3RDPARTY_PUBLIC_TARGETS "${FMT_TARGET}")
 
+# CUDA Toolkit
+if(BUILD_CUDA_MODULE)
+    find_package(CUDAToolkit)
+    if(TARGET CUDA::toolkit)
+        message(STATUS "Using installed third-party library CUDAToolkit")
+        list(APPEND Open3D_3RDPARTY_EXTERNAL_MODULES "CUDAToolkit")
+        set(CUDA_TARGET "CUDA::toolkit")
+        set(CUDA_CURAND_TARGET "CUDA::curand")
+    else()
+        message(ERROR "Unable to find third-party library CUDAToolkit")
+    endif()
+endif()
+list(APPEND Open3D_3RDPARTY_PUBLIC_TARGETS "${CUDA_TARGET}" "${CUDA_CURAND_TARGET}")
+
 # Googletest
 if (BUILD_UNIT_TESTS)
     if(NOT BUILD_GOOGLETEST)
@@ -750,9 +764,9 @@ if(BUILD_BENCHMARKS)
     # set the cache vars introduced by the benchmark lib as advanced to not
     # clutter the cmake interfaces
     mark_as_advanced(
-        BENCHMARK_ENABLE_INSTALL 
-        BENCHMARK_ENABLE_GTEST_TESTS 
-        BENCHMARK_ENABLE_TESTING 
+        BENCHMARK_ENABLE_INSTALL
+        BENCHMARK_ENABLE_GTEST_TESTS
+        BENCHMARK_ENABLE_TESTING
         BENCHMARK_ENABLE_ASSEMBLY_TESTS
         BENCHMARK_DOWNLOAD_DEPENDENCIES
         BENCHMARK_BUILD_32_BITS

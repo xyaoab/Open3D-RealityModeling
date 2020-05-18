@@ -1,13 +1,15 @@
 @PACKAGE_INIT@
 
+
 include(CMakeFindDependencyMacro)
 include(FindPackageHandleStandardArgs)
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
 
 foreach(dep IN ITEMS @Open3D_3RDPARTY_EXTERNAL_MODULES@)
     find_dependency(${dep})
 endforeach()
 
-include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
 
 foreach(dep IN ITEMS @Open3D_3RDPARTY_HEADER_TARGETS@)
     if(TARGET ${dep})
@@ -25,6 +27,16 @@ foreach(dep IN ITEMS @Open3D_3RDPARTY_HEADER_TARGETS@)
 endforeach()
 
 set_and_check(@PROJECT_NAME@_INCLUDE_DIRS "@PACKAGE_Open3D_INSTALL_INCLUDE_DIR@")
+set(supported_components Cuda)
+
+foreach(_comp ${Open3D_FIND_COMPONENTS})
+  if (NOT ";${supported_components};" MATCHES _comp)
+    set(@PROJECT_NAME@_FOUND False)
+    set(@PROJECT_NAME@_NOT_FOUND_MESSAGE "Unsupported component: ${_comp}")
+  endif()
+  include("${CMAKE_CURRENT_LIST_DIR}/${_comp}Targets.cmake")
+endforeach()
+
 set(@PROJECT_NAME@_LIBRARIES @PROJECT_NAME@::@PROJECT_NAME@)
 set(@PROJECT_NAME@_VERSION "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@")
 set(@PROJECT_NAME@_CONFIG ${CMAKE_CURRENT_LIST_FILE})

@@ -8,7 +8,7 @@
 namespace open3d {
 namespace visualization {
 bool VisualizerWithCudaModule::AddGeometry(
-    std::shared_ptr<const geometry::Geometry> geometry_ptr) {
+    std::shared_ptr<const geometry::Geometry> geometry_ptr, bool reset_bounding_box) {
     bool result = Visualizer::AddGeometry(geometry_ptr);
 
     if (! result) {
@@ -30,11 +30,13 @@ bool VisualizerWithCudaModule::AddGeometry(
     }
 
     geometry_ptrs_.emplace(geometry_ptr);
-    view_control_ptr_->FitInGeometry(*geometry_ptr);
-    ResetViewPoint();
+    if (reset_bounding_box) {
+        view_control_ptr_->FitInGeometry(*geometry_ptr);
+        ResetViewPoint();
+    }
     utility::LogDebug(
         "Add geometry and update bounding box to %s\n",
-        view_control_ptr_->GetBoundingBox().GetLogInfo().c_str());
+        view_control_ptr_->GetBoundingBox().GetPrintInfo().c_str());
     return UpdateGeometry();
 }
 }

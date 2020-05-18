@@ -127,6 +127,10 @@ bool VisualizerWithVertexSelection::AddGeometry(
         case geometry::Geometry::GeometryType::Image:
             geometry_renderer_ptr_ = std::make_shared<glsl::ImageRenderer>();
             break;
+        /// TODO(Akash): Ask wei whether something needs to be added here
+        case geometry::Geometry::GeometryType::TriangleMeshCuda:
+        case geometry::Geometry::GeometryType::PointCloudCuda:
+        case geometry::Geometry::GeometryType::ImageCuda:
         case geometry::Geometry::GeometryType::MeshBase:
             // MeshBase is too general, can't render. Fall-through.
         case geometry::Geometry::GeometryType::RGBDImage:
@@ -221,6 +225,10 @@ bool VisualizerWithVertexSelection::UpdateGeometry(
             ui_points_geometry_ptr_->normals_ = mesh->vertex_normals_;
             break;
         }
+        /// TODO(Akash): Ask wei
+        case geometry::Geometry::GeometryType::TriangleMeshCuda:
+        case geometry::Geometry::GeometryType::PointCloudCuda:
+        case geometry::Geometry::GeometryType::ImageCuda:
         case geometry::Geometry::GeometryType::Image:
         case geometry::Geometry::GeometryType::RGBDImage:
         case geometry::Geometry::GeometryType::VoxelGrid:
@@ -787,6 +795,10 @@ const std::vector<Eigen::Vector3d>
             points = &mesh->vertices_;
             break;
         }
+        ///TODO(Akash): Ask wei
+        case geometry::Geometry::GeometryType::TriangleMeshCuda:
+        case geometry::Geometry::GeometryType::PointCloudCuda:
+        case geometry::Geometry::GeometryType::ImageCuda:
         case geometry::Geometry::GeometryType::Image:
         case geometry::Geometry::GeometryType::RGBDImage:
         case geometry::Geometry::GeometryType::VoxelGrid:

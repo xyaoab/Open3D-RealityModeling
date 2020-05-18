@@ -1,3 +1,4 @@
+
 # Modified to add cuda files
 macro(add_cuda_source_group module_name)
     file(GLOB MODULE_HEADER_FILES "${module_name}/*.cuh")
@@ -6,50 +7,13 @@ macro(add_cuda_source_group module_name)
     source_group("Source Files\\${module_name}" FILES ${MODULE_SOURCE_FILES})
 endmacro()
 
+find_package(CUDAToolkit REQUIRED)
 
-find_package(CUDA 8.0 REQUIRED)
-# NOTE: Eigen <= 3.3.5 has problem with CUDA >= 9.0
-# Source code have to be modified in Eigen/Core to ignore fp16:
-# Comment the following lines:
-# #include "src/Core/arch/CUDA/Half.h"
-# #include "src/Core/arch/CUDA/PacketMathHalf.h"
-# #include "src/Core/arch/CUDA/TypeCasting.h"
-
-list(APPEND 3RDPARTY_INCLUDE_DIRS ${CUDA_TOOLKIT_INCLUDE})
-list(APPEND 3RDPARTY_LIBRARIES
-        ${CUDA_LIBRARIES} ${CUDA_curand_LIBRARY})
-include_directories(${PROJECT_SOURCE_DIR}/src)
-include_directories(${3RDPARTY_INCLUDE_DIRS})
-link_directories(${3RDPARTY_LIBRARY_DIRS})
-
-# build
+# GLOB all required files in this subdirectory
 file(GLOB_RECURSE CUDA_ALL_HEADER_FILES "*.h")
 file(GLOB_RECURSE CUDA_ALL_SOURCE_FILES "*.cpp")
 file(GLOB_RECURSE CUDA_ALL_CUDA_HEADER_FILES "*.cuh")
 file(GLOB_RECURSE CUDA_ALL_CUDA_SOURCE_FILES "*.cu")
-
-# (testing) flags for cuda code generation
-set(CUDA_NVCC_FLAGS
-        -gencode=arch=compute_50,code=sm_60
-        -gencode=arch=compute_50,code=sm_50
-        --expt-relaxed-constexpr)
-
-# create (should be static) library
-set(OPEN3D_CUDA_MODULE "Open3DCuda" CACHE STRING "CUDA component library")
-cuda_add_library(${OPEN3D_CUDA_MODULE}
-        ${CUDA_ALL_HEADER_FILES} ${CUDA_ALL_SOURCE_FILES}
-        ${CUDA_ALL_CUDA_HEADER_FILES} ${CUDA_ALL_CUDA_SOURCE_FILES}
-        $<TARGET_OBJECTS:Camera>
-        $<TARGET_OBJECTS:ColorMap>
-        $<TARGET_OBJECTS:Geometry>
-        $<TARGET_OBJECTS:Integration>
-        $<TARGET_OBJECTS:Odometry>
-        $<TARGET_OBJECTS:Registration>
-        $<TARGET_OBJECTS:Utility>
-        $<TARGET_OBJECTS:IO>
-        $<TARGET_OBJECTS:Visualization>)
-target_link_libraries(${OPEN3D_CUDA_MODULE} ${3RDPARTY_LIBRARIES} -lz) # for zlib
-target_include_directories(${OPEN3D_CUDA_MODULE} PUBLIC ${3RDPARTY_INCLUDE_DIRS})
 
 # create subgroups
 add_source_group(Common)
@@ -73,14 +37,53 @@ add_cuda_source_group(IO)
 add_cuda_source_group(Odometry)
 add_cuda_source_group(Visualization)
 
-# Directories(. CUDA_INCLUDE_DIRS)
-# set(CUDA_INCLUDE_DIRS ${CUDA_INCLUDE_DIRS} PARENT_SCOPE)
-target_include_directories(${OPEN3D_CUDA_MODULE} PUBLIC ${CUDA_INCLUDE_DIRS})
+# create (should be static) library
+set(OPEN3D_CUDA_MODULE "Open3DCuda" CACHE STRING "CUDA component library")
+
+add_library(${OPEN3D_CUDA_MODULE}
+        ${CUDA_ALL_HEADER_FILES}
+        ${CUDA_ALL_SOURCE_FILES}
+        ${CUDA_ALL_CUDA_HEADER_FILES}
+        ${CUDA_ALL_CUDA_SOURCE_FILES}
+        $<TARGET_OBJECTS:Camera>
+        $<TARGET_OBJECTS:ColorMap>
+        $<TARGET_OBJECTS:Geometry>
+        $<TARGET_OBJECTS:Integration>
+        $<TARGET_OBJECTS:Odometry>
+        $<TARGET_OBJECTS:Registration>
+        $<TARGET_OBJECTS:Utility>
+        $<TARGET_OBJECTS:IO>
+        $<TARGET_OBJECTS:Visualization>)
+# Suppressing this since there are too many warnings
+# open3d_show_and_abort_on_warning(${OPEN3D_CUDA_MODULE})
+open3d_set_global_properties(${OPEN3D_CUDA_MODULE})
+open3d_link_3rdparty_libraries(${OPEN3D_CUDA_MODULE})
+# target_link_libraries(${OPEN3D_CUDA_MODULE} PUBLIC CUDA::curand)
+
+add_library(${PROJECT_NAME}::${OPEN3D_CUDA_MODULE} ALIAS ${OPEN3D_CUDA_MODULE})
+
+# Installation
+install(TARGETS ${OPEN3D_CUDA_MODULE} EXPORT ${OPEN3D_CUDA_MODULE}Targets
+        RUNTIME DESTINATION ${Open3D_INSTALL_BIN_DIR}
+        LIBRARY DESTINATION ${Open3D_INSTALL_LIB_DIR}
+        ARCHIVE DESTINATION ${Open3D_INSTALL_LIB_DIR}
+)
 
 #install headers
-install(DIRECTORY "."
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/include/${CMAKE_PROJECT_NAME}"
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        DESTINATION "${Open3D_INSTALL_INCLUDE_DIR}"
         PATTERN "*.cpp" EXCLUDE
         PATTERN "*.cuh" EXCLUDE
         PATTERN "*.cu" EXCLUDE
         PATTERN "*.txt" EXCLUDE)
+
+# uninstall target
+if (NOT TARGET uninstall)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
+                   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+                   IMMEDIATE @ONLY)
+
+    add_custom_target(uninstall COMMAND ${CMAKE_COMMAND} -P
+                      ${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake)
+endif()
+

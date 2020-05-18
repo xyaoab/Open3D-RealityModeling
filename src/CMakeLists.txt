@@ -33,3 +33,17 @@ endif()
 if (BUILD_TENSORFLOW_OPS)
     add_subdirectory(TensorflowOps)
 endif()
+
+# find_package Open3D
+configure_package_config_file(Open3DConfig.cmake.in
+                              "${PROJECT_BINARY_DIR}${CMAKE_FILES_DIRECTORY}/Open3DConfig.cmake"
+                              INSTALL_DESTINATION ${Open3D_INSTALL_CMAKE_DIR}
+                              PATH_VARS Open3D_INSTALL_INCLUDE_DIR
+)
+
+# find_package Open3D Version
+write_basic_package_version_file("${PROJECT_BINARY_DIR}/Open3DConfigVersion.cmake"
+                                 VERSION ${PROJECT_VERSION}
+                                 COMPATIBILITY ExactVersion)
+
+

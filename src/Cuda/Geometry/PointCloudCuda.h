@@ -96,9 +96,7 @@ public:
     PointCloudCuda &Translate(const Eigen::Vector3d &translation,
                           bool relative = true) override {return *this;} ;
     PointCloudCuda &Scale(const double scale, bool center = true) override {return *this;};
-    PointCloudCuda &Rotate(const Eigen::Vector3d &rotation,
-                           bool center = true,
-                           RotationType type = RotationType::XYZ) override { return *this; };
+    PointCloudCuda &Rotate(const Eigen::Matrix3d &R, bool center = true) override { return *this; };
 
     std::tuple<Eigen::Vector3d, double> Normalize();
 
