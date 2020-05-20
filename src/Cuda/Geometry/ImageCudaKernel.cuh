@@ -45,6 +45,107 @@ void ImageCudaKernelCaller<Scalar, Channel>::Downsample(
 }
 
 /**
+ * Obtain vertex map
+ */
+template<typename Scalar, size_t Channel>
+__global__
+void GetVertexMapKernel(ImageCudaDevice<Scalar, Channel> src,
+                        ImageCudaDevice<float, 3> dst,
+                        PinholeCameraIntrinsicCuda intrinsic) {
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (x >= dst.width_ || y >= dst.height_)
+        return;
+
+    float depth = src.at(x, y, 0);
+    if(depth == 0 || isnan(depth)) return;
+
+    Vector3f point = intrinsic.InverseProjectPixel(Vector2i(x, y), depth);
+
+    dst.at(x, y, 0) = point(0);
+    dst.at(x, y, 1) = point(1);
+    dst.at(x, y, 2) = point(2);
+}
+
+
+template<typename Scalar, size_t Channel>
+__host__
+void ImageCudaKernelCaller<Scalar, Channel>::GetVertexMap(
+    ImageCuda<Scalar, Channel> &src, ImageCuda<float, 3> &dst,
+    PinholeCameraIntrinsicCuda &intrinsic) {
+
+    const dim3 blocks(DIV_CEILING(src.width_, THREAD_2D_UNIT),
+                      DIV_CEILING(dst.height_, THREAD_2D_UNIT));
+    const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
+    GetVertexMapKernel<<<blocks, threads>>>(
+            *src.device_, *dst.device_, intrinsic);
+    CheckCuda(cudaDeviceSynchronize());
+    CheckCuda(cudaGetLastError());
+}
+
+template<typename Scalar, size_t Channel>
+__global__
+void GetNormalMapKernel(ImageCudaDevice<Scalar, Channel> src,
+                        ImageCudaDevice<float, 3> dst_normal_map) {
+
+    int u = blockIdx.x * blockDim.x + threadIdx.x;
+    int v = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (u >= src.width_ || v >= src.height_)
+        return;
+
+    if (u == src.width_ - 1 || v == src.height_ - 1)
+    {
+        dst_normal_map.at(u, v, 0) = nanf("nan");
+        dst_normal_map.at(u, v, 1) = nanf("nan");
+        dst_normal_map.at(u, v, 2) = nanf("nan");
+    }
+
+    Vector3f v00, v01, v10;
+
+    v00(0) = src.at(u, v, 0);
+    v01(0) = src.at(u, v+1, 0);
+    v10(0) = src.at(u+1, v, 0);
+
+    if(isnan(v00(0)) || isnan(v01(0)) || isnan(v10(0)))
+    {
+        dst_normal_map.at(u, v, 0) = nanf("nan");
+        dst_normal_map.at(u, v, 1) = nanf("nan");
+        dst_normal_map.at(u, v, 2) = nanf("nan");
+    }
+
+    v00(1) = src.at(u, v, 1);
+    v01(1) = src.at(u, v+1, 1);
+    v10(1) = src.at(u+1, v, 1);
+
+    v00(2) = src.at(u, v, 2);
+    v01(2) = src.at(u, v+1, 2);
+    v10(2) = src.at(u+1, v, 2);
+
+    Vector3f vec1 = v01 - v00;
+    Vector3f vec2 = v10 - v00;
+    Vector3f normal = (vec1.cross(vec2)).normalized();
+
+    dst_normal_map(u, v, 0) = normal(0);
+    dst_normal_map(u, v, 1) = normal(1);
+    dst_normal_map(u, v, 2) = normal(2);
+}
+
+template<typename Scalar, size_t Channel>
+__host__
+void ImageCudaKernelCaller<Scalar, Channel>::GetNormalMap(
+        ImageCuda<Scalar, Channel> &src, ImageCuda<float, 3> &dst_normal_map) {
+
+    const dim3 blocks(DIV_CEILING(src.width_, THREAD_2D_UNIT),
+                      DIV_CEILING(dst_normal_map.height_, THREAD_2D_UNIT));
+    const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
+    GetNormalMapKernel<<<blocks, threads>>>(*src.device_, *dst_normal_map.device_);
+    CheckCuda(cudaDeviceSynchronize());
+    CheckCuda(cudaGetLastError());
+}
+
+/**
  * Shift
  */
 template<typename Scalar, size_t Channel>
