@@ -43,18 +43,7 @@ public:
 
     __HOST__ explicit PinholeCameraIntrinsicCuda(
         camera::PinholeCameraIntrinsic &intrinsic) {
-        width_ = intrinsic.width_;
-        height_ = intrinsic.height_;
-
-        auto focal_length = intrinsic.GetFocalLength();
-        fx_ = float(focal_length.first);
-        inv_fx_ = 1.0f / fx_;
-        fy_ = float(focal_length.second);
-        inv_fy_ = 1.0f / fy_;
-
-        auto principal_point = intrinsic.GetPrincipalPoint();
-        cx_ = float(principal_point.first);
-        cy_ = float(principal_point.second);
+        SetIntrinsics(intrinsic);
     }
 
     __HOSTDEVICE__ PinholeCameraIntrinsicCuda(
@@ -87,6 +76,22 @@ public:
         inv_fy_ = 1.0f / fy_;
         cx_ = cx;
         cy_ = cy;
+    }
+
+    __HOST__ void SetIntrinsics(
+            camera::PinholeCameraIntrinsic &intrinsic) {
+        width_ = intrinsic.width_;
+        height_ = intrinsic.height_;
+
+        auto focal_length = intrinsic.GetFocalLength();
+        fx_ = float(focal_length.first);
+        inv_fx_ = 1.0f / fx_;
+        fy_ = float(focal_length.second);
+        inv_fy_ = 1.0f / fy_;
+
+        auto principal_point = intrinsic.GetPrincipalPoint();
+        cx_ = float(principal_point.first);
+        cy_ = float(principal_point.second);
     }
 
     __HOSTDEVICE__ PinholeCameraIntrinsicCuda Downsample() {

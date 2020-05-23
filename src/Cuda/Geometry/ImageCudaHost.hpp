@@ -4,13 +4,16 @@
 
 #pragma once
 
-#include "ImageCuda.h"
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Cuda/Common/UtilsCuda.h>
-
 #include <cuda_runtime.h>
 #include <driver_types.h>
 #include <vector_types.h>
+
+#include <type_traits>
+
+#include "GeometryClasses.h"
+#include "ImageCuda.h"
 
 namespace open3d {
 
@@ -18,7 +21,7 @@ namespace cuda {
 /**
  * Client end
  */
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::ImageCuda()
     : width_(-1), height_(-1), pitch_(-1), device_(nullptr) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
@@ -26,7 +29,7 @@ ImageCuda<Scalar, Channel>::ImageCuda()
 #endif
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::ImageCuda(const ImageCuda<Scalar, Channel> &other) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     LogInfo("ImageCuda copy constructor.\n");
@@ -42,15 +45,14 @@ ImageCuda<Scalar, Channel>::ImageCuda(const ImageCuda<Scalar, Channel> &other) {
 #endif
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::ImageCuda(int width, int height) {
     Create(width, height);
 }
 
-template<typename Scalar, size_t Channel>
-ImageCuda<Scalar, Channel> &ImageCuda<Scalar,
-                                      Channel>::operator=(const ImageCuda<Scalar,
-                                                                          Channel> &other) {
+template <typename Scalar, size_t Channel>
+ImageCuda<Scalar, Channel> &ImageCuda<Scalar, Channel>::operator=(
+        const ImageCuda<Scalar, Channel> &other) {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     LogInfo("ImageCuda assignment operator.\n");
 #endif
@@ -70,7 +72,7 @@ ImageCuda<Scalar, Channel> &ImageCuda<Scalar,
     return *this;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel>::~ImageCuda() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     LogInfo("Destructor.\n");
@@ -78,14 +80,15 @@ ImageCuda<Scalar, Channel>::~ImageCuda() {
     Release();
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 bool ImageCuda<Scalar, Channel>::Create(int width, int height) {
     assert(width > 0 && height > 0);
 
     if (device_ != nullptr) {
         if (width_ != width || height_ != height) {
-            utility::LogError("[ImageCuda] Incompatible image size, "
-                                "@Create aborted.\n");
+            utility::LogError(
+                    "[ImageCuda] Incompatible image size, "
+                    "@Create aborted.\n");
             return false;
         }
         return true;
@@ -99,17 +102,16 @@ bool ImageCuda<Scalar, Channel>::Create(int width, int height) {
     width_ = width;
     height_ = height;
     size_t pitch_size_t = 0;
-    CheckCuda(cudaMallocPitch(&device_->data_,
-                              &pitch_size_t,
+    CheckCuda(cudaMallocPitch(&device_->data_, &pitch_size_t,
                               sizeof(VectorCuda<Scalar, Channel>) * width_,
-                              (size_t) height_));
-    pitch_ = (int) pitch_size_t;
+                              (size_t)height_));
+    pitch_ = (int)pitch_size_t;
 
     UpdateDevice();
     return true;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Release() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     if (device_ != nullptr) {
@@ -127,7 +129,7 @@ void ImageCuda<Scalar, Channel>::Release() {
     pitch_ = -1;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::UpdateDevice() {
     assert(device_ != nullptr);
     device_->width_ = width_;
@@ -135,22 +137,21 @@ void ImageCuda<Scalar, Channel>::UpdateDevice() {
     device_->pitch_ = pitch_;
 }
 
-template<typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::CopyFrom(const ImageCuda<Scalar,
-                                                          Channel> &other) {
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::CopyFrom(
+        const ImageCuda<Scalar, Channel> &other) {
     if (this == &other) return;
 
     bool success = Create(other.width_, other.height_);
     if (!success) return;
 
-    CheckCuda(cudaMemcpy2D(device_->data_, (size_t) pitch_,
-                           other.device_->data(), (size_t) other.pitch_,
+    CheckCuda(cudaMemcpy2D(device_->data_, (size_t)pitch_,
+                           other.device_->data(), (size_t)other.pitch_,
                            sizeof(VectorCuda<Scalar, Channel>) * width_,
-                           (size_t) height_,
-                           cudaMemcpyDeviceToDevice));
+                           (size_t)height_, cudaMemcpyDeviceToDevice));
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Upload(geometry::Image &image) {
     assert(image.width_ > 0 && image.height_ > 0);
 
@@ -168,30 +169,29 @@ void ImageCuda<Scalar, Channel>::Upload(geometry::Image &image) {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         assert(image.bytes_per_channel_ == 4 && image.num_of_channels_ == 1);
     } else {
-        utility::LogWarning("[ImageCuda] Unsupported format %d,"
-                              "@Upload aborted.\n");
+        utility::LogWarning(
+                "[ImageCuda] Unsupported format %d,"
+                "@Upload aborted.\n");
         return;
     }
 
     bool success = Create(image.width_, image.height_);
     if (!success) return;
 
-    CheckCuda(cudaMemcpy2D(device_->data_,
-                           (size_t) pitch_,
-                           image.data_.data(),
-                           (size_t) image.BytesPerLine(),
+    CheckCuda(cudaMemcpy2D(device_->data_, (size_t)pitch_, image.data_.data(),
+                           (size_t)image.BytesPerLine(),
                            sizeof(VectorCuda<Scalar, Channel>) * image.width_,
-                           (size_t) image.height_,
-                           cudaMemcpyHostToDevice));
+                           (size_t)image.height_, cudaMemcpyHostToDevice));
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 std::shared_ptr<geometry::Image> ImageCuda<Scalar, Channel>::DownloadImage() {
     std::shared_ptr<geometry::Image> image =
-        std::make_shared<geometry::Image>();
+            std::make_shared<geometry::Image>();
     if (device_ == nullptr) {
-        utility::LogWarning("[ImageCuda] not initialized, "
-                              "@DownloadImage aborted.\n");
+        utility::LogWarning(
+                "[ImageCuda] not initialized, "
+                "@DownloadImage aborted.\n");
         return image;
     }
 
@@ -208,98 +208,148 @@ std::shared_ptr<geometry::Image> ImageCuda<Scalar, Channel>::DownloadImage() {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         image->Prepare(width_, height_, 1, 4);
     } else {
-        utility::LogWarning("[ImageCuda] Unsupported format %d,"
-                              "@DownloadImage aborted.\n");
+        utility::LogWarning(
+                "[ImageCuda] Unsupported format %d,"
+                "@DownloadImage aborted.\n");
         return image;
     }
 
-    CheckCuda(cudaMemcpy2D(image->data_.data(), (size_t) image->BytesPerLine(),
-                           device_->data_, (size_t) pitch_,
+    CheckCuda(cudaMemcpy2D(image->data_.data(), (size_t)image->BytesPerLine(),
+                           device_->data_, (size_t)pitch_,
                            sizeof(VectorCuda<Scalar, Channel>) * width_,
-                           (size_t) height_,
-                           cudaMemcpyDeviceToHost));
+                           (size_t)height_, cudaMemcpyDeviceToHost));
     return image;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel> ImageCuda<Scalar, Channel>::Downsample(
-    DownsampleMethod method) {
+        DownsampleMethod method) {
     ImageCuda<Scalar, Channel> dst;
     dst.Create(width_ >> 1, height_ >> 1);
     Downsample(dst, method);
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Downsample(ImageCuda<Scalar, Channel> &image,
                                             DownsampleMethod method) {
     bool success = image.Create(width_ >> 1, height_ >> 1);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::Downsample(
-            *this, image, method);
+        ImageCudaKernelCaller<Scalar, Channel>::Downsample(*this, image,
+                                                           method);
     }
 }
 
-template<typename Scalar, size_t Channel>
-ImageCuda<Scalar, Channel> ImageCuda<Scalar, Channel>::Shift(
-    float dx, float dy) {
+template <typename Scalar, size_t Channel>
+ImageCuda<float, 3> ImageCuda<Scalar, Channel>::GetVertexMap(
+        PinholeCameraIntrinsicCuda &intrinsic) {
+    // Check whether source is depth image
+    bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 1);
+    assert(is_depth_image);
+    ImageCuda<float, 3> dst_vertex_map;
+    dst_vertex_map.Create(width_, height_);
+    GetVertexMap(dst_vertex_map, intrinsic);
+    return dst_vertex_map;
+}
+
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::GetVertexMap(
+        ImageCuda<float, 3> &dst_vertex_map, PinholeCameraIntrinsicCuda &intrinsic) {
+    bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 1);
+    assert(is_depth_image);
+
+    bool success = dst_vertex_map.Create(width_, height_);
+    if (success) {
+        ImageCudaKernelCaller<Scalar, Channel>::GetVertexMap(*this, dst_vertex_map,
+                                                             intrinsic);
+    }
+}
+
+template <typename Scalar, size_t Channel>
+ImageCuda<float, 3> ImageCuda<Scalar, Channel>::GetNormalMap(void) {
+    // Check whether source is vertex map
+    bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 3);
+    assert(is_depth_image);
+    ImageCuda<float, 3> dst_normal_map;
+    dst_normal_map.Create(width_, height_);
+    GetNormalMap(dst_normal_map);
+    return dst_normal_map;
+}
+
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::GetNormalMap(ImageCuda<float, 3> &dst_normal_map) {
+    //Check whether source is vertex map
+    bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 3);
+    assert(is_depth_image);
+
+    bool success = dst_normal_map.Create(width_, height_);
+    if (success) {
+        ImageCudaKernelCaller<Scalar, Channel>::GetNormalMap(
+                *this, dst_normal_map);
+    }
+
+
+}
+
+template <typename Scalar, size_t Channel>
+ImageCuda<Scalar, Channel> ImageCuda<Scalar, Channel>::Shift(float dx,
+                                                             float dy) {
     ImageCuda<Scalar, Channel> dst;
     dst.Create(width_, height_);
     Shift(dst, dx, dy);
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::Shift(
-    ImageCuda<Scalar, Channel> &image, float dx, float dy) {
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::Shift(ImageCuda<Scalar, Channel> &image,
+                                       float dx,
+                                       float dy) {
     bool success = image.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::Shift(
-            *this, image, dx, dy);
+        ImageCudaKernelCaller<Scalar, Channel>::Shift(*this, image, dx, dy);
     }
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel> ImageCuda<Scalar, Channel>::Gaussian(
-    GaussianKernelSize kernel) {
+        GaussianKernelSize kernel) {
     ImageCuda<Scalar, Channel> dst;
     dst.Create(width_, height_);
     Gaussian(dst, kernel);
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::Gaussian(
-    ImageCuda<Scalar, Channel> &image,
-    GaussianKernelSize kernel) {
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::Gaussian(ImageCuda<Scalar, Channel> &image,
+                                          GaussianKernelSize kernel) {
     bool success = image.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::Gaussian(
-            *this, image, (int) kernel);
+        ImageCudaKernelCaller<Scalar, Channel>::Gaussian(*this, image,
+                                                         (int)kernel);
     }
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<Scalar, Channel> ImageCuda<Scalar, Channel>::Bilateral(
-    GaussianKernelSize kernel, float val_sigma) {
+        GaussianKernelSize kernel, float val_sigma) {
     ImageCuda<Scalar, Channel> dst;
     dst.Create(width_, height_);
     Bilateral(dst, kernel, val_sigma);
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::Bilateral(
-    ImageCuda<Scalar, Channel> &image, GaussianKernelSize kernel,
-    float val_sigma) {
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::Bilateral(ImageCuda<Scalar, Channel> &image,
+                                           GaussianKernelSize kernel,
+                                           float val_sigma) {
     bool success = image.Create(width_, height_);
     if (success) {
         ImageCudaKernelCaller<Scalar, Channel>::Bilateral(
-            *this, image, (int) kernel, val_sigma);
+                *this, image, (int)kernel, val_sigma);
     }
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 std::tuple<ImageCuda<float, Channel>, ImageCuda<float, Channel>>
 ImageCuda<Scalar, Channel>::Sobel() {
     ImageCuda<float, Channel> dx;
@@ -310,10 +360,9 @@ ImageCuda<Scalar, Channel>::Sobel() {
     return std::make_tuple(dx, dy);
 }
 
-template<typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::Sobel(
-    ImageCuda<float, Channel> &dx,
-    ImageCuda<float, Channel> &dy) {
+template <typename Scalar, size_t Channel>
+void ImageCuda<Scalar, Channel>::Sobel(ImageCuda<float, Channel> &dx,
+                                       ImageCuda<float, Channel> &dy) {
     bool success = true;
     success &= dx.Create(width_, height_);
     success &= dy.Create(width_, height_);
@@ -322,26 +371,26 @@ void ImageCuda<Scalar, Channel>::Sobel(
     }
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<float, Channel> ImageCuda<Scalar, Channel>::ConvertToFloat(
-    float scale, float offset) {
+        float scale, float offset) {
     ImageCuda<float, Channel> dst;
     dst.Create(width_, height_);
     ConvertToFloat(dst, scale, offset);
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::ConvertToFloat(
-    ImageCuda<float, Channel> &image, float scale, float offset) {
+        ImageCuda<float, Channel> &image, float scale, float offset) {
     bool success = image.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::ConvertToFloat(
-            *this, image, scale, offset);
+        ImageCudaKernelCaller<Scalar, Channel>::ConvertToFloat(*this, image,
+                                                               scale, offset);
     }
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 ImageCuda<float, 1> ImageCuda<Scalar, Channel>::ConvertRGBToIntensity() {
     assert(typeid(Scalar) == typeid(uchar) && Channel == 3);
     ImageCuda<float, 1> dst;
@@ -350,20 +399,20 @@ ImageCuda<float, 1> ImageCuda<Scalar, Channel>::ConvertRGBToIntensity() {
     return dst;
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::ConvertRGBToIntensity(
-    ImageCuda<float, 1> &image) {
+        ImageCuda<float, 1> &image) {
     assert(typeid(Scalar) == typeid(uchar) && Channel == 3);
     bool success = image.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::ConvertRGBToIntensity(
-            *this, image);
+        ImageCudaKernelCaller<Scalar, Channel>::ConvertRGBToIntensity(*this,
+                                                                      image);
     }
 }
 
 #ifdef USE_OPENCV
 /** Legacy **/
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Upload(cv::Mat &m) {
     assert(m.rows > 0 && m.cols > 0);
 
@@ -385,27 +434,28 @@ void ImageCuda<Scalar, Channel>::Upload(cv::Mat &m) {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         assert(m.type() == CV_32FC1);
     } else {
-        utility::LogWarning("[ImageCuda] Unsupported format %d,"
-                              "@Upload aborted.\n", m.type());
+        utility::LogWarning(
+                "[ImageCuda] Unsupported format %d,"
+                "@Upload aborted.\n",
+                m.type());
         return;
     }
 
     bool success = Create(m.cols, m.rows);
     if (!success) return;
 
-    CheckCuda(cudaMemcpy2D(device_->data_, (size_t) pitch_,
-                           m.data, m.step,
+    CheckCuda(cudaMemcpy2D(device_->data_, (size_t)pitch_, m.data, m.step,
                            sizeof(VectorCuda<Scalar, Channel>) * m.cols,
-                           (size_t) m.rows,
-                           cudaMemcpyHostToDevice));
+                           (size_t)m.rows, cudaMemcpyHostToDevice));
 }
 
-template<typename Scalar, size_t Channel>
+template <typename Scalar, size_t Channel>
 cv::Mat ImageCuda<Scalar, Channel>::DownloadMat() {
     cv::Mat m;
     if (device_ == nullptr) {
-        utility::LogWarning("[ImageCuda] Not initialized, "
-                              "@DownloadMat aborted.\n");
+        utility::LogWarning(
+                "[ImageCuda] Not initialized, "
+                "@DownloadMat aborted.\n");
         return m;
     }
 
@@ -426,18 +476,18 @@ cv::Mat ImageCuda<Scalar, Channel>::DownloadMat() {
     } else if (typeid(Scalar) == typeid(float) && Channel == 1) {
         m = cv::Mat(height_, width_, CV_32FC1);
     } else {
-        utility::LogWarning("[ImageCuda] Unsupported format %d,"
-                              "@DownloadMat aborted.\n");
+        utility::LogWarning(
+                "[ImageCuda] Unsupported format %d,"
+                "@DownloadMat aborted.\n");
         return m;
     }
 
-    CheckCuda(cudaMemcpy2D(m.data, m.step, device_->data_, (size_t) pitch_,
+    CheckCuda(cudaMemcpy2D(m.data, m.step, device_->data_, (size_t)pitch_,
                            sizeof(VectorCuda<Scalar, Channel>) * width_,
-                           (size_t) height_,
-                           cudaMemcpyDeviceToHost));
+                           (size_t)height_, cudaMemcpyDeviceToHost));
     return m;
 }
-#endif // USE_OPENCV
+#endif  // USE_OPENCV
 
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d

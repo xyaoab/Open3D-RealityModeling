@@ -8,6 +8,7 @@
 #include <Cuda/Common/Common.h>
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Open3D/Geometry/Image.h>
+#include <Cuda/Camera/PinholeCameraIntrinsicCuda.h>
 
 #include <cstdlib>
 #include <memory>
@@ -85,6 +86,7 @@ public:
     std::shared_ptr<ImageCudaDevice<Scalar, Channel>> device_ = nullptr;
     typedef ImageCuda<Scalar, Channel> ImageCudaType;
     typedef ImageCuda<float, Channel> ImageCudaTypef;
+    typedef ImageCuda<float, 3> ImageCudaTypeXYZ;
 
 public:
     int width_;
@@ -119,6 +121,15 @@ public:
         DownsampleMethod method = GaussianFilter);
     void Downsample(ImageCudaType &image,
                     DownsampleMethod method = GaussianFilter);
+
+    //! Returns the vertex map
+    ImageCudaTypeXYZ GetVertexMap(PinholeCameraIntrinsicCuda &intrinsic);
+    void GetVertexMap(ImageCudaTypeXYZ &vertex_map, PinholeCameraIntrinsicCuda &intrinsic);
+
+    //! Computes and returns the normal map
+    //! This function is expected only for Float, 3 channel images (Vertex maps)
+    ImageCudaTypeXYZ GetNormalMap(void);
+    void GetNormalMap(ImageCudaTypeXYZ &normal_map);
 
     std::tuple<ImageCudaTypef, ImageCudaTypef> Sobel();
     void Sobel(ImageCudaTypef &dx, ImageCudaTypef &dy);
@@ -155,9 +166,17 @@ class ImageCudaKernelCaller {
 public:
     typedef ImageCuda<Scalar, Channel> ImageCudaType;
     typedef ImageCuda<float, Channel> ImageCudaTypef;
+    typedef ImageCuda<float, 3> ImageCudaTypeXYZ;
 
     static void Downsample(ImageCudaType &src, ImageCudaType &dst,
                            DownsampleMethod method);
+
+    static void GetVertexMap(ImageCudaType &src, ImageCudaTypeXYZ &dst_vertex_map,
+            PinholeCameraIntrinsicCuda &intrinsic);
+
+    static void GetNormalMap(ImageCudaType &src_vertex_map,
+            ImageCudaTypeXYZ &dst_normal_map);
+
     static void Shift(ImageCudaType &src, ImageCudaType &dst,
                       float dx, float dy);
     static void Gaussian(ImageCudaType &src, ImageCudaType &dst,
@@ -178,6 +197,17 @@ __GLOBAL__
 void DownsampleKernel(ImageCudaDevice<Scalar, Channel> src,
                       ImageCudaDevice<Scalar, Channel> dst,
                       DownsampleMethod method);
+
+template<typename Scalar, size_t Channel>
+__GLOBAL__
+void GetVertexMapKernel(ImageCudaDevice<Scalar, Channel> src,
+                        ImageCudaDevice<float, 3> dst_vertex_map,
+                        PinholeCameraIntrinsicCuda intrinsic);
+
+template<typename Scalar, size_t Channel>
+__GLOBAL__
+void GetNormalMapKernel(ImageCudaDevice<Scalar, Channel> src_vertex_map,
+                        ImageCudaDevice<float, 3> dst_normal_map);
 
 template<typename Scalar, size_t Channel>
 __GLOBAL__
