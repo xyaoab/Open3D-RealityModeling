@@ -9,6 +9,7 @@
 #include "TriangleMeshCudaHost.hpp"
 
 #include "NNCudaHost.hpp"
+#include "SegmentationCudaHost.hpp"
 
 namespace open3d {
 

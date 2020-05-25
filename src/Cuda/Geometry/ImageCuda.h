@@ -127,7 +127,7 @@ public:
     void GetVertexMap(ImageCudaTypeXYZ &vertex_map, PinholeCameraIntrinsicCuda &intrinsic);
 
     //! Computes and returns the normal map
-    //! This function is expected only for Float, 3 channel images (Vertex maps)
+    //! This function is expected only for <float, 3> channel images (Vertex maps)
     ImageCudaTypeXYZ GetNormalMap(void);
     void GetNormalMap(ImageCudaTypeXYZ &normal_map);
 

@@ -254,14 +254,15 @@ ImageCuda<float, 3> ImageCuda<Scalar, Channel>::GetVertexMap(
 
 template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::GetVertexMap(
-        ImageCuda<float, 3> &dst_vertex_map, PinholeCameraIntrinsicCuda &intrinsic) {
+        ImageCuda<float, 3> &dst_vertex_map,
+        PinholeCameraIntrinsicCuda &intrinsic) {
     bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 1);
     assert(is_depth_image);
 
     bool success = dst_vertex_map.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::GetVertexMap(*this, dst_vertex_map,
-                                                             intrinsic);
+        ImageCudaKernelCaller<Scalar, Channel>::GetVertexMap(
+                *this, dst_vertex_map, intrinsic);
     }
 }
 
@@ -277,18 +278,17 @@ ImageCuda<float, 3> ImageCuda<Scalar, Channel>::GetNormalMap(void) {
 }
 
 template <typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::GetNormalMap(ImageCuda<float, 3> &dst_normal_map) {
-    //Check whether source is vertex map
+void ImageCuda<Scalar, Channel>::GetNormalMap(
+        ImageCuda<float, 3> &dst_normal_map) {
+    // Check whether source is vertex map
     bool is_depth_image = std::is_same<Scalar, float>::value && (Channel == 3);
     assert(is_depth_image);
 
     bool success = dst_normal_map.Create(width_, height_);
     if (success) {
-        ImageCudaKernelCaller<Scalar, Channel>::GetNormalMap(
-                *this, dst_normal_map);
+        ImageCudaKernelCaller<Scalar, Channel>::GetNormalMap(*this,
+                                                             dst_normal_map);
     }
-
-
 }
 
 template <typename Scalar, size_t Channel>
