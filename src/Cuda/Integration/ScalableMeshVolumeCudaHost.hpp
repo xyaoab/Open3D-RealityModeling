@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "ScalableMeshVolumeCuda.h"
 #include "MarchingCubesConstCuda.h"
+#include "ScalableMeshVolumeCuda.h"
 
 #include "ScalableTSDFVolumeCuda.h"
 
@@ -25,18 +25,16 @@ ScalableMeshVolumeCuda::ScalableMeshVolumeCuda() {
     max_triangles_ = -1;
 }
 
-
-ScalableMeshVolumeCuda::ScalableMeshVolumeCuda(
-    VertexType type,
-    int N, int max_subvolumes,
-    int max_vertices, int max_triangles) {
-
+ScalableMeshVolumeCuda::ScalableMeshVolumeCuda(VertexType type,
+                                               int N,
+                                               int max_subvolumes,
+                                               int max_vertices,
+                                               int max_triangles) {
     Create(type, N, max_subvolumes, max_vertices, max_triangles);
 }
 
-
 ScalableMeshVolumeCuda::ScalableMeshVolumeCuda(
-    const ScalableMeshVolumeCuda &other) {
+        const ScalableMeshVolumeCuda &other) {
     N_ = other.N_;
     max_subvolumes_ = other.max_subvolumes_;
 
@@ -48,9 +46,8 @@ ScalableMeshVolumeCuda::ScalableMeshVolumeCuda(
     mesh_ = other.mesh();
 }
 
-
 ScalableMeshVolumeCuda &ScalableMeshVolumeCuda::operator=(
-    const ScalableMeshVolumeCuda &other) {
+        const ScalableMeshVolumeCuda &other) {
     if (this != &other) {
         N_ = other.N_;
         max_subvolumes_ = other.max_subvolumes_;
@@ -65,22 +62,22 @@ ScalableMeshVolumeCuda &ScalableMeshVolumeCuda::operator=(
     return *this;
 }
 
+ScalableMeshVolumeCuda::~ScalableMeshVolumeCuda() { Release(); }
 
-ScalableMeshVolumeCuda::~ScalableMeshVolumeCuda() {
-    Release();
-}
-
-
-void ScalableMeshVolumeCuda::Create(
-    VertexType type, int N, int max_subvolumes,
-    int max_vertices, int max_triangles) {
+void ScalableMeshVolumeCuda::Create(VertexType type,
+                                    int N,
+                                    int max_subvolumes,
+                                    int max_vertices,
+                                    int max_triangles) {
     if (device_ != nullptr) {
-        utility::LogError("[ScalableMeshVolumeCuda]: "
-                            "Already created, abort!\n");
+        utility::LogError(
+                "[ScalableMeshVolumeCuda]: "
+                "Already created, abort!");
         return;
     }
 
-    assert(N > 0 && max_subvolumes > 0 && max_vertices > 0 && max_triangles > 0);
+    assert(N > 0 && max_subvolumes > 0 && max_vertices > 0 &&
+           max_triangles > 0);
 
     device_ = std::make_shared<ScalableMeshVolumeCudaDevice>();
 
@@ -102,7 +99,6 @@ void ScalableMeshVolumeCuda::Create(
     Reset();
 }
 
-
 void ScalableMeshVolumeCuda::Release() {
     if (device_ != nullptr && device_.use_count() == 1) {
         CheckCuda(cudaFree(device_->table_indices_memory_pool_));
@@ -116,7 +112,6 @@ void ScalableMeshVolumeCuda::Release() {
     max_triangles_ = -1;
 }
 
-
 void ScalableMeshVolumeCuda::Reset() {
     if (device_ != nullptr) {
         const size_t NNN = N_ * N_ * N_;
@@ -128,7 +123,6 @@ void ScalableMeshVolumeCuda::Reset() {
     }
 }
 
-
 void ScalableMeshVolumeCuda::UpdateDevice() {
     if (device_ != nullptr) {
         device_->N_ = N_;
@@ -136,9 +130,8 @@ void ScalableMeshVolumeCuda::UpdateDevice() {
     }
 }
 
-
 void ScalableMeshVolumeCuda::VertexAllocation(
-    ScalableTSDFVolumeCuda &tsdf_volume) {
+        ScalableTSDFVolumeCuda &tsdf_volume) {
     assert(device_ != nullptr);
 
     utility::Timer timer;
@@ -147,12 +140,11 @@ void ScalableMeshVolumeCuda::VertexAllocation(
     ScalableMeshVolumeCudaKernelCaller::VertexAllocation(*this, tsdf_volume);
 
     timer.Stop();
-    utility::LogDebug("Allocation takes {} milliseconds\n", timer.GetDuration());
+    utility::LogDebug("Allocation takes {} milliseconds", timer.GetDuration());
 }
 
-
 void ScalableMeshVolumeCuda::VertexExtraction(
-    ScalableTSDFVolumeCuda &tsdf_volume) {
+        ScalableTSDFVolumeCuda &tsdf_volume) {
     assert(device_ != nullptr);
 
     utility::Timer timer;
@@ -161,38 +153,34 @@ void ScalableMeshVolumeCuda::VertexExtraction(
     ScalableMeshVolumeCudaKernelCaller::VertexExtraction(*this, tsdf_volume);
 
     timer.Stop();
-    utility::LogDebug("Extraction takes {} milliseconds\n", timer.GetDuration
-    ());
+    utility::LogDebug("Extraction takes {} milliseconds", timer.GetDuration());
 }
 
-
 void ScalableMeshVolumeCuda::TriangleExtraction(
-    ScalableTSDFVolumeCuda &tsdf_volume) {
+        ScalableTSDFVolumeCuda &tsdf_volume) {
     assert(device_ != nullptr);
 
     utility::Timer timer;
     timer.Start();
 
-    ScalableMeshVolumeCudaKernelCaller::TriangleExtraction(
-        *this, tsdf_volume);
+    ScalableMeshVolumeCudaKernelCaller::TriangleExtraction(*this, tsdf_volume);
 
     timer.Stop();
-    utility::LogDebug("Triangulation takes {} milliseconds\n", timer
-    .GetDuration());
+    utility::LogDebug("Triangulation takes {} milliseconds",
+                      timer.GetDuration());
 }
 
-
 void ScalableMeshVolumeCuda::MarchingCubes(
-    ScalableTSDFVolumeCuda &tsdf_volume) {
+        ScalableTSDFVolumeCuda &tsdf_volume) {
     assert(device_ != nullptr && vertex_type_ != VertexTypeUnknown);
 
     mesh_.Reset();
     active_subvolumes_ = tsdf_volume.active_subvolume_entry_array_.size();
-    utility::LogDebug("Active subvolumes: {}\n", active_subvolumes_);
+    utility::LogDebug("Active subvolumes: {}", active_subvolumes_);
 
     if (active_subvolumes_ <= 0) {
-        utility::LogError("Invalid active subvolume numbers: {} !\n",
-                   active_subvolumes_);
+        utility::LogError("Invalid active subvolume numbers: {} !",
+                          active_subvolumes_);
         return;
     }
 
@@ -208,5 +196,5 @@ void ScalableMeshVolumeCuda::MarchingCubes(
         mesh_.vertex_colors_.set_iterator(mesh_.vertices_.size());
     }
 }
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d

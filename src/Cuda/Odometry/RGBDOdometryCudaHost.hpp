@@ -13,40 +13,41 @@ namespace cuda {
  * TODO: Think about how do we use device_ ... we don't want copy
  * constructors for such a large system...
  */
-template<size_t N>
+template <size_t N>
 RGBDOdometryCuda<N>::RGBDOdometryCuda() : device_(nullptr) {}
 
-template<size_t N>
+template <size_t N>
 RGBDOdometryCuda<N>::~RGBDOdometryCuda() {
     Release();
 }
 
-template<size_t N>
-void RGBDOdometryCuda<N>::SetParameters(
-    const odometry::OdometryOption &option, float sigma) {
+template <size_t N>
+void RGBDOdometryCuda<N>::SetParameters(const odometry::OdometryOption &option,
+                                        float sigma) {
     assert(option_.iteration_number_per_pyramid_level_.size() == N);
     option_ = option;
     sigma_ = sigma;
 }
 
-template<size_t N>
-void RGBDOdometryCuda<N>::SetIntrinsics(camera::PinholeCameraIntrinsic
-intrinsics) {
+template <size_t N>
+void RGBDOdometryCuda<N>::SetIntrinsics(
+        camera::PinholeCameraIntrinsic intrinsics) {
     intrinsics_ = intrinsics;
 }
 
-template<size_t N>
+template <size_t N>
 bool RGBDOdometryCuda<N>::Create(int width, int height) {
     assert(width > 0 && height > 0);
 
     if (device_ != nullptr) {
-        if (source_depth_[0].width_ != width
-        || source_depth_[0].height_ != height) {
-            utility::LogError("[RGBDOdometryCuda] Incompatible image size, "
-                       "width: {} vs {}, height: {} vs {}, "
-                       "@Create aborted.\n",
-                       source_depth_[0].width_, width,
-                       source_depth_[0].height_, height);
+        if (source_depth_[0].width_ != width ||
+            source_depth_[0].height_ != height) {
+            utility::LogError(
+                    "[RGBDOdometryCuda] Incompatible image size, "
+                    "width: {} vs {}, height: {} vs {}, "
+                    "@Create aborted.",
+                    source_depth_[0].width_, width, source_depth_[0].height_,
+                    height);
             return false;
         }
         return true;
@@ -60,7 +61,7 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
     for (int i = 0; i < N; ++i) {
         source_depth_[i].Create(width >> i, height >> i);
         source_intensity_[i].Create(width >> i, height >> i);
-        target_depth_[i].Create(width >> i , height >> i);
+        target_depth_[i].Create(width >> i, height >> i);
         target_intensity_[i].Create(width >> i, height >> i);
 
         target_depth_dx_[i].Create(width >> i, height >> i);
@@ -69,7 +70,7 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
         target_intensity_dy_[i].Create(width >> i, height >> i);
     }
 
-    results_.Create(29); // 21 + 6 + 2
+    results_.Create(29);  // 21 + 6 + 2
     correspondences_.Create(width * height);
 
     transform_source_to_target_ = Eigen::Matrix4d::Identity();
@@ -78,7 +79,7 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
     return true;
 }
 
-template<size_t N>
+template <size_t N>
 void RGBDOdometryCuda<N>::Release() {
     source_input_.Release();
     target_input_.Release();
@@ -101,14 +102,14 @@ void RGBDOdometryCuda<N>::Release() {
     device_ = nullptr;
 }
 
-template<size_t N>
+template <size_t N>
 void RGBDOdometryCuda<N>::UpdateSigma(float sigma) {
     device_->sigma_ = sigma;
     device_->sqrt_coeff_D_ = sqrtf(sigma);
     device_->sqrt_coeff_I_ = sqrtf(1 - sigma);
 }
 
-template<size_t N>
+template <size_t N>
 void RGBDOdometryCuda<N>::UpdateDevice() {
     if (device_ != nullptr) {
         source_input_.UpdateDevice();
@@ -142,11 +143,10 @@ void RGBDOdometryCuda<N>::UpdateDevice() {
         device_->results_ = *results_.device_;
         device_->correspondences_ = *correspondences_.device_;
 
-
         /** Update parameters **/
-        device_->min_depth_ = (float) option_.min_depth_;
-        device_->max_depth_ = (float) option_.max_depth_;
-        device_->max_depth_diff_ = (float) option_.max_depth_diff_;
+        device_->min_depth_ = (float)option_.min_depth_;
+        device_->max_depth_ = (float)option_.max_depth_;
+        device_->max_depth_diff_ = (float)option_.max_depth_diff_;
 
         UpdateSigma(sigma_);
 
@@ -155,15 +155,16 @@ void RGBDOdometryCuda<N>::UpdateDevice() {
             device_->intrinsics_[i] = device_->intrinsics_[i - 1].Downsample();
         }
         device_->transform_source_to_target_.FromEigen(
-            transform_source_to_target_);
+                transform_source_to_target_);
     }
 }
 
-template<size_t N>
+template <size_t N>
 void RGBDOdometryCuda<N>::ExtractResults(std::vector<float> &results,
                                          Eigen::Matrix6d &JtJ,
                                          Eigen::Vector6d &Jtr,
-                                         float &loss, float &inliers) {
+                                         float &loss,
+                                         float &inliers) {
     int cnt = 0;
     for (int i = 0; i < 6; ++i) {
         for (int j = i; j < 6; ++j) {
@@ -180,16 +181,17 @@ void RGBDOdometryCuda<N>::ExtractResults(std::vector<float> &results,
     inliers = results[cnt];
 }
 
-template<size_t N>
-void RGBDOdometryCuda<N>::Initialize(
-    RGBDImageCuda &source, RGBDImageCuda &target) {
+template <size_t N>
+void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source,
+                                     RGBDImageCuda &target) {
     assert(source.width_ == target.width_);
     assert(source.height_ == target.height_);
 
     bool success = Create(source.width_, source.height_);
     if (!success) {
-        utility::LogError("[RGBDOdometryCuda] create failed, "
-                   "@PrepareData aborted.\n");
+        utility::LogError(
+                "[RGBDOdometryCuda] create failed, "
+                "@PrepareData aborted.");
         return;
     }
 
@@ -203,9 +205,9 @@ void RGBDOdometryCuda<N>::Initialize(
     source_intensity_preprocessed.Create(source.width_, source.height_);
     target_depth_preprocessed.Create(source.width_, source.height_);
     target_intensity_preprocessed.Create(source.width_, source.height_);
-    RGBDOdometryCudaKernelCaller<N>::PreprocessInput(*this,
-        source_depth_preprocessed, source_intensity_preprocessed,
-        target_depth_preprocessed, target_intensity_preprocessed);
+    RGBDOdometryCudaKernelCaller<N>::PreprocessInput(
+            *this, source_depth_preprocessed, source_intensity_preprocessed,
+            target_depth_preprocessed, target_intensity_preprocessed);
 
     /** Preprocess: Smooth **/
     source_depth_preprocessed.Gaussian(source_depth_[0], Gaussian3x3);
@@ -213,7 +215,8 @@ void RGBDOdometryCuda<N>::Initialize(
     target_depth_preprocessed.Gaussian(target_depth_[0], Gaussian3x3);
     target_intensity_preprocessed.Gaussian(target_intensity_[0], Gaussian3x3);
 
-    /** Preprocess: normalize intensity between pair (source_[0], target_[0]) **/
+    /** Preprocess: normalize intensity between pair (source_[0], target_[0])
+     * **/
     device_->transform_source_to_target_.FromEigen(transform_source_to_target_);
     correspondences_.set_iterator(0);
     RGBDOdometryCudaKernelCaller<N>::NormalizeIntensity(*this);
@@ -232,20 +235,20 @@ void RGBDOdometryCuda<N>::Initialize(
     /* Compute gradients */
     for (int i = 0; i < N; ++i) {
         target_depth_[i].Sobel(target_depth_dx_[i], target_depth_dy_[i]);
-        target_intensity_[i].Sobel(target_intensity_dx_[i], target_intensity_dy_[i]);
+        target_intensity_[i].Sobel(target_intensity_dx_[i],
+                                   target_intensity_dy_[i]);
     }
 
     UpdateDevice();
 }
 
-template<size_t N>
-std::tuple<bool, Eigen::Matrix4d, float>
-RGBDOdometryCuda<N>::DoSingleIteration(size_t level, int iter) {
+template <size_t N>
+std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
+        size_t level, int iter) {
     results_.Memset(0);
     correspondences_.set_iterator(0);
 
-    device_->transform_source_to_target_.FromEigen(
-        transform_source_to_target_);
+    device_->transform_source_to_target_.FromEigen(transform_source_to_target_);
 
     utility::Timer timer;
     timer.Start();
@@ -258,20 +261,21 @@ RGBDOdometryCuda<N>::DoSingleIteration(size_t level, int iter) {
     Eigen::Vector6d Jtr;
     float loss, inliers;
     ExtractResults(results, JtJ, Jtr, loss, inliers);
-    utility::LogDebug("> Level {}, iter {}: loss = {}, avg loss = {}, "
-                        "inliers = %"
-                ".0f\n",
-               level, iter, loss, loss / inliers, inliers);
+    utility::LogDebug(
+            "> Level {}, iter {}: loss = {}, avg loss = {}, "
+            "inliers = %"
+            ".0f",
+            level, iter, loss, loss / inliers, inliers);
 
     bool is_success;
     Eigen::Matrix4d extrinsic;
     std::tie(is_success, extrinsic) =
-        utility::SolveJacobianSystemAndObtainExtrinsicMatrix(JtJ, Jtr);
+            utility::SolveJacobianSystemAndObtainExtrinsicMatrix(JtJ, Jtr);
 
     return std::make_tuple(is_success, extrinsic, loss / inliers);
 }
 
-template<size_t N>
+template <size_t N>
 std::tuple<bool, Eigen::Matrix4d, std::vector<std::vector<float>>>
 RGBDOdometryCuda<N>::ComputeMultiScale() {
     bool is_success;
@@ -279,23 +283,21 @@ RGBDOdometryCuda<N>::ComputeMultiScale() {
     float loss;
 
     std::vector<std::vector<float>> losses;
-    for (int level = (int) (N - 1); level >= 0; --level) {
+    for (int level = (int)(N - 1); level >= 0; --level) {
         std::vector<float> losses_on_level;
 
         for (int iter = 0;
              iter < option_.iteration_number_per_pyramid_level_[N - 1 - level];
              ++iter) {
-
             std::tie(is_success, delta, loss) =
-                DoSingleIteration((size_t) level, iter);
+                    DoSingleIteration((size_t)level, iter);
             transform_source_to_target_ = delta * transform_source_to_target_;
             losses_on_level.emplace_back(loss);
 
             if (!is_success) {
-                utility::LogWarning("[ComputeOdometry] no solution!\n");
-                return std::make_tuple(
-                    false, Eigen::Matrix4d::Identity(),
-                    losses);
+                utility::LogWarning("[ComputeOdometry] no solution!");
+                return std::make_tuple(false, Eigen::Matrix4d::Identity(),
+                                       losses);
             }
         }
 
@@ -305,7 +307,7 @@ RGBDOdometryCuda<N>::ComputeMultiScale() {
     return std::make_tuple(true, transform_source_to_target_, losses);
 }
 
-template<size_t N>
+template <size_t N>
 Eigen::Matrix6d RGBDOdometryCuda<N>::ComputeInformationMatrix() {
     results_.Memset(0);
 
@@ -313,11 +315,11 @@ Eigen::Matrix6d RGBDOdometryCuda<N>::ComputeInformationMatrix() {
     std::vector<float> results = results_.DownloadAll();
 
     Eigen::Matrix6d JtJ;
-    Eigen::Vector6d Jtr; // dummy
-    float loss, inliers; // dummy
+    Eigen::Vector6d Jtr;  // dummy
+    float loss, inliers;  // dummy
     ExtractResults(results, JtJ, Jtr, loss, inliers);
 
     return JtJ;
 }
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d

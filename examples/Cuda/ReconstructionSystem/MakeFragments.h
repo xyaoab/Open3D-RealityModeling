@@ -83,7 +83,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
         ReadImage(config.color_files_[t], color);
         rgbd_target.Upload(depth, color);
 
-        LogInfo("RGBD Odometry between ({} {})\n", s, t);
+        LogInfo("RGBD Odometry between ({} {})", s, t);
         odometry.transform_source_to_target_ = Eigen::Matrix4d::Identity();
         odometry.Initialize(rgbd_source, rgbd_target);
         odometry.ComputeMultiScale();
@@ -109,7 +109,7 @@ void MakePoseGraphForFragment(int fragment_id, DatasetConfig &config) {
             for (int j = i + 1; j < keyframe_infos.size(); ++j) {
                 int s = keyframe_infos[i].idx;
                 int t = keyframe_infos[j].idx;
-                LogInfo("RGBD Loop closure between ({} {})\n", s, t);
+                LogInfo("RGBD Loop closure between ({} {})", s, t);
 
                 bool is_success;
                 Eigen::Matrix4d trans_source_to_target;
@@ -184,7 +184,7 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     cuda::PinholeCameraIntrinsicCuda intrinsic(config.intrinsic_);
     cuda::TransformCuda trans = cuda::TransformCuda::Identity();
     cuda::ScalableTSDFVolumeCuda tsdf_volume(
-            8, voxel_length, (float)config.tsdf_truncation_, trans);
+            16, voxel_length, (float)config.tsdf_truncation_, trans);
 
     cuda::RGBDImageCuda rgbd((float)config.max_depth_,
                              (float)config.depth_factor_);
@@ -194,7 +194,7 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
                              (int)config.color_files_.size());
 
     for (int i = begin; i < end; ++i) {
-        LogDebug("Integrating frame {} ...\n", i);
+        LogDebug("Integrating frame {} ...", i);
 
         Image depth, color;
         ReadImage(config.depth_files_[i], depth);
@@ -209,11 +209,11 @@ void IntegrateForFragment(int fragment_id, DatasetConfig &config) {
     }
 
     tsdf_volume.GetAllSubvolumes();
-    WriteScalableTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id),
-                                 tsdf_volume);
+    // WriteScalableTSDFVolumeToBIN(config.GetBinFileForFragment(fragment_id),
+    //                              tsdf_volume);
 
     cuda::ScalableMeshVolumeCuda mesher(
-            cuda::VertexWithNormalAndColor, 8,
+            cuda::VertexWithNormalAndColor, 16,
             tsdf_volume.active_subvolume_entry_array_.size());
     mesher.MarchingCubes(tsdf_volume);
     auto mesh = mesher.mesh().Download();
@@ -243,12 +243,12 @@ static int Run(DatasetConfig &config) {
                                           config.n_frames_per_fragment_);
 
     for (int i = 0; i < num_fragments; ++i) {
-        LogInfo("Processing fragment {} / {}\n", i, num_fragments - 1);
+        LogInfo("Processing fragment {} / {}", i, num_fragments - 1);
         MakePoseGraphForFragment(i, config);
         OptimizePoseGraphForFragment(i, config);
         IntegrateForFragment(i, config);
     }
     timer.Stop();
-    LogInfo("MakeFragment takes {} s\n", timer.GetDuration() * 1e-3);
+    LogInfo("MakeFragment takes {} s", timer.GetDuration() * 1e-3);
 }
 };  // namespace MakeFragment
