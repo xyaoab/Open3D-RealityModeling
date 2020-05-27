@@ -34,7 +34,8 @@ int main(int argc, char **argv) {
     DatasetConfig config;
 
     std::string config_path =
-            argc > 1 ? argv[1] : kDefaultDatasetConfigDir + "/bundlefusion/apt0.json";
+            argc > 1 ? argv[1]
+                     : kDefaultDatasetConfigDir + "/bundlefusion/apt0.json";
 
     bool is_success = ReadIJsonConvertible(config_path, config);
     if (!is_success) return 1;
@@ -69,13 +70,13 @@ int main(int argc, char **argv) {
     timer_total.Stop();
     std::string total_time = SecondsToHMS(timer_total.GetDuration() * 1e-3);
 
-    LogInfo("================================\n");
-    LogInfo(" - Make fragment      : {}\n", make_fragment_time.c_str());
-    LogInfo(" - Register fragments : {}\n", register_fragments_time.c_str());
-    LogInfo(" - Refine registration: {}\n", refine_registration_time.c_str());
-    LogInfo(" - Intergate scene    : {}\n", integrate_scene_time.c_str());
-    LogInfo(" - Total              : {}\n", total_time.c_str());
-    LogInfo("================================\n");
+    LogInfo("================================");
+    LogInfo(" - Make fragment      : {}", make_fragment_time.c_str());
+    LogInfo(" - Register fragments : {}", register_fragments_time.c_str());
+    LogInfo(" - Refine registration: {}", refine_registration_time.c_str());
+    LogInfo(" - Intergate scene    : {}", integrate_scene_time.c_str());
+    LogInfo(" - Total              : {}", total_time.c_str());
+    LogInfo("================================");
 
     auto mesh = io::CreateMeshFromFile(config.GetReconstructedSceneFile());
     visualization::DrawGeometries({mesh});

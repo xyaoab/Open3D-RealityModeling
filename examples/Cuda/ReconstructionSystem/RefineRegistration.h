@@ -69,7 +69,7 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
                 MultiScaleICP(*source, *target, edge.transformation_,
                               config.voxel_size_);
 
-        LogInfo("Point cloud odometry ({} {})\n", match.s, match.t);
+        LogInfo("Point cloud odometry ({} {})", match.s, match.t);
 
         matches.push_back(match);
     }
@@ -132,7 +132,7 @@ int Run(DatasetConfig &config) {
 
     bool is_success = config.GetFragmentFiles();
     if (!is_success) {
-        LogError("Unable to get fragment files\n");
+        LogError("Unable to get fragment files");
         return -1;
     }
 
@@ -141,7 +141,7 @@ int Run(DatasetConfig &config) {
     OptimizePoseGraphForScene(config);
 
     timer.Stop();
-    LogInfo("RefineRegistration takes {} s\n", timer.GetDuration() * 1e-3);
+    LogInfo("RefineRegistration takes {} s", timer.GetDuration() * 1e-3);
     return 0;
 }
 }  // namespace RefineRegistration

@@ -9,9 +9,9 @@
 
 #include <Cuda/Common/UtilsCuda.h>
 
+#include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Cuda/Container/ArrayCuda.h>
 #include <Cuda/Geometry/TriangleMeshCuda.h>
-#include <Cuda/Common/LinearAlgebraCuda.h>
 
 #include <memory>
 
@@ -26,70 +26,69 @@ private:
     Vector3i *vertex_indices_memory_pool_;
 
     /** Refer to UniformMeshVolumeCudaDevice to check how do we manage
-      * vertex indices **/
+     * vertex indices **/
     TriangleMeshCudaDevice mesh_;
 
 public:
     int N_;
 
-    __DEVICE__ inline int IndexOf(const Vector3i &Xlocal,
-                                  int subvolume_idx) {
+    __DEVICE__ inline int IndexOf(const Vector3i &Xlocal, int subvolume_idx) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(Xlocal(0) >= 0 && Xlocal(1) >= 0 && Xlocal(2) >= 0 &&
-            subvolume_idx >= 0);
+               subvolume_idx >= 0);
         assert(Xlocal(0) < N && Xlocal(1) < N && Xlocal(2) < N);
 #endif
-        return int(Xlocal(2) * (N_ * N_) + Xlocal(1) * N_ + Xlocal(0)
-                       + subvolume_idx * (N_ * N_ * N_));
+        return int(Xlocal(2) * (N_ * N_) + Xlocal(1) * N_ + Xlocal(0) +
+                   subvolume_idx * (N_ * N_ * N_));
     }
 
-    __DEVICE__ inline uchar &table_indices(
-        const Vector3i &Xlocal, int subvolume_idx) {
+    __DEVICE__ inline uchar &table_indices(const Vector3i &Xlocal,
+                                           int subvolume_idx) {
         return table_indices_memory_pool_[IndexOf(Xlocal, subvolume_idx)];
     }
 
-    __DEVICE__ inline Vector3i &vertex_indices(
-        const Vector3i &Xlocal, int subvolume_idx) {
+    __DEVICE__ inline Vector3i &vertex_indices(const Vector3i &Xlocal,
+                                               int subvolume_idx) {
         return vertex_indices_memory_pool_[IndexOf(Xlocal, subvolume_idx)];
     }
 
-    __DEVICE__ inline TriangleMeshCudaDevice &mesh() {
-        return mesh_;
-    }
+    __DEVICE__ inline TriangleMeshCudaDevice &mesh() { return mesh_; }
 
 public:
     /** Same functions as in ScalableTSDFVolumeCuda.
      * Put them here to save calling stack **/
     __DEVICE__ inline Vector3i NeighborOffsetOfBoundaryVoxel(
-        const Vector3i &Xlocal);
+            const Vector3i &Xlocal);
     __DEVICE__ inline int LinearizeNeighborOffset(const Vector3i &dXsv);
-    __DEVICE__ inline Vector3i BoundaryVoxelInNeighbor(
-        const Vector3i &Xlocal, const Vector3i &dXsv);
+    __DEVICE__ inline Vector3i BoundaryVoxelInNeighbor(const Vector3i &Xlocal,
+                                                       const Vector3i &dXsv);
 
 public:
-    __DEVICE__ void AllocateVertex(
-        const Vector3i &Xlocal, int subvolume_idx,
-        UniformTSDFVolumeCudaDevice *subvolume);
+    __DEVICE__ void AllocateVertex(const Vector3i &Xlocal,
+                                   int subvolume_idx,
+                                   UniformTSDFVolumeCudaDevice *subvolume);
     __DEVICE__ void AllocateVertexOnBoundary(
-        const Vector3i &Xlocal, int subvolume_idx,
-        int *cached_subvolume_indices,
-        UniformTSDFVolumeCudaDevice **cached_subvolumes);
+            const Vector3i &Xlocal,
+            int subvolume_idx,
+            int *cached_subvolume_indices,
+            UniformTSDFVolumeCudaDevice **cached_subvolumes);
 
-    __DEVICE__ void ExtractVertex(
-        const Vector3i &Xlocal, int subvolume_idx,
-        const Vector3i &Xsv,
-        ScalableTSDFVolumeCudaDevice &tsdf_volume,
-        UniformTSDFVolumeCudaDevice *subvolume);
+    __DEVICE__ void ExtractVertex(const Vector3i &Xlocal,
+                                  int subvolume_idx,
+                                  const Vector3i &Xsv,
+                                  ScalableTSDFVolumeCudaDevice &tsdf_volume,
+                                  UniformTSDFVolumeCudaDevice *subvolume);
     __DEVICE__ void ExtractVertexOnBoundary(
-        const Vector3i &Xlocal, int subvolume_idx,
-        const Vector3i &Xsv,
-        ScalableTSDFVolumeCudaDevice &tsdf_volume,
-        UniformTSDFVolumeCudaDevice **cached_subvolumes);
+            const Vector3i &Xlocal,
+            int subvolume_idx,
+            const Vector3i &Xsv,
+            ScalableTSDFVolumeCudaDevice &tsdf_volume,
+            UniformTSDFVolumeCudaDevice **cached_subvolumes);
 
     __DEVICE__ void ExtractTriangle(const Vector3i &Xlocal, int subvolume_idx);
-    __DEVICE__ void ExtractTriangleOnBoundary(
-        const Vector3i &Xlocal, int subvolume_idx,
-        int *cached_subvolume_indices);
+    __DEVICE__ void ExtractTriangleOnBoundary(const Vector3i &Xlocal,
+                                              int subvolume_idx,
+                                              int *cached_subvolume_indices);
 
 public:
     friend class ScalableMeshVolumeCuda;
@@ -114,15 +113,19 @@ public:
 public:
     ScalableMeshVolumeCuda();
     ScalableMeshVolumeCuda(VertexType type,
-                           int N, int max_subvolumes,
+                           int N,
+                           int max_subvolumes,
                            int max_vertices = 2000000,
                            int max_triangles = 4000000);
     ScalableMeshVolumeCuda(const ScalableMeshVolumeCuda &other);
     ScalableMeshVolumeCuda &operator=(const ScalableMeshVolumeCuda &other);
     ~ScalableMeshVolumeCuda();
 
-    void Create(VertexType type, int N, int max_subvolumes,
-                int max_vertices, int max_triangles);
+    void Create(VertexType type,
+                int N,
+                int max_subvolumes,
+                int max_vertices,
+                int max_triangles);
     void Release();
     void Reset();
     void UpdateDevice();
@@ -135,12 +138,8 @@ public:
     void MarchingCubes(ScalableTSDFVolumeCuda &tsdf_volume);
 
 public:
-    TriangleMeshCuda &mesh() {
-        return mesh_;
-    }
-    const TriangleMeshCuda &mesh() const {
-        return mesh_;
-    }
+    TriangleMeshCuda &mesh() { return mesh_; }
+    const TriangleMeshCuda &mesh() const { return mesh_; }
 };
 
 class ScalableMeshVolumeCudaKernelCaller {
@@ -153,7 +152,6 @@ public:
                                    ScalableTSDFVolumeCuda &tsdf_volume);
 };
 
-
 __GLOBAL__
 void VertexAllocationKernel(ScalableMeshVolumeCudaDevice server,
                             ScalableTSDFVolumeCudaDevice tsdf_volume);
@@ -165,5 +163,5 @@ void VertexExtractionKernel(ScalableMeshVolumeCudaDevice server,
 __GLOBAL__
 void TriangleExtractionKernel(ScalableMeshVolumeCudaDevice server,
                               ScalableTSDFVolumeCudaDevice tsdf_volume);
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d
