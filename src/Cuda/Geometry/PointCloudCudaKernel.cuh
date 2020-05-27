@@ -108,6 +108,70 @@ void PointCloudCudaKernelCaller::BuildFromDepthImage(
     CheckCuda(cudaGetLastError());
 }
 
+__global__
+void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
+                                       ImageCudaDevice<float, 3> vertex,
+                                       ImageCudaDevice<float, 3> normal,
+                                       ImageCudaDevice<uchar, 3> color)
+{
+    const int x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x >= vertex.width_ || y >= vertex.height_) return;
+
+    Vector3f p = vertex.at(x, y);
+    Vector3f n = normal.at(x, y);
+
+    int index = pcl.points_.push_back(p);
+    pcl.normals_[index] = n;
+
+    if(pcl.type_ & VertexWithColor)
+    {
+        Vector3b c = color.at(x, y);
+        pcl.colors_[index] = c.cast<float>() / 255.0f;
+    }
+}
+
+__global__
+void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
+                                       ImageCudaDevice<float, 3> vertex,
+                                       ImageCudaDevice<float, 3> normal)
+{
+    const int x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int y = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (x >= vertex.width_ || y >= vertex.height_) return;
+
+    Vector3f p = vertex.at(x, y);
+    Vector3f n = normal.at(x, y);
+
+    int index = pcl.points_.push_back(p);
+    pcl.normals_[index] = n;
+}
+
+__host__
+void PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(
+    PointCloudCuda &pcl, ImageCuda<float, 3> &vertex,
+    ImageCuda<float, 3> &normal, ImageCuda<uchar, 3>& color) {
+    const dim3 blocks(DIV_CEILING(vertex.width_, THREAD_2D_UNIT),
+                      DIV_CEILING(vertex.height_, THREAD_2D_UNIT));
+    const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
+    BuildFromVertexAndNormalMapKernel <<< blocks, threads >>> (
+        *pcl.device_, *vertex.device_, *normal.device_, *color.device_);
+}
+
+__host__
+void PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(
+    PointCloudCuda &pcl, ImageCuda<float, 3> &vertex,
+    ImageCuda<float, 3> &normal) {
+    const dim3 blocks(DIV_CEILING(vertex.width_, THREAD_2D_UNIT),
+                      DIV_CEILING(vertex.height_, THREAD_2D_UNIT));
+    const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
+    BuildFromVertexAndNormalMapKernel <<< blocks, threads >>> (
+        *pcl.device_, *vertex.device_, *normal.device_);
+}
+
+
 /** Duplicate of TriangleMesh ... anyway to simplify it? **/
 __global__
 void GetMinBoundKernel(PointCloudCudaDevice pcl,

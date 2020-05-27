@@ -179,6 +179,24 @@ void PointCloudCuda::Build(ImageCuda<float, 1> &depth,
     PointCloudCudaKernelCaller::BuildFromDepthImage(*this, depth, intrinsic);
 }
 
+void PointCloudCuda::Build(ImageCuda<float, 3> &vertex,
+                           ImageCuda<float, 3> &normal,
+                           ImageCuda<uchar, 3> &color)
+{
+    Reset();
+    if ((type_ & VertexWithColor) && (color.width_ > 0))
+        PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(*this, vertex, normal, color);
+    else
+        PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(*this, vertex, normal);
+}
+
+void PointCloudCuda::Build(ImageCuda<float, 3> &vertex,
+                           ImageCuda<float, 3> &normal)
+{
+    Reset();
+    PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(*this, vertex, normal);
+}
+
 void PointCloudCuda::Upload(geometry::PointCloud &pcl) {
     if (device_ == nullptr) return;
 

@@ -70,8 +70,6 @@ void RegistrationCuda::Initialize(
     target_.Create(VertexWithNormalAndColor, target.points_.size());
     target_.Upload(target);
 
-    correspondences_.Create(1, source.points_.size());
-
     /** CPU part **/
     max_correspondence_distance_ = max_correspondence_distance;
     source_cpu_ = source;
@@ -94,7 +92,43 @@ void RegistrationCuda::Initialize(
                               geometry::KDTreeSearchParamHybrid(
                                   max_correspondence_distance_ * 2, 30));
     }
+
 }
+
+void RegistrationCuda::Initialize(
+    PointCloudCuda &source, PointCloudCuda &target,
+    float max_correspondence_distance,
+    const Eigen::Matrix<double, 4, 4> &init) {
+
+    //! Should be okay since reference counted
+    source_ = source;
+    target_ = target;
+    correspondences_.Create(1, source.points_.size());
+
+    /** CPU part **/
+    max_correspondence_distance_ = max_correspondence_distance;
+    source_cpu_ = *source.Download();
+    target_cpu_ = *target.Download();
+    kdtree_.SetGeometry(target_cpu_);
+    corres_matrix_ = Eigen::MatrixXi(1, source.points_.size());
+
+    transform_source_to_target_ = init;
+    if (!init.isIdentity()) {
+        TransformSourcePointCloud(init);
+    }
+
+    if (type_ == registration::TransformationEstimationType::ColoredICP) {
+        target_color_gradient_.Resize(target.points_.size());
+    }
+    UpdateDevice();
+
+    if (type_ == registration::TransformationEstimationType::ColoredICP) {
+        ComputeColorGradients(target_cpu_, kdtree_,
+                              geometry::KDTreeSearchParamHybrid(
+                                  max_correspondence_distance_ * 2, 30));
+    }
+}
+
 
 /* High-level API */
 RegistrationResultCuda RegistrationCuda::ComputeICP(int iter) {
@@ -300,7 +334,7 @@ void RegistrationCuda::ComputeColorGradients(
     corres_for_color_gradient.Compress();
 
     /** Run GPU color_gradient intialization **/
-    RegistrationCudaKernelCaller::ComputeColorGradeint(
+    RegistrationCudaKernelCaller::ComputeColorGradient(
         *this, corres_for_color_gradient);
 }
 

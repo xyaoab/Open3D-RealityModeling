@@ -364,13 +364,15 @@ void ScalableTSDFVolumeCuda::Integrate(
 
 
 void ScalableTSDFVolumeCuda::RayCasting(
-    ImageCuda<float, 3> &image,
+    ImageCuda<float, 3> &vertex,
+    ImageCuda<float, 3> &normal,
+    ImageCuda<uchar, 3> &color,
     PinholeCameraIntrinsicCuda &camera,
     TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::RayCasting(
-        *this, image, camera, transform_camera_to_world);
+        *this, vertex, normal, color, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::VolumeRendering(
