@@ -122,14 +122,13 @@ void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
     Vector3f p = vertex.at(x, y);
     Vector3f n = normal.at(x, y);
 
+    if(isnan(p(0)) || isnan(n(0))) return;
+
     int index = pcl.points_.push_back(p);
     pcl.normals_[index] = n;
 
-    if(pcl.type_ & VertexWithColor)
-    {
-        Vector3b c = color.at(x, y);
-        pcl.colors_[index] = c.cast<float>() / 255.0f;
-    }
+    Vector3b c = color.at(x, y);
+    pcl.colors_[index] = c.cast<float>() / 255.0f;
 }
 
 __global__
@@ -144,6 +143,8 @@ void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
 
     Vector3f p = vertex.at(x, y);
     Vector3f n = normal.at(x, y);
+
+    if(isnan(p(0)) || isnan(n(0))) return;
 
     int index = pcl.points_.push_back(p);
     pcl.normals_[index] = n;

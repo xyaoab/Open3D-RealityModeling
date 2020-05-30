@@ -42,19 +42,24 @@ void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry, size_t level) {
     mask = mask && odometry.ComputePixelwiseJacobianAndResidual(
         x, y, x_target, y_target, level, X_source_on_target, d_target,
         jacobian_I, jacobian_D, residual_I, residual_D);
+
+    assert(residual_D);
+    assert(residual_I);
+    assert(jacobian_I);
+    assert(jacobian_D);
+    printf("- (%d, %d) -> "
+           "(%f %f %f %f %f %f) - %f "
+           "(%f %f %f %f %f %f) - %f\n",
+           x_target, y_target,
+          jacobian_D(0), jacobian_D(1), jacobian_D(2),
+          jacobian_D(3), jacobian_D(4), jacobian_D(5), residual_D,
+          jacobian_I(0), jacobian_I(1), jacobian_I(2),
+          jacobian_I(3), jacobian_I(4), jacobian_I(5), residual_I);
+
     if (mask) {
         odometry.correspondences_.push_back(Vector4i(x, y, x_target, y_target));
         ComputeJtJAndJtr(jacobian_I, jacobian_D, residual_I, residual_D,
                          JtJ, Jtr);
-
-        //        printf("- ({} {}) -> "
-//               "(%f %f %f %f %f %f) - %f "
-//               "(%f %f %f %f %f %f) - %f\n",
-//            x_target, y_target,
-//            jacobian_D(0), jacobian_D(1), jacobian_D(2),
-//            jacobian_D(3), jacobian_D(4), jacobian_D(5), residual_D,
-//            jacobian_I(0), jacobian_I(1), jacobian_I(2),
-//            jacobian_I(3), jacobian_I(4), jacobian_I(5), residual_I);
     }
 
     /** Reduce Sum JtJ -> 2ms **/
@@ -115,8 +120,8 @@ void RGBDOdometryCudaKernelCaller<N>::DoSingleIteration(
     RGBDOdometryCuda<N> &odometry, size_t level) {
 
     const dim3 blocks(
-        DIV_CEILING(odometry.source_depth_[level].width_, THREAD_2D_UNIT),
-        DIV_CEILING(odometry.source_depth_[level].height_, THREAD_2D_UNIT));
+        DIV_CEILING(odometry.source_intensity_[level].width_, THREAD_2D_UNIT),
+        DIV_CEILING(odometry.source_intensity_[level].height_, THREAD_2D_UNIT));
     const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
     DoSingleIterationKernel << < blocks, threads >> > (
         *odometry.device_, level);
@@ -178,8 +183,8 @@ void RGBDOdometryCudaKernelCaller<N>::ComputeInformationMatrix(
     RGBDOdometryCuda<N> &odometry) {
 
     const dim3 blocks(
-        DIV_CEILING(odometry.source_depth_[0].width_, THREAD_2D_UNIT),
-        DIV_CEILING(odometry.source_depth_[0].height_, THREAD_2D_UNIT));
+        DIV_CEILING(odometry.source_intensity_[0].width_, THREAD_2D_UNIT),
+        DIV_CEILING(odometry.source_intensity_[0].height_, THREAD_2D_UNIT));
     const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
     ComputeInformationMatrixKernel << < blocks, threads >>
         > (*odometry.device_);
@@ -238,6 +243,52 @@ void RGBDOdometryCudaKernelCaller<N>::PreprocessInput(
     CheckCuda(cudaGetLastError());
 }
 
+//!TODO(Akash): Almost identical to previous  (optimize)
+template<size_t N>
+__global__
+void PreprocessInputKernel(RGBDOdometryCudaDevice<N> odometry,
+                           ImageCudaDevicef source_depth_preprocessed,
+                           ImageCudaDevicef source_intensity_preprocessed,
+                           ImageCudaDevicef target_intensity_preprocessed) {
+    const int x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int y = threadIdx.y + blockIdx.y * blockDim.y;
+    if (x >= odometry.source_input_.depth_raw_.width_
+        || y >= odometry.source_input_.depth_raw_.height_)
+        return;
+
+    float &depth_src = odometry.source_input_.depth_.at(x, y)(0);
+    source_depth_preprocessed.at(x, y, 0) = odometry.IsValidDepth(depth_src) ?
+        depth_src : CUDART_NAN_F;
+
+    auto rgb_src = odometry.source_input_.color_raw_.at(x, y);
+    source_intensity_preprocessed.at(x, y, 0) =
+        (0.2990f * rgb_src(0) + 0.5870f * rgb_src(1) + 0.1140f * rgb_src(2)) / 255.0f;
+
+    auto rgb_tgt = odometry.target_input_color_.at(x, y);
+    target_intensity_preprocessed.at(x, y, 0) =
+        (0.2990f * rgb_tgt(0) + 0.5870f * rgb_tgt(1) + 0.1140f * rgb_tgt(2)) / 255.0f;
+}
+
+template<size_t N>
+void RGBDOdometryCudaKernelCaller<N>::PreprocessInput(
+    RGBDOdometryCuda<N> &odometry,
+    ImageCudaf &source_depth_preprocessed,
+    ImageCudaf &source_intensity_preprocessed,
+    ImageCudaf &target_intensity_preprocessed) {
+
+    const dim3 blocks(
+        DIV_CEILING(odometry.source_input_.depth_raw_.width_, THREAD_2D_UNIT),
+        DIV_CEILING(odometry.source_input_.depth_raw_.height_, THREAD_2D_UNIT));
+    const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
+    PreprocessInputKernel << < blocks, threads >> > (*odometry.device_,
+        *source_depth_preprocessed.device_,
+        *source_intensity_preprocessed.device_,
+        *target_intensity_preprocessed.device_);
+    CheckCuda(cudaDeviceSynchronize());
+    CheckCuda(cudaGetLastError());
+}
+
+
 template<size_t N>
 __global__
 void ComputeInitCorrespondenceMeanKernel(
@@ -255,8 +306,8 @@ void ComputeInitCorrespondenceMeanKernel(
     local_sum1[tid] = 0;
     local_sum2[tid] = 0;
 
-    if (x >= odometry.source_depth_[0].width_
-        || y >= odometry.source_depth_[0].height_)
+    if (x >= odometry.source_intensity_[0].width_
+        || y >= odometry.source_intensity_[0].height_)
         return;
 
     int x_target = -1, y_target = -1;

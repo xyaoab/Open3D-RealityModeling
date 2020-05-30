@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 #include <Cuda/Container/HashTableCudaHost.hpp>
 #include "ScalableTSDFVolumeCuda.h"
+#include <Open3D/Utility/Console.h>
 
 namespace open3d {
 namespace cuda {
@@ -329,6 +330,7 @@ void ScalableTSDFVolumeCuda::Integrate(
 
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world);
+    utility::LogInfo("Active subvolumes in volume: {}", active_subvolume_entry_array_.size());
     IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
 }
 

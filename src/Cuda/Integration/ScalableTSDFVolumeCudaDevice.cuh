@@ -603,7 +603,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     weight_sum = uchar(fminf(weight_sum + 1.0f, 255.0f));
 }
 
-__device__ void ScalableTSDFVolumeCudaDevice::RayCasting(
+__device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
         const Vector2i &p,
         Vector3f &vertex,
         Vector3f &normal,
@@ -659,6 +659,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::RayCasting(
             normal = GradientAt(X_surface_t).normalized();
 
             color = ColorAt(X_surface_t);
+            return true;
         }
 
         tsdf_prev = tsdf_curr;
@@ -666,6 +667,8 @@ __device__ void ScalableTSDFVolumeCudaDevice::RayCasting(
         t_curr += step_size;
         Xsv_prev = Xsv_t;
     }
+
+    return false;
 }
 
 __device__ Vector3f ScalableTSDFVolumeCudaDevice::VolumeRendering(

@@ -14,6 +14,14 @@
 namespace open3d {
 namespace cuda {
 template
+class RGBDOdometryCudaDevice<1>;
+template
+class RGBDOdometryCudaKernelCaller<1>;
+template
+class RGBDOdometryCudaDevice<2>;
+template
+class RGBDOdometryCudaKernelCaller<2>;
+template
 class RGBDOdometryCudaDevice<3>;
 template
 class RGBDOdometryCudaKernelCaller<3>;

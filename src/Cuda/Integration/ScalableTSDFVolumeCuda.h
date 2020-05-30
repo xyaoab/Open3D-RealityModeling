@@ -207,7 +207,7 @@ public:
                               RGBDImageCudaDevice &rgbd,
                               PinholeCameraIntrinsicCuda &camera,
                               TransformCuda &transform_camera_to_world);
-    __DEVICE__ void RayCasting(const Vector2i &p,
+    __DEVICE__ bool RayCasting(const Vector2i &p,
                                Vector3f& v,
                                Vector3f& n,
                                Vector3b& c,

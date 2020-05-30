@@ -184,10 +184,17 @@ void PointCloudCuda::Build(ImageCuda<float, 3> &vertex,
                            ImageCuda<uchar, 3> &color)
 {
     Reset();
+    utility::LogInfo("Color.width = {}, type_ = {}", color.width_, type_);
     if ((type_ & VertexWithColor) && (color.width_ > 0))
+    {
+        utility::LogInfo("Building with color");
         PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(*this, vertex, normal, color);
+    }
     else
+    {
+        utility::LogInfo("Building without color");
         PointCloudCudaKernelCaller::BuildFromVertexAndNormalMap(*this, vertex, normal);
+    }
 }
 
 void PointCloudCuda::Build(ImageCuda<float, 3> &vertex,

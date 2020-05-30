@@ -5,6 +5,7 @@
 #pragma once
 #include <Cuda/Common/Palatte.h>
 #include "ScalableTSDFVolumeCudaDevice.cuh"
+#include <math_constants.h>
 
 namespace open3d {
 namespace cuda {
@@ -215,7 +216,15 @@ void RayCastingKernel(ScalableTSDFVolumeCudaDevice server,
     Vector2i p = Vector2i(x, y);
     Vector3f v, n;
     Vector3b c;
-    server.RayCasting(p, v, n ,c, camera, transform_camera_to_world);
+    bool mask = server.RayCasting(p, v, n, c, camera, transform_camera_to_world);
+    if(!mask)
+    {
+        vertex.at(x, y) = Vector3f(nanf("nan"), nanf("nan"), nanf("nan"));
+        normal.at(x, y) = Vector3f(nanf("nan"), nanf("nan"), nanf("nan"));
+        color.at(x, y)  = Vector3b(0);
+        return;
+    }
+
     vertex.at(x, y) = v;
     normal.at(x, y) = n;
     color.at(x, y)  = c;

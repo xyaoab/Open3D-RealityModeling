@@ -20,7 +20,11 @@ void DownsampleKernel(ImageCudaDevice<Scalar, Channel> src,
 
     /** Re-write the function by hard-coding if we want to accelerate **/
     switch (method) {
-        case BoxFilter:dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1);
+        case BoxFilter:
+            dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1);
+            return;
+        case BoxFilterNormalize:
+            dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1, true);
             return;
         case GaussianFilter:
             dst.at(u, v) = src.GaussianFilter(u << 1, v << 1, Gaussian3x3);
@@ -59,13 +63,15 @@ void GetVertexMapKernel(ImageCudaDevice<Scalar, Channel> src,
         return;
 
     float depth = src.at(x, y, 0);
-    if(depth == 0 || isnan(depth)) return;
+    if(depth == 0 || isnan(depth))
+    {
+        dst.at(x, y) = Vector3f(nanf("nan"), nanf("nan"), nanf("nan"));
+        return;
+    }
 
     Vector3f point = intrinsic.InverseProjectPixel(Vector2i(x, y), depth);
 
-    dst.at(x, y, 0) = point(0);
-    dst.at(x, y, 1) = point(1);
-    dst.at(x, y, 2) = point(2);
+    dst.at(x, y) = point;
 }
 
 
