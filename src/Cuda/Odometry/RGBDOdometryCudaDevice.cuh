@@ -29,16 +29,19 @@ bool RGBDOdometryCudaDevice<N>::ComputePixelwiseCorrespondence(
     if(odometry_type_ == OdometryType::FRAME_TO_MODEL) {
 
         /** Check 1: Is the source vertex and normal valid */
-        mask = isnan(source_vertex_[level].at(x_source, y_source)(0));
-        mask = mask && isnan(source_normal_[level].at(x_source, y_source)(0));
+        mask = !source_vertex_[level].at(x_source, y_source).IsNaN();
+        mask = mask && !source_normal_[level].at(x_source, y_source).IsNaN();
+        /* printf("%d, [%f, %f, %f] [%f, %f, %f]\n", mask, curr_vertex(0), curr_vertex(1), curr_vertex(2), */
+        /*         curr_normal(0), curr_normal(1), curr_normal(2)); */
         if (!mask) return false;
 
         /** Check 2: Is the projected vertex valid in image */
         X_source_on_target = transform_source_to_target_ *
                              source_vertex_[level].at(x_source, y_source);
-
         p_warpedf = intrinsics_[level].ProjectPoint(X_source_on_target);
         p_warped = Vector2i(int(p_warpedf(0) + 0.5f), int(p_warpedf(1) + 0.5f));
+        /* printf("X_source_on_target: [%f, %f, %f], [%d, %d]\n", X_source_on_target(0), X_source_on_target(1), */
+        /*         X_source_on_target(2), p_warped(0), p_warped(1)); */
 
         mask = intrinsics_[level].IsPixelValid(p_warped);
         if (!mask) return false;
@@ -131,6 +134,12 @@ bool RGBDOdometryCudaDevice<N>::ComputePixelwiseJacobianAndResidual(
         target_intensity_[level].at(x_target, y_target)(0) -
             source_intensity_[level].at(x_source, y_source)(0));
 
+    /* printf("- (%d, %d), (%d, %d) -> " */
+    /*        "(%f %f %f %f %f %f) - %f\n", */
+    /*        x_source, y_source, x_target, y_target, */
+    /*       jacobian_I(0), jacobian_I(1), jacobian_I(2), */
+    /*       jacobian_I(3), jacobian_I(4), jacobian_I(5), residual_I); */
+
     //! Depth computations
     if(odometry_type_  == OdometryType::FRAME_TO_FRAME) {
 
@@ -163,8 +172,9 @@ bool RGBDOdometryCudaDevice<N>::ComputePixelwiseJacobianAndResidual(
         Vector3f normal_t = target_normal_[level].at(x_target, y_target);
         Vector3f vertex_t = target_vertex_[level].at(x_target, y_target);
 
-        if(isnan(vertex_t(0)) || isnan(normal_t(0)))
+        if(vertex_t.IsNaN() || normal_t.IsNaN())
             return false;
+
         bool mask = IsValidDepth(vertex_t(2));
         if(!mask) return false;
 
@@ -176,7 +186,6 @@ bool RGBDOdometryCudaDevice<N>::ComputePixelwiseJacobianAndResidual(
         jacobian_D(5) = sqrt_coeff_D_ * normal_t(2);
 
         residual_D = sqrt_coeff_D_ * (X_source_on_target - vertex_t).dot(normal_t);
-        printf("%f", residual_D);
     }
     return true;
 }

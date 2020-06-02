@@ -219,12 +219,11 @@ void RayCastingKernel(ScalableTSDFVolumeCudaDevice server,
     bool mask = server.RayCasting(p, v, n, c, camera, transform_camera_to_world);
     if(!mask)
     {
-        vertex.at(x, y) = Vector3f(nanf("nan"), nanf("nan"), nanf("nan"));
-        normal.at(x, y) = Vector3f(nanf("nan"), nanf("nan"), nanf("nan"));
+        vertex.at(x, y) = Vector3f(nanf("nan"));
+        normal.at(x, y) = Vector3f(nanf("nan"));
         color.at(x, y)  = Vector3b(0);
         return;
     }
-
     vertex.at(x, y) = v;
     normal.at(x, y) = n;
     color.at(x, y)  = c;

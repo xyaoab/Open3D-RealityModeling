@@ -194,7 +194,9 @@ void RGBDOdometryCuda<N>::UpdateDevice() {
                 device_->target_intensity_[i] = *target_intensity_[i].device_;
 
                 target_intensity_dx_[i].UpdateDevice();
+                device_->target_intensity_dx_[i] = *target_intensity_dx_[i].device_;
                 target_intensity_dy_[i].UpdateDevice();
+                device_->target_intensity_dy_[i] = *target_intensity_dy_[i].device_;
             }
         }
         device_->results_ = *results_.device_;
@@ -338,30 +340,21 @@ void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source, ImageCuda<float, 3> 
             source_intensity_preprocessed,
             target_intensity_preprocessed);
 
-    utility::LogInfo("Preprocessed input");
     /** Preprocess: Smooth **/
     auto bilateral_depth = source_depth_preprocessed.Bilateral();
-    utility::LogInfo("Created bilateral depth image");
     bilateral_depth.GetVertexMap(source_vertex_[0], device_->intrinsics_[0]);
-    utility::LogInfo("Created first vertex map");
     source_vertex_[0].GetNormalMap(source_normal_[0]);
-    utility::LogInfo("Created first normal map");
     source_intensity_preprocessed.Gaussian(source_intensity_[0], Gaussian3x3);
-    utility::LogInfo("Created intensity image");
 
     target_vertex_[0].CopyFrom(target_input_vertex_);
-    utility::LogInfo("Created first target vertex image");
     target_normal_[0].CopyFrom(target_input_normal_);
-    utility::LogInfo("Created first target normal image");
     target_intensity_preprocessed.Gaussian(target_intensity_[0], Gaussian3x3);
-    utility::LogInfo("Created target intensity image");
 
     /** Preprocess: normalize intensity between pair (source_[0], target_[0])
      * **/
     device_->transform_source_to_target_.FromEigen(transform_source_to_target_);
     correspondences_.set_iterator(0);
     RGBDOdometryCudaKernelCaller<N>::NormalizeIntensity(*this);
-    utility::LogInfo("Normalized the images");
 
     /* Downsample */
     for (int i = 1; i < N; ++i) {
@@ -405,12 +398,9 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
     Eigen::Vector6d Jtr;
     float loss, inliers;
     ExtractResults(results, JtJ, Jtr, loss, inliers);
-    utility::LogInfo("JtJ: \n {}"
-                     "Jtr: \n {}", JtJ, Jtr);
-    utility::LogInfo(
+    utility::LogDebug(
             "> Level {}, iter {}: loss = {}, avg loss = {}, "
-            "inliers = %"
-            ".0f",
+            "inliers = {}",
             level, iter, loss, loss / inliers, inliers);
 
     bool is_success;

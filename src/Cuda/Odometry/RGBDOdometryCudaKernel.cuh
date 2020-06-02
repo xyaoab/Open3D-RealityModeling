@@ -26,8 +26,8 @@ void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry, size_t level) {
     local_sum1[tid] = 0;
     local_sum2[tid] = 0;
 
-    if (x >= odometry.source_depth_[level].width_
-        || y >= odometry.source_depth_[level].height_)
+    if (x >= odometry.source_intensity_[level].width_
+        || y >= odometry.source_intensity_[level].height_)
         return;
 
     int x_target = -1, y_target = -1;
@@ -43,23 +43,18 @@ void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry, size_t level) {
         x, y, x_target, y_target, level, X_source_on_target, d_target,
         jacobian_I, jacobian_D, residual_I, residual_D);
 
-    assert(residual_D);
-    assert(residual_I);
-    assert(jacobian_I);
-    assert(jacobian_D);
-    printf("- (%d, %d) -> "
-           "(%f %f %f %f %f %f) - %f "
-           "(%f %f %f %f %f %f) - %f\n",
-           x_target, y_target,
-          jacobian_D(0), jacobian_D(1), jacobian_D(2),
-          jacobian_D(3), jacobian_D(4), jacobian_D(5), residual_D,
-          jacobian_I(0), jacobian_I(1), jacobian_I(2),
-          jacobian_I(3), jacobian_I(4), jacobian_I(5), residual_I);
-
     if (mask) {
         odometry.correspondences_.push_back(Vector4i(x, y, x_target, y_target));
         ComputeJtJAndJtr(jacobian_I, jacobian_D, residual_I, residual_D,
                          JtJ, Jtr);
+        /* printf("- (%d, %d), (%d, %d) -> " */
+        /*        "(%f %f %f %f %f %f) - %f " */
+        /*        "(%f %f %f %f %f %f) - %f\n", */
+        /*        x, y, x_target, y_target, */
+        /*       jacobian_D(0), jacobian_D(1), jacobian_D(2), */
+        /*       jacobian_D(3), jacobian_D(4), jacobian_D(5), residual_D, */
+        /*       jacobian_I(0), jacobian_I(1), jacobian_I(2), */
+        /*       jacobian_I(3), jacobian_I(4), jacobian_I(5), residual_I); */
     }
 
     /** Reduce Sum JtJ -> 2ms **/
@@ -147,8 +142,8 @@ void ComputeInformationMatrixKernel(RGBDOdometryCudaDevice<N> odometry) {
     local_sum1[tid] = 0;
     local_sum2[tid] = 0;
 
-    if (x >= odometry.source_depth_[0].width_
-        || y >= odometry.source_depth_[0].height_)
+    if (x >= odometry.source_intensity_[0].width_
+        || y >= odometry.source_intensity_[0].height_)
         return;
 
     Vector6f jacobian_x, jacobian_y, jacobian_z;
