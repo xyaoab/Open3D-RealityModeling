@@ -39,7 +39,7 @@ void computeEdgeMapKernel(ImageCudaDevice<float, 3> vertex_map,
         return;
     }
 
-    if(isnan(vertex_map.at(u, v, 0)) || isnan(normal_map.at(u, v, 0)))
+    if(vertex_map.at(u, v).IsNaN() || normal_map.at(u, v).IsNaN())
     {
         dst_edge_map.at(u, v) = Vector1f(1.0f);
         return;

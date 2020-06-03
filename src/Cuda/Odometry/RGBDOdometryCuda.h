@@ -52,17 +52,30 @@ namespace cuda {
 typedef ImageCudaDevice<float, 1> ImageCudaDevicef;
 typedef ImageCuda<float, 1> ImageCudaf;
 
+enum OdometryType { FRAME_TO_FRAME = 1, FRAME_TO_MODEL = 2};
+
 template<size_t N>
 class RGBDOdometryCudaDevice {
 public:
     RGBDImageCudaDevice source_input_;
     RGBDImageCudaDevice target_input_;
 
+    //! For Frame to model tracking
+    ImageCudaDevice<float, 3> target_input_vertex_;
+    ImageCudaDevice<float, 3> target_input_normal_;
+    ImageCudaDevice<uchar, 3> target_input_color_;
+
     ImageCudaDevicef source_depth_[N];
     ImageCudaDevicef source_intensity_[N];
-
     ImageCudaDevicef target_depth_[N];
     ImageCudaDevicef target_intensity_[N];
+
+    //! Frame to model tracking
+    ImageCudaDevice<float, 3> source_vertex_[N];
+    ImageCudaDevice<float, 3> source_normal_[N];
+
+    ImageCudaDevice<float, 3> target_vertex_[N];
+    ImageCudaDevice<float, 3> target_normal_[N];
 
     ImageCudaDevicef target_depth_dx_[N];
     ImageCudaDevicef target_depth_dy_[N];
@@ -81,6 +94,7 @@ public:
     /** (1-sigma) * JtJ_I + sigma * JtJ_D **/
     /** To compute JtJ, we use \sqrt(1-sigma) J_I and \sqrt(sigma) J_D **/
     float sigma_;
+    OdometryType odometry_type_;
     float sqrt_coeff_I_;
     float sqrt_coeff_D_;
 
@@ -129,21 +143,36 @@ class RGBDOdometryCuda {
 public:
     std::shared_ptr<RGBDOdometryCudaDevice<N>> device_ = nullptr;
 
+
 public:
     RGBDImageCuda source_input_;
     RGBDImageCuda target_input_;
+
+    ImageCuda<float, 3> target_input_vertex_;
+    ImageCuda<float, 3> target_input_normal_;
+    ImageCuda<uchar, 3> target_input_color_;
 
     /** Core in RGBD Odometry **/
     ImageCudaf source_depth_[N];
     ImageCudaf source_intensity_[N];
 
+    //! For Frame to Frame
     ImageCudaf target_depth_[N];
     ImageCudaf target_intensity_[N];
 
+    //! For Frame to model
+    ImageCuda<float, 3> source_vertex_[N];
+    ImageCuda<float, 3> source_normal_[N];
+    ImageCuda<float, 3> target_vertex_[N];
+    ImageCuda<float, 3> target_normal_[N];
+
+
     ImageCudaf target_depth_dx_[N];
     ImageCudaf target_depth_dy_[N];
+
     ImageCudaf target_intensity_dx_[N];
     ImageCudaf target_intensity_dy_[N];
+
 
     ArrayCuda<float> results_;
 
@@ -152,6 +181,7 @@ public:
 
 public:
     float sigma_;
+    OdometryType  odometry_type_;
     odometry::OdometryOption option_;
     camera::PinholeCameraIntrinsic intrinsics_;
     Eigen::Matrix4d transform_source_to_target_;
@@ -162,7 +192,7 @@ public:
     ~RGBDOdometryCuda();
 
     void SetParameters(const odometry::OdometryOption &option,
-                       float sigma = 0.5f);
+                       float sigma = 0.5f, OdometryType odometry_type = OdometryType::FRAME_TO_FRAME);
     void SetIntrinsics(camera::PinholeCameraIntrinsic intrinsics);
 
     bool Create(int width, int height);
@@ -170,7 +200,12 @@ public:
     void UpdateDevice();
     void UpdateSigma(float sigma);
 
+    //! Frame to Frame tracking
     void Initialize(RGBDImageCuda &source, RGBDImageCuda &target);
+
+    //! Frame to model tracking
+    void Initialize(RGBDImageCuda &source, ImageCuda<float, 3> &target_vertex,
+            ImageCuda<float, 3> &target_normals, ImageCuda<uchar, 3> &target_color);
 
     std::tuple<bool, Eigen::Matrix4d, float> DoSingleIteration(
         size_t level, int iter);
@@ -196,6 +231,12 @@ public:
                                 ImageCudaf &target_depth_preprocessed,
                                 ImageCudaf &target_intensity_preprocessed);
 
+    //! For Frame to Model
+    static void PreprocessInput(RGBDOdometryCuda<N> &odometry,
+                                ImageCudaf &source_depth_preprocessed,
+                                ImageCudaf &source_intensity_preprocessed,
+                                ImageCudaf &target_intensity_preprocessed);
+
     static void NormalizeIntensity(RGBDOdometryCuda<N> &odometry);
 };
 
@@ -215,6 +256,13 @@ void PreprocessInputKernel(RGBDOdometryCudaDevice<N> odometry,
                            ImageCudaDevicef target_depth_preprocessed,
                            ImageCudaDevicef target_intensity_preprocessed);
 
+//! For Frame to model
+template<size_t N>
+__GLOBAL__
+void PreprocessInputKernel(RGBDOdometryCudaDevice<N> odometry,
+                           ImageCudaDevicef source_depth_preprocessed,
+                           ImageCudaDevicef source_intensity_preprocessed,
+                           ImageCudaDevicef target_intensity_preprocessed);
 template<size_t N>
 __GLOBAL__
 void NormalizeIntensityKernel(RGBDOdometryCudaDevice<N> odometry,

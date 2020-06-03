@@ -603,8 +603,11 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     weight_sum = uchar(fminf(weight_sum + 1.0f, 255.0f));
 }
 
-__device__ Vector3f ScalableTSDFVolumeCudaDevice::RayCasting(
+__device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
         const Vector2i &p,
+        Vector3f &vertex,
+        Vector3f &normal,
+        Vector3b &color,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     Vector3f ret = Vector3f(0);
@@ -648,9 +651,15 @@ __device__ Vector3f ScalableTSDFVolumeCudaDevice::RayCasting(
         if (tsdf_prev > 0 && weight_curr > 0 && tsdf_curr <= 0) {
             float t_intersect = (t_curr * tsdf_prev - t_prev * tsdf_curr) /
                                 (tsdf_prev - tsdf_curr);
-            return (transform_camera_to_world.Inverse() *
-                    (transform_volume_to_world_ *
-                     (camera_origin_v + t_intersect * ray_v)));
+            Vector3f Xv_surface_t = camera_origin_v + t_intersect * ray_v;
+            vertex = (transform_camera_to_world.Inverse() *
+                        (transform_volume_to_world_ * Xv_surface_t));
+            /**TODO(Akash): Unoptimized access for normals, how to improve this/cache for individual accesses */
+            Vector3f X_surface_t = volume_to_voxelf(Xv_surface_t);
+            normal = GradientAt(X_surface_t).normalized();
+
+            color = ColorAt(X_surface_t);
+            return true;
         }
 
         tsdf_prev = tsdf_curr;
@@ -659,7 +668,7 @@ __device__ Vector3f ScalableTSDFVolumeCudaDevice::RayCasting(
         Xsv_prev = Xsv_t;
     }
 
-    return ret;
+    return false;
 }
 
 __device__ Vector3f ScalableTSDFVolumeCudaDevice::VolumeRendering(

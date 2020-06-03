@@ -8,6 +8,8 @@
 
 namespace open3d {
 namespace cuda {
+template class RGBDOdometryCuda<1>;
+template class RGBDOdometryCuda<2>;
 template class RGBDOdometryCuda<3>;
 
 template class ImageCuda<float, 6>;

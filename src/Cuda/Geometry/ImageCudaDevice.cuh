@@ -98,7 +98,7 @@ VectorCuda<Scalar, Channel> ImageCudaDevice<Scalar, Channel>::interp_at(float x,
 template<typename Scalar, size_t Channel>
 __device__
 VectorCuda<Scalar, Channel>
-ImageCudaDevice<Scalar, Channel>::BoxFilter2x2(int x, int y) {
+ImageCudaDevice<Scalar, Channel>::BoxFilter2x2(int x, int y, bool normalize) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
     assert(x >= 0 && x < width_);
     assert(y >= 0 && y < height_);
@@ -118,6 +118,8 @@ ImageCudaDevice<Scalar, Channel>::BoxFilter2x2(int x, int y) {
         ret(i) = 0.25f * (v00(i) + v01(i) + v11(i) + v10(i));
     }
 
+    if(normalize)
+        return ret.normalized();
     return ret;
 }
 
