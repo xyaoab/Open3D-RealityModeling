@@ -13,6 +13,7 @@
 #include <Cuda/Integration/ScalableTSDFVolumeCudaKernel.cuh>
 #include <Cuda/Integration/ScalableMeshVolumeCudaDevice.cuh>
 #include <Cuda/Integration/ScalableMeshVolumeCudaKernel.cuh>
+#include <Cuda/Integration/RGBDToTSDFKernel.cuh>
 
 #include <Cuda/Experiment/ScalableTSDFVolumeProcessorCudaKernel.cuh>
 #include <Cuda/Experiment/ScalableVolumeRegistrationCudaDevice.cuh>

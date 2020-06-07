@@ -185,8 +185,7 @@ ScalableTSDFVolumeCudaDevice::GradientAt(const Vector3f &X) {
         X0(k) -= half_gap;
         X1(k) += half_gap;
 
-        n(k) = TSDFAt(X1) - TSDFAt(X0);
-        n(k) *= 0.5f;
+        n(k) = (TSDFAt(X1) - TSDFAt(X0)) / voxel_length_;
 
         X0(k) = X(k);
         X1(k) = X(k);
