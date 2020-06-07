@@ -20,7 +20,11 @@ void DownsampleKernel(ImageCudaDevice<Scalar, Channel> src,
 
     /** Re-write the function by hard-coding if we want to accelerate **/
     switch (method) {
-        case BoxFilter:dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1);
+        case BoxFilter:
+            dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1);
+            return;
+        case BoxFilterNormalize:
+            dst.at(u, v) = src.BoxFilter2x2(u << 1, v << 1, true);
             return;
         case GaussianFilter:
             dst.at(u, v) = src.GaussianFilter(u << 1, v << 1, Gaussian3x3);
@@ -59,13 +63,14 @@ void GetVertexMapKernel(ImageCudaDevice<Scalar, Channel> src,
         return;
 
     float depth = src.at(x, y, 0);
-    if(depth == 0 || isnan(depth)) return;
+    if(depth == 0 || isnan(depth))
+    {
+        dst.at(x, y) = Vector3f(nanf("nan"));
+        return;
+    }
 
     Vector3f point = intrinsic.InverseProjectPixel(Vector2i(x, y), depth);
-
-    dst.at(x, y, 0) = point(0);
-    dst.at(x, y, 1) = point(1);
-    dst.at(x, y, 2) = point(2);
+    dst.at(x, y) = point;
 }
 
 
@@ -97,9 +102,8 @@ void GetNormalMapKernel(ImageCudaDevice<Scalar, Channel> src,
 
     if (u == src.width_ - 1 || v == src.height_ - 1)
     {
-        dst_normal_map.at(u, v, 0) = nanf("nan");
-        dst_normal_map.at(u, v, 1) = nanf("nan");
-        dst_normal_map.at(u, v, 2) = nanf("nan");
+        dst_normal_map.at(u, v) = Vector3f(nanf("nan"));
+        return;
     }
 
     Vector3f v00, v01, v10;
@@ -107,13 +111,6 @@ void GetNormalMapKernel(ImageCudaDevice<Scalar, Channel> src,
     v00(0) = src.at(u, v, 0);
     v01(0) = src.at(u, v+1, 0);
     v10(0) = src.at(u+1, v, 0);
-
-    if(isnan(v00(0)) || isnan(v01(0)) || isnan(v10(0)))
-    {
-        dst_normal_map.at(u, v, 0) = nanf("nan");
-        dst_normal_map.at(u, v, 1) = nanf("nan");
-        dst_normal_map.at(u, v, 2) = nanf("nan");
-    }
 
     v00(1) = src.at(u, v, 1);
     v01(1) = src.at(u, v+1, 1);
@@ -123,13 +120,17 @@ void GetNormalMapKernel(ImageCudaDevice<Scalar, Channel> src,
     v01(2) = src.at(u, v+1, 2);
     v10(2) = src.at(u+1, v, 2);
 
+    if(v00.IsNaN() || v01.IsNaN() || v10.IsNaN())
+    {
+        dst_normal_map.at(u, v) = Vector3f(nanf("nan"));
+        return;
+    }
+
     Vector3f vec1 = v01 - v00;
     Vector3f vec2 = v10 - v00;
     Vector3f normal = (vec1.cross(vec2)).normalized();
 
-    dst_normal_map(u, v, 0) = normal(0);
-    dst_normal_map(u, v, 1) = normal(1);
-    dst_normal_map(u, v, 2) = normal(2);
+    dst_normal_map.at(u, v) = normal;
 }
 
 template<typename Scalar, size_t Channel>

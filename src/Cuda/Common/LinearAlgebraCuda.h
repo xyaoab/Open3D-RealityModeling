@@ -71,6 +71,17 @@ public:
         }
         return is_zero;
     }
+    __HOSTDEVICE__ inline bool IsNaN() {
+        bool is_nan = false;
+#ifdef __CUDACC__
+#pragma unroll 1
+#endif
+        for (int i = 0; i < N; ++i) {
+            is_nan = is_nan || isnan(v[i]);
+            if(is_nan) return true;
+        }
+        return is_nan;
+    }
 
     /*********************** Constructors ***********************/
     __HOSTDEVICE__ inline VectorCuda() {};

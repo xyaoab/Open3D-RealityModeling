@@ -207,13 +207,15 @@ public:
                               RGBDImageCudaDevice &rgbd,
                               PinholeCameraIntrinsicCuda &camera,
                               TransformCuda &transform_camera_to_world);
-    __DEVICE__ Vector3f RayCasting(const Vector2i &p,
-                                   PinholeCameraIntrinsicCuda &camera,
-                                   TransformCuda &transform_camera_to_world);
-    __DEVICE__ Vector3f
-    VolumeRendering(const Vector2i &p,
-                    PinholeCameraIntrinsicCuda &camera,
-                    TransformCuda &transform_camera_to_world);
+    __DEVICE__ bool RayCasting(const Vector2i &p,
+                               Vector3f& v,
+                               Vector3f& n,
+                               Vector3b& c,
+                               PinholeCameraIntrinsicCuda &camera,
+                               TransformCuda &transform_camera_to_world);
+    __DEVICE__ Vector3f VolumeRendering(const Vector2i &p,
+                                        PinholeCameraIntrinsicCuda &camera,
+                                        TransformCuda &transform_camera_to_world);
 
 public:
     friend class ScalableTSDFVolumeCuda;
@@ -315,13 +317,14 @@ public:
     void Integrate(RGBDImageCuda &rgbd,
                    PinholeCameraIntrinsicCuda &camera,
                    TransformCuda &transform_camera_to_world);
-    void RayCasting(ImageCuda<float, 3> &image,
+    void RayCasting(ImageCuda<float, 3> &vertex,
+                    ImageCuda<float, 3> &normal,
+                    ImageCuda<uchar, 3> &color,
                     PinholeCameraIntrinsicCuda &camera,
                     TransformCuda &transform_camera_to_world);
-    void VolumeRendering(ImageCuda<float, 3> &image,
+    void VolumeRendering(ImageCuda<float, 3> &normal,
                          PinholeCameraIntrinsicCuda &camera,
                          TransformCuda &transform_camera_to_world);
-
     ScalableTSDFVolumeCuda DownSample();
 };
 
@@ -347,7 +350,9 @@ public:
     static void GetAllSubvolumes(ScalableTSDFVolumeCuda &volume);
 
     static void RayCasting(ScalableTSDFVolumeCuda &volume,
+                           ImageCuda<float, 3> &vertex,
                            ImageCuda<float, 3> &normal,
+                           ImageCuda<uchar, 3> &color,
                            PinholeCameraIntrinsicCuda &camera,
                            TransformCuda &transform_camera_to_world);
 
@@ -386,6 +391,8 @@ void GetAllSubvolumesKernel(ScalableTSDFVolumeCudaDevice device);
 __GLOBAL__
 void RayCastingKernel(ScalableTSDFVolumeCudaDevice device,
                       ImageCudaDevice<float, 3> vertex,
+                      ImageCudaDevice<float, 3> normal,
+                      ImageCudaDevice<uchar, 3> color,
                       PinholeCameraIntrinsicCuda camera,
                       TransformCuda transform_camera_to_world);
 

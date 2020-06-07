@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "Cuda/Geometry/ImageCuda.h"
+#include "Open3D/Utility/Console.h"
 #include "RGBDOdometryCuda.h"
 
 namespace open3d {
@@ -23,10 +25,11 @@ RGBDOdometryCuda<N>::~RGBDOdometryCuda() {
 
 template <size_t N>
 void RGBDOdometryCuda<N>::SetParameters(const odometry::OdometryOption &option,
-                                        float sigma) {
+                                        float sigma, OdometryType odometry_type) {
     assert(option_.iteration_number_per_pyramid_level_.size() == N);
     option_ = option;
     sigma_ = sigma;
+    odometry_type_ = odometry_type;
 }
 
 template <size_t N>
@@ -55,19 +58,41 @@ bool RGBDOdometryCuda<N>::Create(int width, int height) {
 
     device_ = std::make_shared<RGBDOdometryCudaDevice<N>>();
 
-    source_input_.Create(width, height);
-    target_input_.Create(width, height);
+    //! TODO(Akash): Conditional allocation can be dangerous
+    if(odometry_type_ == OdometryType::FRAME_TO_FRAME) {
+        source_input_.Create(width, height);
+        target_input_.Create(width, height);
 
-    for (int i = 0; i < N; ++i) {
-        source_depth_[i].Create(width >> i, height >> i);
-        source_intensity_[i].Create(width >> i, height >> i);
-        target_depth_[i].Create(width >> i, height >> i);
-        target_intensity_[i].Create(width >> i, height >> i);
+        for (int i = 0; i < N; ++i) {
+            source_depth_[i].Create(width >> i, height >> i);
+            source_intensity_[i].Create(width >> i, height >> i);
+            target_depth_[i].Create(width >> i, height >> i);
+            target_intensity_[i].Create(width >> i, height >> i);
 
-        target_depth_dx_[i].Create(width >> i, height >> i);
-        target_depth_dy_[i].Create(width >> i, height >> i);
-        target_intensity_dx_[i].Create(width >> i, height >> i);
-        target_intensity_dy_[i].Create(width >> i, height >> i);
+            target_depth_dx_[i].Create(width >> i, height >> i);
+            target_depth_dy_[i].Create(width >> i, height >> i);
+            target_intensity_dx_[i].Create(width >> i, height >> i);
+            target_intensity_dy_[i].Create(width >> i, height >> i);
+        }
+    }
+    else {
+        source_input_.Create(width, height);
+        target_input_vertex_.Create(width, height);
+        target_input_normal_.Create(width, height);
+        target_input_color_.Create(width, height);
+
+        for (int i = 0; i < N; ++i) {
+            source_vertex_[i].Create(width >> i, height >> i);
+            source_normal_[i].Create(width >> i, height >> i);
+            source_intensity_[i].Create(width >> i, height >> i);
+            target_vertex_[i].Create(width >> i, height >> i);
+            target_normal_[i].Create(width >> i, height >> i);
+            target_intensity_[i].Create(width >> i, height >> i);
+
+            //! Normals will provide the gradient for depth component
+            target_intensity_dx_[i].Create(width >> i, height >> i);
+            target_intensity_dy_[i].Create(width >> i, height >> i);
+        }
     }
 
     results_.Create(29);  // 21 + 6 + 2
@@ -112,6 +137,8 @@ void RGBDOdometryCuda<N>::UpdateSigma(float sigma) {
 template <size_t N>
 void RGBDOdometryCuda<N>::UpdateDevice() {
     if (device_ != nullptr) {
+        device_->odometry_type_ = odometry_type_;
+        if(odometry_type_ == FRAME_TO_FRAME) {
         source_input_.UpdateDevice();
         device_->source_input_ = *source_input_.device_;
 
@@ -119,27 +146,59 @@ void RGBDOdometryCuda<N>::UpdateDevice() {
         device_->target_input_ = *target_input_.device_;
 
         for (int i = 0; i < N; ++i) {
-            source_depth_[i].UpdateDevice();
-            device_->source_depth_[i] = *source_depth_[i].device_;
-            source_intensity_[i].UpdateDevice();
-            device_->source_intensity_[i] = *source_intensity_[i].device_;
+                source_depth_[i].UpdateDevice();
+                device_->source_depth_[i] = *source_depth_[i].device_;
+                source_intensity_[i].UpdateDevice();
+                device_->source_intensity_[i] = *source_intensity_[i].device_;
 
-            target_depth_[i].UpdateDevice();
-            device_->target_depth_[i] = *target_depth_[i].device_;
-            target_intensity_[i].UpdateDevice();
-            device_->target_intensity_[i] = *target_intensity_[i].device_;
+                target_depth_[i].UpdateDevice();
+                device_->target_depth_[i] = *target_depth_[i].device_;
+                target_intensity_[i].UpdateDevice();
+                device_->target_intensity_[i] = *target_intensity_[i].device_;
 
-            target_depth_dx_[i].UpdateDevice();
-            device_->target_depth_dx_[i] = *target_depth_dx_[i].device_;
-            target_depth_dy_[i].UpdateDevice();
-            device_->target_depth_dy_[i] = *target_depth_dy_[i].device_;
+                target_depth_dx_[i].UpdateDevice();
+                device_->target_depth_dx_[i] = *target_depth_dx_[i].device_;
+                target_depth_dy_[i].UpdateDevice();
+                device_->target_depth_dy_[i] = *target_depth_dy_[i].device_;
 
-            target_intensity_dx_[i].UpdateDevice();
-            device_->target_intensity_dx_[i] = *target_intensity_dx_[i].device_;
-            target_intensity_dy_[i].UpdateDevice();
-            device_->target_intensity_dy_[i] = *target_intensity_dy_[i].device_;
+                target_intensity_dx_[i].UpdateDevice();
+                device_->target_intensity_dx_[i] = *target_intensity_dx_[i].device_;
+                target_intensity_dy_[i].UpdateDevice();
+                device_->target_intensity_dy_[i] = *target_intensity_dy_[i].device_;
+            }
         }
+        else {
+            source_input_.UpdateDevice();
+            device_->source_input_ = *source_input_.device_;
 
+            target_input_vertex_.UpdateDevice();
+            target_input_normal_.UpdateDevice();
+            target_input_color_.UpdateDevice();
+            device_->target_input_vertex_ = *target_input_vertex_.device_;
+            device_->target_input_normal_ = *target_input_normal_.device_;
+            device_->target_input_color_  = *target_input_color_.device_;
+
+            for(int i = 0; i < N; ++i) {
+                source_vertex_[i].UpdateDevice();
+                device_->source_vertex_[i] = *source_vertex_[i].device_;
+                source_normal_[i].UpdateDevice();
+                device_->source_normal_[i] = *source_normal_[i].device_;
+                source_intensity_[i].UpdateDevice();
+                device_->source_intensity_[i] = *source_intensity_[i].device_;
+
+                target_vertex_[i].UpdateDevice();
+                device_->target_vertex_[i] = *target_vertex_[i].device_;
+                target_normal_[i].UpdateDevice();
+                device_->target_normal_[i] = *target_normal_[i].device_;
+                target_intensity_[i].UpdateDevice();
+                device_->target_intensity_[i] = *target_intensity_[i].device_;
+
+                target_intensity_dx_[i].UpdateDevice();
+                device_->target_intensity_dx_[i] = *target_intensity_dx_[i].device_;
+                target_intensity_dy_[i].UpdateDevice();
+                device_->target_intensity_dy_[i] = *target_intensity_dy_[i].device_;
+            }
+        }
         device_->results_ = *results_.device_;
         device_->correspondences_ = *correspondences_.device_;
 
@@ -243,6 +302,84 @@ void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source,
 }
 
 template <size_t N>
+void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source, ImageCuda<float, 3> &target_vertex,
+                                     ImageCuda<float, 3> &target_normal, ImageCuda<uchar, 3> &target_color) {
+
+    assert(source.width_ == target_vertex.width_ == target_normal.width_ == target_color.width_);
+    assert(source.height_ == target_vertex.height_ == target_normal.height_ == target_color.width_);
+    if(odometry_type_ == OdometryType::FRAME_TO_FRAME)
+    {
+        utility::LogError("[RGBDOdometryCuda] Frame to Frame requires Initialize() with two RGBDImages, "
+                          "@Initialize aborted.");
+        return;
+    }
+
+    bool success = Create(source.width_, source.height_);
+    if (!success) {
+        utility::LogError(
+                "[RGBDOdometryCuda] create failed, "
+                "@PrepareData aborted.");
+        return;
+    }
+
+    source_input_.CopyFrom(source);
+    target_input_vertex_.CopyFrom(target_vertex);
+    target_input_normal_.CopyFrom(target_normal);
+    target_input_color_.CopyFrom(target_color);
+
+    /** Preprocess: truncate depth to nan values. Only required for source, since vertex and normals already have NAN **/
+    ImageCudaf source_depth_preprocessed, source_intensity_preprocessed;
+    ImageCudaf target_intensity_preprocessed;
+
+    source_depth_preprocessed.Create(source.width_, source.height_);
+    source_intensity_preprocessed.Create(source.width_, source.height_);
+    target_intensity_preprocessed.Create(source.width_, source.height_);
+
+    RGBDOdometryCudaKernelCaller<N>::PreprocessInput(
+            *this, source_depth_preprocessed,
+            source_intensity_preprocessed,
+            target_intensity_preprocessed);
+
+    /** Preprocess: Smooth **/
+    auto bilateral_depth = source_depth_preprocessed.Bilateral();
+    bilateral_depth.GetVertexMap(source_vertex_[0], device_->intrinsics_[0]);
+    source_vertex_[0].GetNormalMap(source_normal_[0]);
+    source_intensity_preprocessed.Gaussian(source_intensity_[0], Gaussian3x3);
+
+    target_vertex_[0].CopyFrom(target_input_vertex_);
+    target_normal_[0].CopyFrom(target_input_normal_);
+    target_intensity_preprocessed.Gaussian(target_intensity_[0], Gaussian3x3);
+
+    /** Preprocess: normalize intensity between pair (source_[0], target_[0])
+     * **/
+    device_->transform_source_to_target_.FromEigen(transform_source_to_target_);
+    correspondences_.set_iterator(0);
+    RGBDOdometryCudaKernelCaller<N>::NormalizeIntensity(*this);
+
+    /* Downsample */
+    for (int i = 1; i < N; ++i) {
+        source_vertex_[i - 1].Downsample(source_vertex_[i], BoxFilter);
+        source_normal_[i - 1].Downsample(source_normal_[i], BoxFilterNormalize);
+        target_vertex_[i - 1].Downsample(target_vertex_[i], BoxFilter);
+        target_normal_[i - 1].Downsample(target_normal_[i], BoxFilterNormalize);
+
+        auto tmp = source_intensity_[i - 1].Gaussian(Gaussian3x3);
+        tmp.Downsample(source_intensity_[i], BoxFilter);
+        tmp = target_intensity_[i - 1].Gaussian(Gaussian3x3);
+        tmp.Downsample(target_intensity_[i], BoxFilter);
+    }
+
+    /* Compute gradients */
+    for (int i = 0; i < N; ++i) {
+        //! target depth gradients are the target normals
+        target_intensity_[i].Sobel(target_intensity_dx_[i],
+                                   target_intensity_dy_[i]);
+    }
+
+    UpdateDevice();
+}
+
+template <size_t N>
 std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
         size_t level, int iter) {
     results_.Memset(0);
@@ -263,8 +400,7 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
     ExtractResults(results, JtJ, Jtr, loss, inliers);
     utility::LogDebug(
             "> Level {}, iter {}: loss = {}, avg loss = {}, "
-            "inliers = %"
-            ".0f",
+            "inliers = {}",
             level, iter, loss, loss / inliers, inliers);
 
     bool is_success;

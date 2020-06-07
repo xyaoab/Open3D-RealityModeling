@@ -32,6 +32,7 @@ enum GaussianKernelSize {
 enum DownsampleMethod {
     BoxFilter = 0, /* Naive 2x2 */
     GaussianFilter = 2, /* 5x5, suggested by OpenCV */
+    BoxFilterNormalize = 3, /* Required for downsampling Normals */
 };
 
 /**
@@ -64,7 +65,7 @@ public:
     __DEVICE__ inline ValueType interp_at(float x, float y);
 
     __DEVICE__
-    ValueType BoxFilter2x2(int x, int y);
+    ValueType BoxFilter2x2(int x, int y, bool normalize = false);
     __DEVICE__
     ValueType GaussianFilter(int x, int y, int kernel_idx);
     __DEVICE__
@@ -127,7 +128,7 @@ public:
     void GetVertexMap(ImageCudaTypeXYZ &vertex_map, PinholeCameraIntrinsicCuda &intrinsic);
 
     //! Computes and returns the normal map
-    //! This function is expected only for Float, 3 channel images (Vertex maps)
+    //! This function is expected only for <float, 3> channel images (Vertex maps)
     ImageCudaTypeXYZ GetNormalMap(void);
     void GetNormalMap(ImageCudaTypeXYZ &normal_map);
 

@@ -80,6 +80,11 @@ public:
                PinholeCameraIntrinsicCuda &intrinsic);
     void Build(ImageCuda<float, 1> &depth,
                PinholeCameraIntrinsicCuda &intrinsic);
+    void Build(ImageCuda<float, 3> &vertex,
+               ImageCuda<float, 3> &normal,
+               ImageCuda<uchar, 3> &color);
+    void Build(ImageCuda<float, 3> &vertex,
+               ImageCuda<float, 3> &normal);
     std::shared_ptr<geometry::PointCloud> Download();
 
 public:
@@ -129,6 +134,13 @@ public:
     static void BuildFromDepthImage(PointCloudCuda &server,
                                     ImageCuda<float, 1> &depth,
                                     PinholeCameraIntrinsicCuda &intrinsic);
+    static void BuildFromVertexAndNormalMap(PointCloudCuda &server,
+                                            ImageCuda<float, 3> &vertex,
+                                            ImageCuda<float, 3> &normal,
+                                            ImageCuda<uchar, 3> &color);
+    static void BuildFromVertexAndNormalMap(PointCloudCuda &server,
+                                            ImageCuda<float, 3> &vertex,
+                                            ImageCuda<float, 3> &normal);
 };
 
 __GLOBAL__
@@ -167,5 +179,15 @@ void BuildFromDepthImageKernel(PointCloudCudaDevice pcl,
                                ImageCudaDevice<float, 1> depth,
                                PinholeCameraIntrinsicCuda intrinsic);
 
+__GLOBAL__
+void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
+                                       ImageCudaDevice<float, 3> vertex,
+                                       ImageCudaDevice<float, 3> normal,
+                                       ImageCudaDevice<uchar, 1> color);
+
+__GLOBAL__
+void BuildFromVertexAndNormalMapKernel(PointCloudCudaDevice pcl,
+                                       ImageCudaDevice<float, 3> vertex,
+                                       ImageCudaDevice<float, 3> normal);
 } // cuda
 } // open3d

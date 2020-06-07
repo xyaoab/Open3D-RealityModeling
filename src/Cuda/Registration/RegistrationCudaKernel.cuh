@@ -26,7 +26,7 @@ void ComputeColorGradientKernel(
     estimation.ComputePointwiseColorGradient(idx, corres_for_gradient);
 }
 
-void RegistrationCudaKernelCaller::ComputeColorGradeint(
+void RegistrationCudaKernelCaller::ComputeColorGradient(
     RegistrationCuda &estimation,
     CorrespondenceSetCuda &corres_for_color_gradient) {
 

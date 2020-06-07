@@ -5,6 +5,7 @@
 #include <cuda_runtime.h>
 #include <Cuda/Container/HashTableCudaHost.hpp>
 #include "ScalableTSDFVolumeCuda.h"
+#include <Open3D/Utility/Console.h>
 
 namespace open3d {
 namespace cuda {
@@ -329,17 +330,20 @@ void ScalableTSDFVolumeCuda::Integrate(
 
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world);
+    utility::LogInfo("Active subvolumes in volume: {}", active_subvolume_entry_array_.size());
     IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::RayCasting(
-        ImageCuda<float, 3> &image,
-        PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+    ImageCuda<float, 3> &vertex,
+    ImageCuda<float, 3> &normal,
+    ImageCuda<uchar, 3> &color,
+    PinholeCameraIntrinsicCuda &camera,
+    TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
 
-    ScalableTSDFVolumeCudaKernelCaller::RayCasting(*this, image, camera,
-                                                   transform_camera_to_world);
+    ScalableTSDFVolumeCudaKernelCaller::RayCasting(
+        *this, vertex, normal, color, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::VolumeRendering(

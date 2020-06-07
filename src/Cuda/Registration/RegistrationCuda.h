@@ -117,6 +117,10 @@ public:
                     float max_correspondence_distance,
                     const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity());
 
+    void Initialize(PointCloudCuda &source,
+                    PointCloudCuda &target,
+                    float max_correspondence_distance,
+                    const Eigen::Matrix4d &init = Eigen::Matrix4d::Identity());
     /* High level API */
     RegistrationResultCuda ComputeICP(int iter = 60);
     Eigen::Matrix6d ComputeInformationMatrix();
@@ -155,7 +159,7 @@ public:
 
 class RegistrationCudaKernelCaller {
 public:
-    static void ComputeColorGradeint(
+    static void ComputeColorGradient(
         RegistrationCuda &registration,
         CorrespondenceSetCuda &corres_for_color_gradient);
 
