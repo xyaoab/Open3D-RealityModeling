@@ -43,16 +43,16 @@ __global__ void BuildLinearSystemRGBDToTSDFKernel(
 
     // Truncation check
     float tsdf = volume.TSDFAt(X);
-    mask = mask && (tsdf <= 1.0f && tsdf >= -1.0f);
+    mask = mask && (-1.0f <= tsdf && tsdf <= 1.0f);
 
     // Build linear system
     Vector6f jacobian;
     float residual = 0;
     if (mask) {
-        Vector3f tsdf_grad = volume.GradientAt(X);
-        jacobian(0) = -X(2) * tsdf_grad(1) + X(1) * tsdf_grad(2);
-        jacobian(1) = X(2) * tsdf_grad(0) - X(0) * tsdf_grad(2);
-        jacobian(2) = -X(1) * tsdf_grad(0) + X(0) * tsdf_grad(1);
+        Vector3f tsdf_grad = volume.GradientAt(X) / volume.voxel_length_;
+        jacobian(0) = -Xw(2) * tsdf_grad(1) + Xw(1) * tsdf_grad(2);
+        jacobian(1) = Xw(2) * tsdf_grad(0) - Xw(0) * tsdf_grad(2);
+        jacobian(2) = -Xw(1) * tsdf_grad(0) + Xw(0) * tsdf_grad(1);
         jacobian(3) = tsdf_grad(0);
         jacobian(4) = tsdf_grad(1);
         jacobian(5) = tsdf_grad(2);
@@ -103,7 +103,7 @@ __global__ void BuildLinearSystemRGBDToTSDFKernel(
     /** Reduce Sum loss and inlier **/
     const int OFFSET2 = 27;
     {
-        local_sum0[tid] = residual;
+        local_sum0[tid] = mask ? residual : 0;
         local_sum1[tid] = mask ? 1 : 0;
         __syncthreads();
 

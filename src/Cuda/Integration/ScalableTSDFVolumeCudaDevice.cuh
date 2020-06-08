@@ -4,16 +4,16 @@
 
 #pragma once
 
-#include "ScalableTSDFVolumeCuda.h"
 #include "MarchingCubesConstCuda.h"
+#include "ScalableTSDFVolumeCuda.h"
 
 #include <Cuda/Common/Palatte.h>
 #include <Cuda/Container/HashTableCudaDevice.cuh>
 #include <Cuda/Container/HashTableCudaKernel.cuh>
 
+#include <Cuda/Open3DCuda.h>
 #include <Cuda/Container/MemoryHeapCudaDevice.cuh>
 #include <Cuda/Container/MemoryHeapCudaKernel.cuh>
-#include <Cuda/Open3DCuda.h>
 
 namespace open3d {
 namespace cuda {
@@ -652,8 +652,9 @@ __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
                                 (tsdf_prev - tsdf_curr);
             Vector3f Xv_surface_t = camera_origin_v + t_intersect * ray_v;
             vertex = (transform_camera_to_world.Inverse() *
-                        (transform_volume_to_world_ * Xv_surface_t));
-            /**TODO(Akash): Unoptimized access for normals, how to improve this/cache for individual accesses */
+                      (transform_volume_to_world_ * Xv_surface_t));
+            /**TODO(Akash): Unoptimized access for normals, how to improve
+             * this/cache for individual accesses */
             Vector3f X_surface_t = volume_to_voxelf(Xv_surface_t);
             normal = GradientAt(X_surface_t).normalized();
 

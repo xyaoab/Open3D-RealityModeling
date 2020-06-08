@@ -72,6 +72,7 @@ int main(int argc, char **argv) {
 
         if (i > 10) {
             RGBDToTSDFRegistration(rgbd, tsdf_volume, intrinsic, trans);
+            break;
         }
     }
 
