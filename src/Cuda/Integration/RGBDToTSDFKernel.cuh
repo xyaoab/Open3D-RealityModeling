@@ -36,6 +36,7 @@ __global__ void BuildLinearSystemRGBDToTSDFKernel(
     Vector3f X =
             T_cam_to_world * intrinsic.InverseProjectPixel(Vector2i(x, y), d);
 
+
     // Voxel check
     float weight = volume.WeightAt(X);
     bool mask = (weight > 0);

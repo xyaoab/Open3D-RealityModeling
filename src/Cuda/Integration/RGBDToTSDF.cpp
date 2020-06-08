@@ -9,6 +9,8 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDToTSDFRegistration(
         PinholeCameraIntrinsicCuda camera,
         TransformCuda transform_camera_to_world) {
     ArrayCuda<float> linear_system;
+    linear_system.Create(29);
+
     Eigen::Matrix6d JtJ;
     Eigen::Vector6d Jtr;
     float loss, inliers;
@@ -16,15 +18,15 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDToTSDFRegistration(
     bool is_success;
     Eigen::Matrix4d extrinsic;
 
-    for (int iter = 0; iter < 10; ++iter) {
+    for (int iter = 0; iter < 1; ++iter) {
         linear_system.Memset(0);
         BuildLinearSystemRGBDToTSDFKernelCaller(
                 rgbd, volume, camera, transform_camera_to_world, linear_system);
 
         std::vector<float> results = linear_system.DownloadAll();
         ExtractResults(results, JtJ, Jtr, loss, inliers);
-        utility::LogDebug("> Iter {}: loss = {}, avg loss = {}, inliers = {}",
-                          iter, loss, loss / inliers, inliers);
+        utility::LogInfo("> Iter {}: loss = {}, avg loss = {}, inliers = {}",
+                         iter, loss, loss / inliers, inliers);
 
         std::tie(is_success, extrinsic) =
                 utility::SolveJacobianSystemAndObtainExtrinsicMatrix(JtJ, Jtr);
