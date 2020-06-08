@@ -56,7 +56,9 @@ int main(int argc, char **argv) {
             (float)config.tsdf_truncation_, trans, 40000, 60000);
     cuda::RGBDImageCuda rgbd((float)config.max_depth_,
                              (float)config.depth_factor_);
-    for (int i = begin; i < end; ++i) {
+
+    Eigen::Matrix4d pose, prev_pose;
+    for (int i = begin; i < begin + 13; ++i) {
         utility::LogInfo("Integrating frame {} ...", i);
 
         Image depth, color;
@@ -65,15 +67,23 @@ int main(int argc, char **argv) {
         rgbd.Upload(depth, color);
 
         /* Use ground truth trajectory */
-        Eigen::Matrix4d pose = pose_graph.nodes_[i - begin].pose_;
-        trans.FromEigen(pose);
+        if (i - begin <= 10) {
+            pose = pose_graph.nodes_[i - begin].pose_;
+            trans.FromEigen(pose);
+        } else {
+            trans.FromEigen(prev_pose);
+            auto result =
+                    RGBDToTSDFRegistration(rgbd, tsdf_volume, intrinsic, trans);
+            pose = std::get<1>(result);
+            trans.FromEigen(pose);
 
-        tsdf_volume.Integrate(rgbd, intrinsic, trans);
-
-        if (i > 10) {
-            RGBDToTSDFRegistration(rgbd, tsdf_volume, intrinsic, trans);
-            break;
+            std::cout << "------\n";
+            std::cout << pose << "\n";
+            std::cout << pose_graph.nodes_[i - begin].pose_ << "\n";
+            std::cout << "------\n";
         }
+        tsdf_volume.Integrate(rgbd, intrinsic, trans);
+        prev_pose = pose;
     }
 
     tsdf_volume.GetAllSubvolumes();

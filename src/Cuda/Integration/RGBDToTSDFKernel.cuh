@@ -103,7 +103,7 @@ __global__ void BuildLinearSystemRGBDToTSDFKernel(
     /** Reduce Sum loss and inlier **/
     const int OFFSET2 = 27;
     {
-        local_sum0[tid] = mask ? residual : 0;
+        local_sum0[tid] = mask ? residual * residual : 0;
         local_sum1[tid] = mask ? 1 : 0;
         __syncthreads();
 
