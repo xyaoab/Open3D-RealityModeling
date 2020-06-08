@@ -18,7 +18,7 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDToTSDFRegistration(
     bool is_success;
     Eigen::Matrix4d extrinsic;
 
-    for (int iter = 0; iter < 1; ++iter) {
+    for (int iter = 0; iter < 10; ++iter) {
         linear_system.Memset(0);
         BuildLinearSystemRGBDToTSDFKernelCaller(
                 rgbd, volume, camera, transform_camera_to_world, linear_system);

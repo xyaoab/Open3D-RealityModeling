@@ -33,9 +33,9 @@ __global__ void BuildLinearSystemRGBDToTSDFKernel(
     float d = rgbd.depth_.at(x, y)(0);
     if (d <= 0.0 || d >= 3.0f) return;
 
-    Vector3f X =
+    Vector3f Xw =
             T_cam_to_world * intrinsic.InverseProjectPixel(Vector2i(x, y), d);
-
+    Vector3f X = volume.world_to_voxelf(Xw);
 
     // Voxel check
     float weight = volume.WeightAt(X);
