@@ -9,16 +9,14 @@ namespace cuda {
 
 /* Preparation */
 RegistrationCuda::RegistrationCuda(
-    const registration::TransformationEstimationType &type) {
+        const registration::TransformationEstimationType &type) {
     Create(type);
 }
 
-RegistrationCuda::~RegistrationCuda() {
-    Release();
-}
+RegistrationCuda::~RegistrationCuda() { Release(); }
 
 void RegistrationCuda::Create(
-    const registration::TransformationEstimationType &type) {
+        const registration::TransformationEstimationType &type) {
     type_ = type;
     lambda_geometric_ = 0.968;
 
@@ -58,17 +56,17 @@ void RegistrationCuda::UpdateDevice() {
     }
 }
 
-void RegistrationCuda::Initialize(
-    geometry::PointCloud &source, geometry::PointCloud &target,
-    float max_correspondence_distance,
-    const Eigen::Matrix<double, 4, 4> &init) {
-
+void RegistrationCuda::Initialize(geometry::PointCloud &source,
+                                  geometry::PointCloud &target,
+                                  float max_correspondence_distance,
+                                  const Eigen::Matrix<double, 4, 4> &init) {
     /** GPU part **/
     source_.Create(VertexWithNormalAndColor, source.points_.size());
     source_.Upload(source);
 
     target_.Create(VertexWithNormalAndColor, target.points_.size());
     target_.Upload(target);
+    correspondences_.Create(1, source.points_.size());
 
     /** CPU part **/
     max_correspondence_distance_ = max_correspondence_distance;
@@ -90,16 +88,14 @@ void RegistrationCuda::Initialize(
     if (type_ == registration::TransformationEstimationType::ColoredICP) {
         ComputeColorGradients(target_cpu_, kdtree_,
                               geometry::KDTreeSearchParamHybrid(
-                                  max_correspondence_distance_ * 2, 30));
+                                      max_correspondence_distance_ * 2, 30));
     }
-
 }
 
-void RegistrationCuda::Initialize(
-    PointCloudCuda &source, PointCloudCuda &target,
-    float max_correspondence_distance,
-    const Eigen::Matrix<double, 4, 4> &init) {
-
+void RegistrationCuda::Initialize(PointCloudCuda &source,
+                                  PointCloudCuda &target,
+                                  float max_correspondence_distance,
+                                  const Eigen::Matrix<double, 4, 4> &init) {
     //! Should be okay since reference counted
     source_ = source;
     target_ = target;
@@ -125,10 +121,9 @@ void RegistrationCuda::Initialize(
     if (type_ == registration::TransformationEstimationType::ColoredICP) {
         ComputeColorGradients(target_cpu_, kdtree_,
                               geometry::KDTreeSearchParamHybrid(
-                                  max_correspondence_distance_ * 2, 30));
+                                      max_correspondence_distance_ * 2, 30));
     }
 }
-
 
 /* High-level API */
 RegistrationResultCuda RegistrationCuda::ComputeICP(int iter) {
@@ -141,8 +136,8 @@ RegistrationResultCuda RegistrationCuda::ComputeICP(int iter) {
     for (int i = 1; i < iter; ++i) {
         result = DoSingleIteration(i);
 
-        if (std::abs(prev_fitness - result.fitness_) < 1e-6
-            && std::abs(prev_rmse - result.inlier_rmse_) < 1e-6) {
+        if (std::abs(prev_fitness - result.fitness_) < 1e-6 &&
+            std::abs(prev_rmse - result.inlier_rmse_) < 1e-6) {
             return result;
         }
 
@@ -166,21 +161,20 @@ Eigen::Matrix6d RegistrationCuda::ComputeInformationMatrix() {
     RegistrationCudaKernelCaller::ComputeInformationMatrix(*this);
 
     Eigen::Matrix6d JtJ;
-    Eigen::Vector6d Jtr; // dummy
-    float rmse;          // dummy
-    ExtractResults(JtJ, Jtr, rmse);
+    Eigen::Vector6d Jtr;  // dummy
+    float rmse;           // dummy
+    ExtractResults(results_.DownloadAll(), JtJ, Jtr, rmse);
 
     return Eigen::Matrix6d::Identity() + JtJ;
 }
 
 Eigen::Matrix6d RegistrationCuda::ComputeInformationMatrix(
-    geometry::PointCloud &source,
-    geometry::PointCloud &target,
-    float max_correspondence_distance,
-    const Eigen::Matrix4d &init) {
-
+        geometry::PointCloud &source,
+        geometry::PointCloud &target,
+        float max_correspondence_distance,
+        const Eigen::Matrix4d &init) {
     RegistrationCuda registration(
-        registration::TransformationEstimationType::PointToPoint);
+            registration::TransformationEstimationType::PointToPoint);
     registration.Initialize(source, target, max_correspondence_distance, init);
     return registration.ComputeInformationMatrix();
 }
@@ -195,18 +189,18 @@ RegistrationResultCuda RegistrationCuda::DoSingleIteration(int iter) {
 
     if (correspondences_.indices_.size() < 10) {
         utility::LogError("Insufficient correspondences: {}\n",
-                            correspondences_.indices_.size());
+                          correspondences_.indices_.size());
         return delta;
     }
 
     delta = BuildAndSolveLinearSystem();
 
-    utility::LogDebug("Iteration {}: inlier rmse = {}, fitness = {}\n",
-                        iter, delta.inlier_rmse_, delta.fitness_);
+    utility::LogDebug("Iteration {}: inlier rmse = {}, fitness = {}\n", iter,
+                      delta.inlier_rmse_, delta.fitness_);
 
     TransformSourcePointCloud(delta.transformation_);
-    transform_source_to_target_ = delta.transformation_ *
-        transform_source_to_target_;
+    transform_source_to_target_ =
+            delta.transformation_ * transform_source_to_target_;
 
     return delta;
 }
@@ -219,7 +213,7 @@ void RegistrationCuda::GetCorrespondences() {
 #ifdef _OPENMP
 #pragma omp for nowait
 #endif
-        for (int i = 0; i < (int) source_cpu_.points_.size(); ++i) {
+        for (int i = 0; i < (int)source_cpu_.points_.size(); ++i) {
             std::vector<int> indices(1);
             std::vector<double> dists(1);
 
@@ -238,7 +232,7 @@ void RegistrationCuda::GetCorrespondences() {
 }
 
 void RegistrationCuda::TransformSourcePointCloud(
-    const Eigen::Matrix4d &source_to_target) {
+        const Eigen::Matrix4d &source_to_target) {
     source_.Transform(source_to_target);
     source_cpu_.Transform(source_to_target);
 }
@@ -252,22 +246,22 @@ RegistrationResultCuda RegistrationCuda::BuildAndSolveLinearSystem() {
 
     results_.Memset(0);
     if (type_ == registration::TransformationEstimationType::ColoredICP) {
-        RegistrationCudaKernelCaller
-        ::BuildLinearSystemForColoredICP(*this);
-    } else if (type_ == registration::TransformationEstimationType::PointToPlane) {
-        RegistrationCudaKernelCaller
-        ::BuildLinearSystemForPointToPlaneICP(*this);
+        RegistrationCudaKernelCaller ::BuildLinearSystemForColoredICP(*this);
+    } else if (type_ ==
+               registration::TransformationEstimationType::PointToPlane) {
+        RegistrationCudaKernelCaller ::BuildLinearSystemForPointToPlaneICP(
+                *this);
     }
 
     Eigen::Matrix6d JtJ;
     Eigen::Vector6d Jtr;
     float rmse;
-    ExtractResults(JtJ, Jtr, rmse);
+    ExtractResults(results_.DownloadAll(), JtJ, Jtr, rmse);
 
     bool is_success;
     Eigen::Matrix4d extrinsic;
     std::tie(is_success, extrinsic) =
-        utility::SolveJacobianSystemAndObtainExtrinsicMatrix(JtJ, Jtr);
+            utility::SolveJacobianSystemAndObtainExtrinsicMatrix(JtJ, Jtr);
 
     int inliers = correspondences_.indices_.size();
     result.fitness_ = float(inliers) / source_.points_.size();
@@ -277,31 +271,13 @@ RegistrationResultCuda RegistrationCuda::BuildAndSolveLinearSystem() {
     return result;
 }
 
-void RegistrationCuda::ExtractResults(
-    Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr, float &rmse) {
-    std::vector<float> downloaded_result = results_.DownloadAll();
-    int cnt = 0;
-    for (int i = 0; i < 6; ++i) {
-        for (int j = i; j < 6; ++j) {
-            JtJ(i, j) = JtJ(j, i) = downloaded_result[cnt];
-            ++cnt;
-        }
-    }
-    for (int i = 0; i < 6; ++i) {
-        Jtr(i) = downloaded_result[cnt];
-        ++cnt;
-    }
-    rmse = downloaded_result[cnt];
-}
-
 void RegistrationCuda::ComputeColorGradients(
-    geometry::PointCloud &target,
-    geometry::KDTreeFlann &kdtree,
-    const geometry::KDTreeSearchParamHybrid &search_param) {
-
+        geometry::PointCloud &target,
+        geometry::KDTreeFlann &kdtree,
+        const geometry::KDTreeSearchParamHybrid &search_param) {
     /** Initialize correspondence matrix for neighbors **/
     Eigen::MatrixXi corres_matrix = Eigen::MatrixXi::Constant(
-        search_param.max_nn_, target.points_.size(), -1);
+            search_param.max_nn_, target.points_.size(), -1);
 
     /** OpenMP parallel K-NN search **/
 #ifdef _OPENMP
@@ -315,13 +291,12 @@ void RegistrationCuda::ComputeColorGradients(
             std::vector<int> indices(search_param.max_nn_);
             std::vector<double> dists(search_param.max_nn_);
 
-            if (kdtree.SearchHybrid(target.points_[i],
-                                    search_param.radius_,
-                                    search_param.max_nn_,
-                                    indices, dists) >= 3) {
+            if (kdtree.SearchHybrid(target.points_[i], search_param.radius_,
+                                    search_param.max_nn_, indices,
+                                    dists) >= 3) {
                 corres_matrix.block(0, i, indices.size(), 1) =
-                    Eigen::Map<Eigen::VectorXi>(
-                        indices.data(), indices.size());
+                        Eigen::Map<Eigen::VectorXi>(indices.data(),
+                                                    indices.size());
             }
         }
 #ifdef _OPENMP
@@ -335,7 +310,7 @@ void RegistrationCuda::ComputeColorGradients(
 
     /** Run GPU color_gradient intialization **/
     RegistrationCudaKernelCaller::ComputeColorGradient(
-        *this, corres_for_color_gradient);
+            *this, corres_for_color_gradient);
 }
 
 RegistrationResultCuda RegistrationCuda::Umeyama() {
@@ -359,7 +334,7 @@ RegistrationResultCuda RegistrationCuda::Umeyama() {
     /** Pass 2: sum reduction Sigma **/
     results_.Memset(0);
     RegistrationCudaKernelCaller::BuildLinearSystemForPointToPointICP(
-        *this, mean_source, mean_traget);
+            *this, mean_source, mean_traget);
     downloaded_result = results_.DownloadAll();
 
     Eigen::Matrix3d Sigma;
@@ -376,8 +351,8 @@ RegistrationResultCuda RegistrationCuda::Umeyama() {
     source_sigma2 /= inliers;
 
     /** Solve linear system **/
-    Eigen::JacobiSVD<Eigen::Matrix3d> svd(Sigma,
-        Eigen::ComputeFullU | Eigen::ComputeFullV);
+    Eigen::JacobiSVD<Eigen::Matrix3d> svd(
+            Sigma, Eigen::ComputeFullU | Eigen::ComputeFullV);
     const Eigen::Matrix3d &U = svd.matrixU();
     const Eigen::Matrix3d &V = svd.matrixV();
     const Eigen::Vector3d &d = svd.singularValues();
@@ -387,7 +362,8 @@ RegistrationResultCuda RegistrationCuda::Umeyama() {
     Eigen::Matrix3d R = U * S * (V.transpose());
     double scale = 1.0;
     // with_scaling_ ? (1.0 / source_sigma2) * (S * d).sum() : 1.0;
-    Eigen::Vector3d t = mean_traget.ToEigen() - scale * R * mean_source.ToEigen();
+    Eigen::Vector3d t =
+            mean_traget.ToEigen() - scale * R * mean_source.ToEigen();
 
     Eigen::Matrix4d extrinsic = Eigen::Matrix4d::Identity();
     extrinsic.block<3, 3>(0, 0) = scale * R;
@@ -399,5 +375,5 @@ RegistrationResultCuda RegistrationCuda::Umeyama() {
 
     return result;
 }
-}
-}
+}  // namespace cuda
+}  // namespace open3d

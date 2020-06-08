@@ -38,12 +38,16 @@ std::vector<Match> MatchFragments(DatasetConfig &config) {
 
             /** Colored ICP **/
             if (t == s + 1) {
+                std::cout << "colored icp\n";
                 cuda::RegistrationCuda registration(
                         TransformationEstimationType::ColoredICP);
+
                 registration.Initialize(*source, *target,
                                         (float)config.voxel_size_ * 1.4f,
                                         init_source_to_target);
+
                 registration.ComputeICP();
+
                 match.trans_source_to_target =
                         registration.transform_source_to_target_;
                 match.information = registration.ComputeInformationMatrix();

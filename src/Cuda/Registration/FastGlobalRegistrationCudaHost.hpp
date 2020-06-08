@@ -127,7 +127,7 @@ RegistrationResultCuda FastGlobalRegistrationCuda::DoSingleIteration(int iter) {
     Eigen::Matrix6d JtJ;
     Eigen::Vector6d Jtr;
     float rmse;
-    ExtractResults(results_.Download(), JtJ, Jtr, rmse);
+    ExtractResults(results_.DownloadAll(), JtJ, Jtr, rmse);
 
     bool success;
     Eigen::VectorXd xi;

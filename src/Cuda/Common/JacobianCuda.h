@@ -136,6 +136,7 @@ void ExtractResults(const std::vector<float> &results,
                     Eigen::Vector6d &Jtr,
                     float &loss,
                     float &inliers) {
+    printf("%d\n", results.size());
     int cnt = 0;
     for (int i = 0; i < 6; ++i) {
         for (int j = i; j < 6; ++j) {
