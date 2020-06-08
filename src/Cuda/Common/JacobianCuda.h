@@ -5,6 +5,7 @@
 #pragma once
 
 #include <Cuda/Common/LinearAlgebraCuda.h>
+#include <Open3D/Utility/Eigen.h>
 #include <cstdlib>
 
 namespace open3d {
@@ -12,7 +13,7 @@ namespace open3d {
 namespace cuda {
 
 /** Approximated by JtJ in optimization **/
-template<size_t N>
+template <size_t N>
 class HessianCuda {
     /**
      * 0  1  2  3  4  5
@@ -43,12 +44,10 @@ public:
 
 namespace {
 /** Triple terms **/
-__HOSTDEVICE__ void ComputeJtJ(
-    const Vector6f &jacobian_x,
-    const Vector6f &jacobian_y,
-    const Vector6f &jacobian_z,
-    HessianCuda<6> &JtJ) {
-
+__HOSTDEVICE__ void ComputeJtJ(const Vector6f &jacobian_x,
+                               const Vector6f &jacobian_y,
+                               const Vector6f &jacobian_z,
+                               HessianCuda<6> &JtJ) {
     int cnt = 0;
 #ifdef __CUDACC__
 #pragma unroll 1
@@ -58,20 +57,19 @@ __HOSTDEVICE__ void ComputeJtJ(
 #pragma unroll 1
 #endif
         for (int j = i; j < 6; ++j) {
-            JtJ(cnt++) = jacobian_x(i) * jacobian_x(j)
-                + jacobian_y(i) * jacobian_y(j)
-                + jacobian_z(i) * jacobian_z(j);
+            JtJ(cnt++) = jacobian_x(i) * jacobian_x(j) +
+                         jacobian_y(i) * jacobian_y(j) +
+                         jacobian_z(i) * jacobian_z(j);
         }
     }
 }
 
-__HOSTDEVICE__ void ComputeJtJAndJtr(
-    const Vector6f &jacobian_x,
-    const Vector6f &jacobian_y,
-    const Vector6f &jacobian_z,
-    const Vector3f &residual,
-    HessianCuda<6> &JtJ, Vector6f &Jtr) {
-
+__HOSTDEVICE__ void ComputeJtJAndJtr(const Vector6f &jacobian_x,
+                                     const Vector6f &jacobian_y,
+                                     const Vector6f &jacobian_z,
+                                     const Vector3f &residual,
+                                     HessianCuda<6> &JtJ,
+                                     Vector6f &Jtr) {
     int cnt = 0;
 #ifdef __CUDACC__
 #pragma unroll 1
@@ -81,24 +79,22 @@ __HOSTDEVICE__ void ComputeJtJAndJtr(
 #pragma unroll 1
 #endif
         for (int j = i; j < 6; ++j) {
-            JtJ(cnt++) = jacobian_x(i) * jacobian_x(j)
-                + jacobian_y(i) * jacobian_y(j)
-                + jacobian_z(i) * jacobian_z(j);
+            JtJ(cnt++) = jacobian_x(i) * jacobian_x(j) +
+                         jacobian_y(i) * jacobian_y(j) +
+                         jacobian_z(i) * jacobian_z(j);
         }
-        Jtr(i) = jacobian_x(i) * residual(0)
-            + jacobian_y(i) * residual(1)
-            + jacobian_z(i) * residual(2);
+        Jtr(i) = jacobian_x(i) * residual(0) + jacobian_y(i) * residual(1) +
+                 jacobian_z(i) * residual(2);
     }
 }
 
 /** Joint terms **/
-__HOSTDEVICE__ void ComputeJtJAndJtr(
-    const Vector6f &jacobian_I,
-    const Vector6f &jacobian_G,
-    const float &residual_I,
-    const float &residual_G,
-    HessianCuda<6> &JtJ, Vector6f &Jtr) {
-
+__HOSTDEVICE__ void ComputeJtJAndJtr(const Vector6f &jacobian_I,
+                                     const Vector6f &jacobian_G,
+                                     const float &residual_I,
+                                     const float &residual_G,
+                                     HessianCuda<6> &JtJ,
+                                     Vector6f &Jtr) {
     int cnt = 0;
 #ifdef __CUDACC__
 #pragma unroll 1
@@ -108,19 +104,18 @@ __HOSTDEVICE__ void ComputeJtJAndJtr(
 #pragma unroll 1
 #endif
         for (int j = i; j < 6; ++j) {
-            JtJ(cnt++) = jacobian_I(i) * jacobian_I(j)
-                + jacobian_G(i) * jacobian_G(j);
+            JtJ(cnt++) = jacobian_I(i) * jacobian_I(j) +
+                         jacobian_G(i) * jacobian_G(j);
         }
         Jtr(i) = jacobian_I(i) * residual_I + jacobian_G(i) * residual_G;
     }
 }
 
 /** Single term **/
-__HOSTDEVICE__ void ComputeJtJAndJtr(
-    const Vector6f &jacobian,
-    const float &residual,
-    HessianCuda<6> &JtJ, Vector6f &Jtr) {
-
+__HOSTDEVICE__ void ComputeJtJAndJtr(const Vector6f &jacobian,
+                                     const float &residual,
+                                     HessianCuda<6> &JtJ,
+                                     Vector6f &Jtr) {
     int cnt = 0;
 #ifdef __CUDACC__
 #pragma unroll 1
@@ -135,7 +130,47 @@ __HOSTDEVICE__ void ComputeJtJAndJtr(
         Jtr(i) = jacobian(i) * residual;
     }
 }
-} // unnamed namespace
 
-} // cuda
-} // open3d
+void ExtractResults(const std::vector<float> &results,
+                    Eigen::Matrix6d &JtJ,
+                    Eigen::Vector6d &Jtr,
+                    float &loss,
+                    float &inliers) {
+    int cnt = 0;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            JtJ(i, j) = JtJ(j, i) = results[cnt];
+            ++cnt;
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        Jtr(i) = results[cnt];
+        ++cnt;
+    }
+    loss = results[cnt];
+    ++cnt;
+    inliers = results[cnt];
+}
+
+void ExtractResults(const std::vector<float> &results,
+                    Eigen::Matrix6d &JtJ,
+                    Eigen::Vector6d &Jtr,
+                    float &loss) {
+    int cnt = 0;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = i; j < 6; ++j) {
+            JtJ(i, j) = JtJ(j, i) = results[cnt];
+            ++cnt;
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        Jtr(i) = results[cnt];
+        ++cnt;
+    }
+    loss = results[cnt];
+}
+
+}  // namespace
+
+}  // namespace cuda
+}  // namespace open3d

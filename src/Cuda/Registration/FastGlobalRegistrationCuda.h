@@ -5,11 +5,11 @@
 #pragma once
 
 #include <Cuda/Common/UtilsCuda.h>
-#include <Open3D/Geometry/PointCloud.h>
+#include <Cuda/Geometry/NNCuda.h>
 #include <Cuda/Geometry/PointCloudCuda.h>
 #include <Cuda/Registration/FeatureExtractorCuda.h>
 #include <Cuda/Registration/RegistrationCuda.h>
-#include <Cuda/Geometry/NNCuda.h>
+#include <Open3D/Geometry/PointCloud.h>
 
 namespace open3d {
 namespace cuda {
@@ -34,10 +34,13 @@ public:
     float scale_global_;
 
     __DEVICE__
-    void ComputePointwiseJacobianAndResidual(
-        int source_idx, int target_idx,
-        Vector6f &jacobian_x, Vector6f &jacobian_y, Vector6f &jacobian_z,
-        Vector3f &residual, float &lij);
+    void ComputePointwiseJacobianAndResidual(int source_idx,
+                                             int target_idx,
+                                             Vector6f &jacobian_x,
+                                             Vector6f &jacobian_y,
+                                             Vector6f &jacobian_z,
+                                             Vector3f &residual,
+                                             float &lij);
 };
 
 class FastGlobalRegistrationCuda {
@@ -51,11 +54,9 @@ public:
     void Release();
 
     void UpdateDevice();
-    void ExtractResults(
-        Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr, float &rmse);
 
 public:
-    void Initialize(geometry::PointCloud& source, geometry::PointCloud &target);
+    void Initialize(geometry::PointCloud &source, geometry::PointCloud &target);
     double NormalizePointClouds();
     void AdvancedMatching();
     RegistrationResultCuda DoSingleIteration(int iter);
@@ -93,7 +94,7 @@ public:
     static void ReciprocityTest(FastGlobalRegistrationCuda &fgr);
     static void TupleTest(FastGlobalRegistrationCuda &fgr);
     static void ComputeResultsAndTransformation(
-        FastGlobalRegistrationCuda &fgr);
+            FastGlobalRegistrationCuda &fgr);
 };
 
 __GLOBAL__
@@ -104,9 +105,7 @@ void TupleTestKernel(FastGlobalRegistrationCudaDevice server,
                      int tuple_tests);
 __GLOBAL__
 void ComputeResultsAndTransformationKernel(
-    FastGlobalRegistrationCudaDevice server);
+        FastGlobalRegistrationCudaDevice server);
 
-} // cuda
-} // open3d
-
-
+}  // namespace cuda
+}  // namespace open3d

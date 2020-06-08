@@ -2,6 +2,7 @@
 // Created by wei on 1/21/19.
 //
 
+#include <Cuda/Common/JacobianCuda.h>
 #include <Cuda/Geometry/NNCuda.h>
 #include "FastGlobalRegistrationCuda.h"
 
@@ -40,26 +41,8 @@ void FastGlobalRegistrationCuda::UpdateDevice() {
     device_->corres_target_to_source_ = *corres_target_to_source_.device_;
 }
 
-void FastGlobalRegistrationCuda::ExtractResults(
-    Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr, float &rmse) {
-    std::vector<float> downloaded_result = results_.DownloadAll();
-    int cnt = 0;
-    for (int i = 0; i < 6; ++i) {
-        for (int j = i; j < 6; ++j) {
-            JtJ(i, j) = JtJ(j, i) = downloaded_result[cnt];
-            ++cnt;
-        }
-    }
-    for (int i = 0; i < 6; ++i) {
-        Jtr(i) = downloaded_result[cnt];
-        ++cnt;
-    }
-    rmse = downloaded_result[cnt];
-}
-
-void FastGlobalRegistrationCuda::Initialize(
-    geometry::PointCloud &source, geometry::PointCloud &target) {
-
+void FastGlobalRegistrationCuda::Initialize(geometry::PointCloud &source,
+                                            geometry::PointCloud &target) {
     source_.Create(VertexWithNormal, (int)source.points_.size());
     source_.Upload(source);
     target_.Create(VertexWithNormal, (int)target.points_.size());
@@ -67,21 +50,21 @@ void FastGlobalRegistrationCuda::Initialize(
 
     /* 0) Extract feature from original point clouds */
     source_feature_extractor_.Compute(
-        source, geometry::KDTreeSearchParamHybrid(0.25, 100));
+            source, geometry::KDTreeSearchParamHybrid(0.25, 100));
     target_feature_extractor_.Compute(
-        target, geometry::KDTreeSearchParamHybrid(0.25, 100));
+            target, geometry::KDTreeSearchParamHybrid(0.25, 100));
     source_features_ = source_feature_extractor_.fpfh_features_;
     target_features_ = target_feature_extractor_.fpfh_features_;
 
     /* 1) Initial Matching */
     nn_source_to_target_.BruteForceNN(source_features_, target_features_);
     corres_source_to_target_.SetCorrespondenceMatrix(
-        nn_source_to_target_.nn_idx_);
+            nn_source_to_target_.nn_idx_);
     corres_source_to_target_.Compress();
 
     nn_target_to_source_.BruteForceNN(target_features_, source_features_);
     corres_target_to_source_.SetCorrespondenceMatrix(
-        nn_target_to_source_.nn_idx_);
+            nn_target_to_source_.nn_idx_);
     corres_target_to_source_.Compress();
     UpdateDevice();
 
@@ -96,8 +79,8 @@ void FastGlobalRegistrationCuda::Initialize(
     FastGlobalRegistrationCudaKernelCaller::TupleTest(*this);
 
     double scale_global = NormalizePointClouds();
-    device_->scale_global_ = (float) scale_global;
-    device_->par_ = (float) scale_global;
+    device_->scale_global_ = (float)scale_global;
+    device_->par_ = (float)scale_global;
 
     transform_normalized_source_to_target_ = Eigen::Matrix4d::Identity();
 }
@@ -115,20 +98,20 @@ double FastGlobalRegistrationCuda::NormalizePointClouds() {
 
 namespace {
 Eigen::Matrix4d GetTransformationOriginalScale(
-    const Eigen::Matrix4d &transformation,
-    const Eigen::Vector3d &mean_source,
-    const Eigen::Vector3d &mean_target,
-    const double scale_global) {
+        const Eigen::Matrix4d &transformation,
+        const Eigen::Vector3d &mean_source,
+        const Eigen::Vector3d &mean_target,
+        const double scale_global) {
     Eigen::Matrix3d R = transformation.block<3, 3>(0, 0);
     Eigen::Vector3d t = transformation.block<3, 1>(0, 3);
     Eigen::Matrix4d transtemp = Eigen::Matrix4d::Zero();
     transtemp.block<3, 3>(0, 0) = R;
     transtemp.block<3, 1>(0, 3) =
-        -R * mean_source + t * scale_global + mean_target;
+            -R * mean_source + t * scale_global + mean_target;
     transtemp(3, 3) = 1;
     return transtemp;
 }
-} // unnamed namespace
+}  // unnamed namespace
 
 RegistrationResultCuda FastGlobalRegistrationCuda::DoSingleIteration(int iter) {
     RegistrationResultCuda result;
@@ -138,26 +121,25 @@ RegistrationResultCuda FastGlobalRegistrationCuda::DoSingleIteration(int iter) {
     if (corres_final_.size() < 10) return result;
 
     results_.Memset(0);
-    FastGlobalRegistrationCudaKernelCaller::
-    ComputeResultsAndTransformation(*this);
+    FastGlobalRegistrationCudaKernelCaller::ComputeResultsAndTransformation(
+            *this);
 
     Eigen::Matrix6d JtJ;
     Eigen::Vector6d Jtr;
     float rmse;
-    ExtractResults(JtJ, Jtr, rmse);
+    ExtractResults(results_.Download(), JtJ, Jtr, rmse);
 
     bool success;
     Eigen::VectorXd xi;
     std::tie(success, xi) = utility::SolveLinearSystemPSD(-JtJ, Jtr);
     Eigen::Matrix4d delta = utility::TransformVector6dToMatrix4d(xi);
     transform_normalized_source_to_target_ =
-        delta * transform_normalized_source_to_target_;
+            delta * transform_normalized_source_to_target_;
     source_.Transform(delta);
 
     result.transformation_ = GetTransformationOriginalScale(
-        transform_normalized_source_to_target_,
-        mean_source_, mean_target_,
-        device_->scale_global_);
+            transform_normalized_source_to_target_, mean_source_, mean_target_,
+            device_->scale_global_);
     result.inlier_rmse_ = rmse;
     utility::LogDebug("Iteration {}: inlier rmse = {}\n", iter, rmse);
 
@@ -175,5 +157,5 @@ RegistrationResultCuda FastGlobalRegistrationCuda::ComputeRegistration() {
     }
     return result;
 }
-}
-}
+}  // namespace cuda
+}  // namespace open3d

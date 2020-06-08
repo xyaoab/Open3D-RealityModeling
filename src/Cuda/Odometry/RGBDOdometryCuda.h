@@ -9,17 +9,17 @@
 #include <math.h>
 
 #include <Cuda/Common/JacobianCuda.h>
-#include <Cuda/Common/UtilsCuda.h>
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Cuda/Common/TransformCuda.h>
+#include <Cuda/Common/UtilsCuda.h>
 
 #include <Open3D/Odometry/OdometryOption.h>
 
 #include <Cuda/Camera/PinholeCameraIntrinsicCuda.h>
 #include <Cuda/Container/ArrayCuda.h>
 
-#include <Cuda/Geometry/RGBDImageCuda.h>
 #include <Cuda/Geometry/ImageCuda.h>
+#include <Cuda/Geometry/RGBDImageCuda.h>
 #include <Eigen/Eigen>
 
 namespace open3d {
@@ -52,9 +52,9 @@ namespace cuda {
 typedef ImageCudaDevice<float, 1> ImageCudaDevicef;
 typedef ImageCuda<float, 1> ImageCudaf;
 
-enum OdometryType { FRAME_TO_FRAME = 1, FRAME_TO_MODEL = 2};
+enum OdometryType { FRAME_TO_FRAME = 1, FRAME_TO_MODEL = 2 };
 
-template<size_t N>
+template <size_t N>
 class RGBDOdometryCudaDevice {
 public:
     RGBDImageCudaDevice source_input_;
@@ -107,11 +107,11 @@ public:
     __HOSTDEVICE__ inline bool IsValidDepth(float depth) {
         return
 #ifdef __CUDACC__
-            !isnan(depth)
+                !isnan(depth)
 #else
-            !std::isnan(depth)
+                !std::isnan(depth)
 #endif
-        && depth > 0 && min_depth_ <= depth && depth <= max_depth_;
+                && depth > 0 && min_depth_ <= depth && depth <= max_depth_;
     }
 
     __HOSTDEVICE__ inline bool IsValidDepthDiff(float depth_diff) {
@@ -119,30 +119,42 @@ public:
     }
 
 public:
-    __DEVICE__ bool ComputePixelwiseCorrespondence(
-        int x_source, int y_source, size_t level,
-        int &x_target, int &y_target,
-        Vector3f &X_source_on_target, float &d_target);
+    __DEVICE__ bool ComputePixelwiseCorrespondence(int x_source,
+                                                   int y_source,
+                                                   size_t level,
+                                                   int &x_target,
+                                                   int &y_target,
+                                                   Vector3f &X_source_on_target,
+                                                   float &d_target);
 
     __DEVICE__ bool ComputePixelwiseJacobianAndResidual(
-        int x_source, int y_source, int x_target, int y_target, size_t level,
-        const Vector3f &X_source_on_target, const float &d_target,
-        Vector6f &jacobian_I, Vector6f &jacobian_D,
-        float &residual_I, float &residual_D);
+            int x_source,
+            int y_source,
+            int x_target,
+            int y_target,
+            size_t level,
+            const Vector3f &X_source_on_target,
+            const float &d_target,
+            Vector6f &jacobian_I,
+            Vector6f &jacobian_D,
+            float &residual_I,
+            float &residual_D);
 
     __DEVICE__ bool ComputePixelwiseCorrespondenceAndInformationJacobian(
-        int x_source, int y_source, /* Always size 0 */
-        Vector6f &jacobian_x, Vector6f &jacobian_y, Vector6f &jacobian_z);
+            int x_source,
+            int y_source, /* Always size 0 */
+            Vector6f &jacobian_x,
+            Vector6f &jacobian_y,
+            Vector6f &jacobian_z);
 
 public:
     friend class RGBDOdometryCuda<N>;
 };
 
-template<size_t N>
+template <size_t N>
 class RGBDOdometryCuda {
 public:
     std::shared_ptr<RGBDOdometryCudaDevice<N>> device_ = nullptr;
-
 
 public:
     RGBDImageCuda source_input_;
@@ -166,13 +178,11 @@ public:
     ImageCuda<float, 3> target_vertex_[N];
     ImageCuda<float, 3> target_normal_[N];
 
-
     ImageCudaf target_depth_dx_[N];
     ImageCudaf target_depth_dy_[N];
 
     ImageCudaf target_intensity_dx_[N];
     ImageCudaf target_intensity_dy_[N];
-
 
     ArrayCuda<float> results_;
 
@@ -181,7 +191,7 @@ public:
 
 public:
     float sigma_;
-    OdometryType  odometry_type_;
+    OdometryType odometry_type_;
     odometry::OdometryOption option_;
     camera::PinholeCameraIntrinsic intrinsics_;
     Eigen::Matrix4d transform_source_to_target_;
@@ -191,8 +201,10 @@ public:
     RGBDOdometryCuda();
     ~RGBDOdometryCuda();
 
-    void SetParameters(const odometry::OdometryOption &option,
-                       float sigma = 0.5f, OdometryType odometry_type = OdometryType::FRAME_TO_FRAME);
+    void SetParameters(
+            const odometry::OdometryOption &option,
+            float sigma = 0.5f,
+            OdometryType odometry_type = OdometryType::FRAME_TO_FRAME);
     void SetIntrinsics(camera::PinholeCameraIntrinsic intrinsics);
 
     bool Create(int width, int height);
@@ -204,14 +216,13 @@ public:
     void Initialize(RGBDImageCuda &source, RGBDImageCuda &target);
 
     //! Frame to model tracking
-    void Initialize(RGBDImageCuda &source, ImageCuda<float, 3> &target_vertex,
-            ImageCuda<float, 3> &target_normals, ImageCuda<uchar, 3> &target_color);
+    void Initialize(RGBDImageCuda &source,
+                    ImageCuda<float, 3> &target_vertex,
+                    ImageCuda<float, 3> &target_normals,
+                    ImageCuda<uchar, 3> &target_color);
 
-    std::tuple<bool, Eigen::Matrix4d, float> DoSingleIteration(
-        size_t level, int iter);
-    void ExtractResults(std::vector<float> &results,
-                        Eigen::Matrix6d &JtJ, Eigen::Vector6d &Jtr,
-                        float &loss, float &inliers);
+    std::tuple<bool, Eigen::Matrix4d, float> DoSingleIteration(size_t level,
+                                                               int iter);
 
     std::tuple<bool, Eigen::Matrix4d, std::vector<std::vector<float>>>
     ComputeMultiScale();
@@ -219,7 +230,7 @@ public:
     Eigen::Matrix6d ComputeInformationMatrix();
 };
 
-template<size_t N>
+template <size_t N>
 class RGBDOdometryCudaKernelCaller {
 public:
     static void DoSingleIteration(RGBDOdometryCuda<N> &odometry, size_t level);
@@ -240,38 +251,36 @@ public:
     static void NormalizeIntensity(RGBDOdometryCuda<N> &odometry);
 };
 
-template<size_t N>
-__GLOBAL__
-void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry, size_t level);
+template <size_t N>
+__GLOBAL__ void DoSingleIterationKernel(RGBDOdometryCudaDevice<N> odometry,
+                                        size_t level);
 
-template<size_t N>
-__GLOBAL__
-void ComputeInformationMatrixKernel(RGBDOdometryCudaDevice<N> odometry);
+template <size_t N>
+__GLOBAL__ void ComputeInformationMatrixKernel(
+        RGBDOdometryCudaDevice<N> odometry);
 
-template<size_t N>
-__GLOBAL__
-void PreprocessInputKernel(RGBDOdometryCudaDevice<N> odometry,
-                           ImageCudaDevicef source_depth_preprocessed,
-                           ImageCudaDevicef source_intensity_preprocessed,
-                           ImageCudaDevicef target_depth_preprocessed,
-                           ImageCudaDevicef target_intensity_preprocessed);
+template <size_t N>
+__GLOBAL__ void PreprocessInputKernel(
+        RGBDOdometryCudaDevice<N> odometry,
+        ImageCudaDevicef source_depth_preprocessed,
+        ImageCudaDevicef source_intensity_preprocessed,
+        ImageCudaDevicef target_depth_preprocessed,
+        ImageCudaDevicef target_intensity_preprocessed);
 
 //! For Frame to model
-template<size_t N>
-__GLOBAL__
-void PreprocessInputKernel(RGBDOdometryCudaDevice<N> odometry,
-                           ImageCudaDevicef source_depth_preprocessed,
-                           ImageCudaDevicef source_intensity_preprocessed,
-                           ImageCudaDevicef target_intensity_preprocessed);
-template<size_t N>
-__GLOBAL__
-void NormalizeIntensityKernel(RGBDOdometryCudaDevice<N> odometry,
-                              ArrayCudaDevice<float> means);
-
-template<size_t N>
-__GLOBAL__
-void ComputeInitCorrespondenceMeanKernel(RGBDOdometryCudaDevice<N> odometry,
+template <size_t N>
+__GLOBAL__ void PreprocessInputKernel(
+        RGBDOdometryCudaDevice<N> odometry,
+        ImageCudaDevicef source_depth_preprocessed,
+        ImageCudaDevicef source_intensity_preprocessed,
+        ImageCudaDevicef target_intensity_preprocessed);
+template <size_t N>
+__GLOBAL__ void NormalizeIntensityKernel(RGBDOdometryCudaDevice<N> odometry,
                                          ArrayCudaDevice<float> means);
 
-} // cuda
-} // open3d
+template <size_t N>
+__GLOBAL__ void ComputeInitCorrespondenceMeanKernel(
+        RGBDOdometryCudaDevice<N> odometry, ArrayCudaDevice<float> means);
+
+}  // namespace cuda
+}  // namespace open3d
