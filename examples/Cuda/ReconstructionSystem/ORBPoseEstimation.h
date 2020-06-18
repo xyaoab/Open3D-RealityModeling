@@ -37,7 +37,7 @@ cv::Mat drawMatches(
     left.copyTo(tmp);
     tmp = out(cv::Rect(left.cols, 0, right.cols, right.rows));
     right.copyTo(tmp);
-    cv::cvtColor(out, out, CV_GRAY2BGR);
+    cv::cvtColor(out, out, cv::COLOR_GRAY2BGR);
 
     for (int j = 0; j < inliers.size(); ++j) {
         int i = inliers[j];
@@ -173,7 +173,7 @@ cv::Mat drawMatches(
     left.copyTo(tmp);
     tmp = out(cv::Rect(left.cols, 0, right.cols, right.rows));
     right.copyTo(tmp);
-    cv::cvtColor(out, out, CV_GRAY2BGR);
+    cv::cvtColor(out, out, cv::COLOR_GRAY2BGR);
 
     for (int j = 0; j < inliers.size(); ++j) {
         if (inliers[j]) continue;

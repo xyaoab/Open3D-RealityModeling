@@ -283,4 +283,5 @@ __GLOBAL__ void ComputeInitCorrespondenceMeanKernel(
         RGBDOdometryCudaDevice<N> odometry, ArrayCudaDevice<float> means);
 
 }  // namespace cuda
-}  // namespace open3d
+}
+// namespace open3d

@@ -387,7 +387,6 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
             "> Level {}, iter {}: loss = {}, avg loss = {}, "
             "inliers = {}",
             level, iter, loss, loss / inliers, inliers);
-
     bool is_success;
     Eigen::Matrix4d extrinsic;
     std::tie(is_success, extrinsic) =

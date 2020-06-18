@@ -25,6 +25,7 @@ add_source_group(Registration)
 add_source_group(IO)
 add_source_group(Odometry)
 add_source_group(Visualization)
+add_source_group(OSLAMUtils)
 
 # and also for cuda
 add_cuda_source_group(Common)
@@ -36,6 +37,7 @@ add_cuda_source_group(Registration)
 add_cuda_source_group(IO)
 add_cuda_source_group(Odometry)
 add_cuda_source_group(Visualization)
+add_cuda_source_group(OSLAMUtils)
 
 # create (should be static) library
 set(OPEN3D_CUDA_MODULE "Open3DCuda" CACHE STRING "CUDA component library")
@@ -58,6 +60,12 @@ add_library(${OPEN3D_CUDA_MODULE}
 # open3d_show_and_abort_on_warning(${OPEN3D_CUDA_MODULE})
 open3d_set_global_properties(${OPEN3D_CUDA_MODULE})
 open3d_link_3rdparty_libraries(${OPEN3D_CUDA_MODULE})
+# Build with legacy opencv support
+if(CUDA_WITH_OPENCV)
+    find_package(OpenCV REQUIRED)
+    target_link_libraries(${OPEN3D_CUDA_MODULE} PUBLIC ${OpenCV_LIBS})
+    target_compile_definitions(${OPEN3D_CUDA_MODULE} PUBLIC USE_OPENCV)
+endif()
 
 add_library(${PROJECT_NAME}::${OPEN3D_CUDA_MODULE} ALIAS ${OPEN3D_CUDA_MODULE})
 

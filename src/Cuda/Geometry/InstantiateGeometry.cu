@@ -3,7 +3,6 @@
 #include "PointCloudCudaKernel.cuh"
 #include "TriangleMeshCudaKernel.cuh"
 #include "NNCudaKernel.cuh"
-#include "SegmentationCudaKernel.cuh"
 #include "RGBDImageCudaKernel.cuh"
 
 #include <Cuda/Common/LinearAlgebraCuda.h>

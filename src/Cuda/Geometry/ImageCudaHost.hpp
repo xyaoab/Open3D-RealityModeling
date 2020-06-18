@@ -112,6 +112,20 @@ bool ImageCuda<Scalar, Channel>::Create(int width, int height) {
 }
 
 template <typename Scalar, size_t Channel>
+bool ImageCuda<Scalar, Channel>::Create(
+        int width, int height, int val) {
+    bool success = Create(width, height);
+
+    if (success) {
+        CheckCuda(cudaMemset2D(device_->data_, size_t(pitch_), val,
+                               sizeof(VectorCuda<Scalar, Channel>) * width_,
+                               (size_t)height_));
+        return true;
+    }
+    return false;
+}
+
+template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Release() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     if (device_ != nullptr) {
@@ -413,7 +427,7 @@ void ImageCuda<Scalar, Channel>::ConvertRGBToIntensity(
 #ifdef USE_OPENCV
 /** Legacy **/
 template <typename Scalar, size_t Channel>
-void ImageCuda<Scalar, Channel>::Upload(cv::Mat &m) {
+void ImageCuda<Scalar, Channel>::Upload(const cv::Mat &m) {
     assert(m.rows > 0 && m.cols > 0);
 
     /* Type checking */

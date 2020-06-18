@@ -109,6 +109,7 @@ public:
      *         false if size is incompatible
      */
     bool Create(int width, int height);
+    bool Create(int width, int height, int val);
     void Release();
     void UpdateDevice();
 
@@ -157,7 +158,7 @@ public:
 
     /********** Legacy **********/
 #ifdef USE_OPENCV
-    void Upload(cv::Mat &m);
+    void Upload(const cv::Mat &m);
     cv::Mat DownloadMat();
 #endif
 };

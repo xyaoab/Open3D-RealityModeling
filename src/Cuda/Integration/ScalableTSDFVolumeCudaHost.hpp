@@ -331,7 +331,8 @@ void ScalableTSDFVolumeCuda::Integrate(
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world);
     utility::LogInfo("Active subvolumes in volume: {}", active_subvolume_entry_array_.size());
-    IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
+    if(active_subvolume_entry_array_.size() > 0)
+        IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::RayCasting(
