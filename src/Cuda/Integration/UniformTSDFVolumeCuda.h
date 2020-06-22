@@ -6,12 +6,12 @@
 
 #include "IntegrationClasses.h"
 
-#include <Cuda/Geometry/ImageCuda.h>
 #include <Cuda/Camera/PinholeCameraIntrinsicCuda.h>
-#include <Cuda/Geometry/RGBDImageCuda.h>
-#include <Cuda/Common/TransformCuda.h>
-#include <Cuda/Geometry/TriangleMeshCuda.h>
 #include <Cuda/Common/LinearAlgebraCuda.h>
+#include <Cuda/Common/TransformCuda.h>
+#include <Cuda/Geometry/ImageCuda.h>
+#include <Cuda/Geometry/RGBDImageCuda.h>
+#include <Cuda/Geometry/TriangleMeshCuda.h>
 
 #include <cstdlib>
 #include <memory>
@@ -27,6 +27,7 @@ public:
     float *tsdf_;
     uchar *weight_;
     Vector3b *color_;
+    float *logit_;
 
 public:
     /** According to UniformTSDFVolume.cpp,
@@ -60,10 +61,13 @@ public:
 
 public:
     /** Direct index accessing
-      * - for efficiency ignore index checking in these functions
-      * - check them outside **/
+     * - for efficiency ignore index checking in these functions
+     * - check them outside **/
     __DEVICE__ inline float &tsdf(const Vector3i &X) {
         return tsdf_[IndexOf(X)];
+    }
+    __DEVICE__ inline float &logit(const Vector3i &X) {
+        return logit_[IndexOf(X)];
     }
     __DEVICE__ inline uchar &weight(const Vector3i &X) {
         return weight_[IndexOf(X)];
@@ -88,6 +92,7 @@ public:
 public:
     /** Value interpolating **/
     __DEVICE__ float TSDFAt(const Vector3f &X);
+    __DEVICE__ float LogitAt(const Vector3f &X);
     __DEVICE__ uchar WeightAt(const Vector3f &X);
     __DEVICE__ Vector3b ColorAt(const Vector3f &X);
     __DEVICE__ Vector3f GradientAt(const Vector3f &X);
@@ -107,7 +112,6 @@ public:
     friend class ScalableTSDFVolumeCuda;
 };
 
-
 class UniformTSDFVolumeCuda {
 public:
     std::shared_ptr<UniformTSDFVolumeCudaDevice> device_ = nullptr;
@@ -121,7 +125,9 @@ public:
 
 public:
     UniformTSDFVolumeCuda();
-    UniformTSDFVolumeCuda(int N, float voxel_length, float sdf_trunc,
+    UniformTSDFVolumeCuda(int N,
+                          float voxel_length,
+                          float sdf_trunc,
                           TransformCuda &volume_to_world);
     UniformTSDFVolumeCuda(const UniformTSDFVolumeCuda &other);
     UniformTSDFVolumeCuda &operator=(const UniformTSDFVolumeCuda &other);
@@ -148,22 +154,19 @@ public:
                     TransformCuda &transform_camera_to_world);
 };
 
-
 class UniformTSDFVolumeCudaKernelCaller {
 public:
     static void Reset(UniformTSDFVolumeCuda &volume);
 
-    static void Integrate(
-        UniformTSDFVolumeCuda &volume,
-        RGBDImageCuda &rgbd,
-        PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world);
+    static void Integrate(UniformTSDFVolumeCuda &volume,
+                          RGBDImageCuda &rgbd,
+                          PinholeCameraIntrinsicCuda &camera,
+                          TransformCuda &transform_camera_to_world);
 
-    static void RayCasting(
-        UniformTSDFVolumeCuda &volume,
-        ImageCuda<float, 3> &image,
-        PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world);
+    static void RayCasting(UniformTSDFVolumeCuda &volume,
+                           ImageCuda<float, 3> &image,
+                           PinholeCameraIntrinsicCuda &camera,
+                           TransformCuda &transform_camera_to_world);
 };
 
 __GLOBAL__
@@ -175,11 +178,10 @@ void IntegrateKernel(UniformTSDFVolumeCudaDevice server,
                      PinholeCameraIntrinsicCuda camera,
                      TransformCuda transform_camera_to_world);
 
-
 __GLOBAL__
 void RayCastingKernel(UniformTSDFVolumeCudaDevice server,
                       ImageCudaDevice<float, 3> image,
                       PinholeCameraIntrinsicCuda camera,
                       TransformCuda transform_camera_to_world);
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d

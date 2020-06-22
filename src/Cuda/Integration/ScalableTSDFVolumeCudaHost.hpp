@@ -2,10 +2,10 @@
 // Created by wei on 11/9/18.
 //
 
+#include <Open3D/Utility/Console.h>
 #include <cuda_runtime.h>
 #include <Cuda/Container/HashTableCudaHost.hpp>
 #include "ScalableTSDFVolumeCuda.h"
-#include <Open3D/Utility/Console.h>
 
 namespace open3d {
 namespace cuda {
@@ -95,6 +95,8 @@ void ScalableTSDFVolumeCuda::Create(int N,
     const int NNN = N_ * N_ * N_;
     CheckCuda(cudaMalloc(&device_->tsdf_memory_pool_,
                          sizeof(float) * NNN * value_capacity));
+    CheckCuda(cudaMalloc(&device_->logit_memory_pool_,
+                         sizeof(float) * NNN * value_capacity));
     CheckCuda(cudaMalloc(&device_->weight_memory_pool_,
                          sizeof(uchar) * NNN * value_capacity));
     CheckCuda(cudaMalloc(&device_->color_memory_pool_,
@@ -114,6 +116,8 @@ void ScalableTSDFVolumeCuda::Reset() {
     const int NNN = N_ * N_ * N_;
     CheckCuda(cudaMemset(device_->tsdf_memory_pool_, 0,
                          sizeof(float) * NNN * value_capacity_));
+    CheckCuda(cudaMemset(device_->logit_memory_pool_, 0,
+                         sizeof(float) * NNN * value_capacity_));
     CheckCuda(cudaMemset(device_->weight_memory_pool_, 0,
                          sizeof(uchar) * NNN * value_capacity_));
     CheckCuda(cudaMemset(device_->color_memory_pool_, 0,
@@ -123,6 +127,7 @@ void ScalableTSDFVolumeCuda::Reset() {
 void ScalableTSDFVolumeCuda::Release() {
     if (device_ != nullptr && device_.use_count() == 1) {
         CheckCuda(cudaFree(device_->tsdf_memory_pool_));
+        CheckCuda(cudaFree(device_->logit_memory_pool_));
         CheckCuda(cudaFree(device_->weight_memory_pool_));
         CheckCuda(cudaFree(device_->color_memory_pool_));
         CheckCuda(cudaFree(device_->active_subvolume_indices_));
@@ -330,20 +335,21 @@ void ScalableTSDFVolumeCuda::Integrate(
 
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world);
-    utility::LogInfo("Active subvolumes in volume: {}", active_subvolume_entry_array_.size());
+    utility::LogInfo("Active subvolumes in volume: {}",
+                     active_subvolume_entry_array_.size());
     IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::RayCasting(
-    ImageCuda<float, 3> &vertex,
-    ImageCuda<float, 3> &normal,
-    ImageCuda<uchar, 3> &color,
-    PinholeCameraIntrinsicCuda &camera,
-    TransformCuda &transform_camera_to_world) {
+        ImageCuda<float, 3> &vertex,
+        ImageCuda<float, 3> &normal,
+        ImageCuda<uchar, 3> &color,
+        PinholeCameraIntrinsicCuda &camera,
+        TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::RayCasting(
-        *this, vertex, normal, color, camera, transform_camera_to_world);
+            *this, vertex, normal, color, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::VolumeRendering(

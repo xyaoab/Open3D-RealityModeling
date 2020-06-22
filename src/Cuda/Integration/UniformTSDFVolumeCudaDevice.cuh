@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "UniformTSDFVolumeCuda.h"
 #include <Cuda/Common/UtilsCuda.h>
 #include <Cuda/Geometry/ImageCudaDevice.cuh>
+#include "UniformTSDFVolumeCuda.h"
 
 namespace open3d {
 namespace cuda {
@@ -97,6 +97,27 @@ __device__ float UniformTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
                             r(2) * tsdf_[IndexOf(Xi + Vector3i(1, 0, 1))]) +
                    r(1) * ((1 - r(2)) * tsdf_[IndexOf(Xi + Vector3i(1, 1, 0))] +
                            r(2) * tsdf_[IndexOf(Xi + Vector3i(1, 1, 1))]));
+}
+
+__device__ float UniformTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
+    Vector3i Xi = X.template cast<int>();
+    Vector3f r = X - Xi.template cast<float>();
+
+    return (1 - r(0)) *
+                   ((1 - r(1)) *
+                            ((1 - r(2)) *
+                                     logit_[IndexOf(Xi + Vector3i(0, 0, 0))] +
+                             r(2) * logit_[IndexOf(Xi + Vector3i(0, 0, 1))]) +
+                    r(1) * ((1 - r(2)) *
+                                    logit_[IndexOf(Xi + Vector3i(0, 1, 0))] +
+                            r(2) * logit_[IndexOf(Xi + Vector3i(0, 1, 1))])) +
+           r(0) * ((1 - r(1)) *
+                           ((1 - r(2)) *
+                                    logit_[IndexOf(Xi + Vector3i(1, 0, 0))] +
+                            r(2) * logit_[IndexOf(Xi + Vector3i(1, 0, 1))]) +
+                   r(1) * ((1 - r(2)) *
+                                   logit_[IndexOf(Xi + Vector3i(1, 1, 0))] +
+                           r(2) * logit_[IndexOf(Xi + Vector3i(1, 1, 1))]));
 }
 
 __device__ uchar UniformTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {
@@ -238,7 +259,8 @@ __device__ Vector3f UniformTSDFVolumeCudaDevice::RayCasting(
         float tsdf_curr = this->tsdf(X_t.template cast<int>());
 
         float step_size = voxel_length_;
-//                tsdf_curr == 0 ? sdf_trunc_ : fmaxf(tsdf_curr, voxel_length_);
+        //                tsdf_curr == 0 ? sdf_trunc_ : fmaxf(tsdf_curr,
+        //                voxel_length_);
 
         if (tsdf_prev > 0 && tsdf_curr < 0) { /** Zero crossing **/
             float t_intersect = (t_curr * tsdf_prev - t_prev * tsdf_curr) /
@@ -249,9 +271,9 @@ __device__ Vector3f UniformTSDFVolumeCudaDevice::RayCasting(
             Vector3f normal_v_t = GradientAt(X_surface_t).normalized();
 
             return ColorAt(X_surface_t).cast<float>();
-//            return transform_camera_to_world.Inverse()
-//                    .Rotate(transform_volume_to_world_.Rotate(normal_v_t))
-//                    .normalized();
+            //            return transform_camera_to_world.Inverse()
+            //                    .Rotate(transform_volume_to_world_.Rotate(normal_v_t))
+            //                    .normalized();
         }
 
         tsdf_prev = tsdf_curr;
