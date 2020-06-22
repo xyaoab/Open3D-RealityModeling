@@ -19,6 +19,7 @@ __global__ void ResetUniformTSDFVolumeKernel(
 
     Vector3i X = Vector3i(x, y, z);
     server.tsdf(X) = 1.0f;
+    server.logit(X) = 0.0f;
 }
 
 __host__ void UniformTSDFVolumeCudaKernelCaller::Reset(
@@ -72,10 +73,11 @@ __global__ void RayCastingKernel(UniformTSDFVolumeCudaDevice server,
     Vector3f n = server.RayCasting(p, camera, transform_camera_to_world);
 
     image.at(x, y) = n;
-//            (n == Vector3f::Zeros())
-//                             ? n
-//                             : Vector3f((n(0) + 1) * 0.5f, (n(1) + 1) * 0.5f,
-//                                        (n(2) + 1) * 0.5f);
+    //            (n == Vector3f::Zeros())
+    //                             ? n
+    //                             : Vector3f((n(0) + 1) * 0.5f, (n(1) + 1) *
+    //                             0.5f,
+    //                                        (n(2) + 1) * 0.5f);
 }
 
 void UniformTSDFVolumeCudaKernelCaller::RayCasting(

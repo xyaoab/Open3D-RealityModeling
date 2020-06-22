@@ -287,10 +287,14 @@ void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source,
                                      ImageCuda<float, 3> &target_vertex,
                                      ImageCuda<float, 3> &target_normal,
                                      ImageCuda<uchar, 3> &target_color) {
-    assert(source.width_ == target_vertex.width_ == target_normal.width_ ==
-           target_color.width_);
-    assert(source.height_ == target_vertex.height_ == target_normal.height_ ==
-           target_color.width_);
+    utility::LogInfo("{}, {}, {}, {}", source.width_, target_vertex.width_, target_normal.width_, target_color.width_);
+    assert((source.width_ == target_vertex.width_) &&
+           (source.width_ == target_normal.width_) &&
+           (source.width_ == target_color.width_));
+    assert((source.height_ == target_vertex.height_) &&
+           (source.height_ == target_normal.height_) &&
+           (source.width_ == target_color.width_));
+
     if (odometry_type_ == OdometryType::FRAME_TO_FRAME) {
         utility::LogError(
                 "[RGBDOdometryCuda] Frame to Frame requires Initialize() with "

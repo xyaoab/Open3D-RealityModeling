@@ -4,8 +4,8 @@
 
 #pragma once
 #include <Cuda/Common/Palatte.h>
-#include "ScalableTSDFVolumeCudaDevice.cuh"
 #include <math_constants.h>
+#include "ScalableTSDFVolumeCudaDevice.cuh"
 
 namespace open3d {
 namespace cuda {
@@ -24,6 +24,7 @@ __global__ void CreateKernel(ScalableTSDFVolumeCudaDevice server) {
 
     /** Assign memory **/
     subvolume.tsdf_ = &server.tsdf_memory_pool_[offset];
+    subvolume.tsdf_ = &server.logit_memory_pool_[offset];
     subvolume.weight_ = &server.weight_memory_pool_[offset];
     subvolume.color_ = &server.color_memory_pool_[offset];
 
@@ -201,13 +202,12 @@ __host__ void ScalableTSDFVolumeCudaKernelCaller::GetAllSubvolumes(
     CheckCuda(cudaGetLastError());
 }
 
-__global__
-void RayCastingKernel(ScalableTSDFVolumeCudaDevice server,
-                      ImageCudaDevice<float, 3> vertex,
-                      ImageCudaDevice<float, 3> normal,
-                      ImageCudaDevice<uchar, 3> color,
-                      PinholeCameraIntrinsicCuda camera,
-                      TransformCuda transform_camera_to_world) {
+__global__ void RayCastingKernel(ScalableTSDFVolumeCudaDevice server,
+                                 ImageCudaDevice<float, 3> vertex,
+                                 ImageCudaDevice<float, 3> normal,
+                                 ImageCudaDevice<uchar, 3> color,
+                                 PinholeCameraIntrinsicCuda camera,
+                                 TransformCuda transform_camera_to_world) {
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
 
@@ -216,32 +216,32 @@ void RayCastingKernel(ScalableTSDFVolumeCudaDevice server,
     Vector2i p = Vector2i(x, y);
     Vector3f v, n;
     Vector3b c;
-    bool mask = server.RayCasting(p, v, n, c, camera, transform_camera_to_world);
-    if(!mask)
-    {
+    bool mask =
+            server.RayCasting(p, v, n, c, camera, transform_camera_to_world);
+    if (!mask) {
         vertex.at(x, y) = Vector3f(nanf("nan"));
         normal.at(x, y) = Vector3f(nanf("nan"));
-        color.at(x, y)  = Vector3b(0);
+        color.at(x, y) = Vector3b(0);
         return;
     }
     vertex.at(x, y) = v;
     normal.at(x, y) = n;
-    color.at(x, y)  = c;
+    color.at(x, y) = c;
 }
 
-__host__
-void ScalableTSDFVolumeCudaKernelCaller::RayCasting(
-    ScalableTSDFVolumeCuda &volume,
-    ImageCuda<float, 3> &vertex,
-    ImageCuda<float, 3> &normal,
-    ImageCuda<uchar, 3> &color,
-    PinholeCameraIntrinsicCuda &camera,
-    TransformCuda &transform_camera_to_world) {
+__host__ void ScalableTSDFVolumeCudaKernelCaller::RayCasting(
+        ScalableTSDFVolumeCuda &volume,
+        ImageCuda<float, 3> &vertex,
+        ImageCuda<float, 3> &normal,
+        ImageCuda<uchar, 3> &color,
+        PinholeCameraIntrinsicCuda &camera,
+        TransformCuda &transform_camera_to_world) {
     const dim3 blocks(DIV_CEILING(vertex.width_, THREAD_2D_UNIT),
                       DIV_CEILING(vertex.height_, THREAD_2D_UNIT));
     const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
-    RayCastingKernel << < blocks, threads >> > (
-        *volume.device_, *vertex.device_, *normal.device_, *color.device_, camera, transform_camera_to_world);
+    RayCastingKernel<<<blocks, threads>>>(*volume.device_, *vertex.device_,
+                                          *normal.device_, *color.device_,
+                                          camera, transform_camera_to_world);
     CheckCuda(cudaDeviceSynchronize());
     CheckCuda(cudaGetLastError());
 }

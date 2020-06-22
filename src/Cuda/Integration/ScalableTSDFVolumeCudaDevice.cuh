@@ -98,6 +98,14 @@ __device__ float &ScalableTSDFVolumeCudaDevice::tsdf(const Vector3i &X) {
                    : subvolume->tsdf(voxel_global_to_local(X, Xsv));
 }
 
+__device__ float &ScalableTSDFVolumeCudaDevice::logit(const Vector3i &X) {
+    Vector3i Xsv = voxel_locate_subvolume(X);
+    UniformTSDFVolumeCudaDevice *subvolume = QuerySubvolume(Xsv);
+    return subvolume == nullptr
+                   ? logit_dummy_
+                   : subvolume->logit(voxel_global_to_local(X, Xsv));
+}
+
 __device__ uchar &ScalableTSDFVolumeCudaDevice::weight(const Vector3i &X) {
     Vector3i Xsv = voxel_locate_subvolume(X);
     UniformTSDFVolumeCudaDevice *subvolume = QuerySubvolume(Xsv);
@@ -129,6 +137,21 @@ __device__ float ScalableTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
                                  r(2) * tsdf(Xi + Vector3i(1, 0, 1))) +
                    r(1) * ((1 - r(2)) * tsdf(Xi + Vector3i(1, 1, 0)) +
                            r(2) * tsdf(Xi + Vector3i(1, 1, 1))));
+}
+
+__device__ float ScalableTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
+    Vector3i Xi = X.template cast<int>();
+    Vector3f r = Vector3f(X(0) - Xi(0), X(1) - Xi(1), X(2) - Xi(2));
+
+    return (1 - r(0)) *
+                   ((1 - r(1)) * ((1 - r(2)) * logit(Xi + Vector3i(0, 0, 0)) +
+                                  r(2) * logit(Xi + Vector3i(0, 0, 1))) +
+                    r(1) * ((1 - r(2)) * logit(Xi + Vector3i(0, 1, 0)) +
+                            r(2) * logit(Xi + Vector3i(0, 1, 1)))) +
+           r(0) * ((1 - r(1)) * ((1 - r(2)) * logit(Xi + Vector3i(1, 0, 0)) +
+                                 r(2) * logit(Xi + Vector3i(1, 0, 1))) +
+                   r(1) * ((1 - r(2)) * logit(Xi + Vector3i(1, 1, 0)) +
+                           r(2) * logit(Xi + Vector3i(1, 1, 1))));
 }
 
 __device__ uchar ScalableTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {
@@ -337,6 +360,52 @@ __device__ float ScalableTSDFVolumeCudaDevice::TSDFOnBoundaryAt(
     }
 
     return sum_weight_interp > 0 ? sum_tsdf / sum_weight_interp : 0;
+}
+
+__device__ float ScalableTSDFVolumeCudaDevice::LogitOnBoundaryAt(
+        const Vector3f &Xlocal,
+        UniformTSDFVolumeCudaDevice **cached_subvolumes) {
+    /** X in range: [-1, N_ + 1) **/
+#ifdef CUDA_DEBUG_ENABLE_ASSERTION
+    assert(-1 <= Xlocal(0) && Xlocal(0) < N_ + 1);
+    assert(-1 <= Xlocal(1) && Xlocal(1) < N_ + 1);
+    assert(-1 <= Xlocal(2) && Xlocal(2) < N_ + 1);
+#endif
+
+    const Vector3i Xlocali = Xlocal.template cast<int>();
+    Vector3f r = Vector3f(Xlocal(0) - Xlocali(0), Xlocal(1) - Xlocali(1),
+                          Xlocal(2) - Xlocali(2));
+    Vector3f rneg = Vector3f(1.0f - r(0), 1.0f - r(1), 1.0f - r(2));
+
+    float sum_weight_interp = 0;
+    float sum_logit = 0;
+
+    for (size_t k = 0; k < 8; ++k) {
+        Vector3i offset_k = Vector3i(shift[k][0], shift[k][1], shift[k][2]);
+        Vector3i Xlocali_k = Xlocali + offset_k;
+
+        Vector3i dXsv_k = NeighborOffsetOfBoundaryVoxel(Xlocali_k);
+        UniformTSDFVolumeCudaDevice *subvolume =
+                cached_subvolumes[LinearizeNeighborOffset(dXsv_k)];
+
+        float logit_k = (subvolume == nullptr)
+                                ? 0.0f
+                                : subvolume->logit(BoundaryVoxelInNeighbor(
+                                          Xlocali_k, dXsv_k));
+        float weight_interp_k =
+                (subvolume == nullptr)
+                        ? 0.0f
+                        : (rneg(0) * (1 - offset_k(0)) + r(0) * offset_k(0)) *
+                                  (rneg(1) * (1 - offset_k(1)) +
+                                   r(1) * offset_k(1)) *
+                                  (rneg(2) * (1 - offset_k(2)) +
+                                   r(2) * offset_k(2));
+
+        sum_logit += weight_interp_k * logit_k;
+        sum_weight_interp += weight_interp_k;
+    }
+
+    return sum_weight_interp > 0 ? sum_logit / sum_weight_interp : 0;
 }
 
 __device__ uchar ScalableTSDFVolumeCudaDevice::WeightOnBoundaryAt(
@@ -592,6 +661,8 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     uchar &weight_sum = subvolume->weight(Xlocal);
     Vector3b &color_sum = subvolume->color(Xlocal);
 
+    /// TODO: add logit update here
+    /// Maybe we can replace weight with logit-related computation too
     float w0 = 1 / (weight_sum + 1.0f);
     float w1 = 1 - w0;
 

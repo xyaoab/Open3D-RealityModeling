@@ -32,12 +32,14 @@ public:
 
     /** (N * N * N) * value_capacity **/
     float *tsdf_memory_pool_;
+    float *logit_memory_pool_;
     uchar *weight_memory_pool_;
     Vector3b *color_memory_pool_;
 
     /** These are return values when subvolume is null.
      *  Refer to tsdf(), etc **/
     float tsdf_dummy_ = 0;
+    float logit_dummy_ = 0;
     uchar weight_dummy_ = 0;
     Vector3b color_dummy_ = Vector3b(0);
 
@@ -101,10 +103,12 @@ public:
     /** Unoptimized access and interpolation
      * (required hash-table access every access, good for RayCasting) **/
     __DEVICE__ float &tsdf(const Vector3i &X);
+    __DEVICE__ float &logit(const Vector3i &X);
     __DEVICE__ uchar &weight(const Vector3i &X);
     __DEVICE__ Vector3b &color(const Vector3i &X);
 
     __DEVICE__ float TSDFAt(const Vector3f &X);
+    __DEVICE__ float LogitAt(const Vector3f &X);
     __DEVICE__ uchar WeightAt(const Vector3f &X);
     __DEVICE__ Vector3b ColorAt(const Vector3f &X);
     __DEVICE__ Vector3f GradientAt(const Vector3f &X);
@@ -187,6 +191,10 @@ public:
     __DEVICE__ float TSDFOnBoundaryAt(
             const Vector3f &Xlocal,
             UniformTSDFVolumeCudaDevice **cached_subvolumes);
+    __DEVICE__ float LogitOnBoundaryAt(
+            const Vector3f &Xlocal,
+            UniformTSDFVolumeCudaDevice **cached_subvolumes);
+
     __DEVICE__ uchar
     WeightOnBoundaryAt(const Vector3f &Xlocal,
                        UniformTSDFVolumeCudaDevice **cached_subvolumes);
@@ -208,14 +216,15 @@ public:
                               PinholeCameraIntrinsicCuda &camera,
                               TransformCuda &transform_camera_to_world);
     __DEVICE__ bool RayCasting(const Vector2i &p,
-                               Vector3f& v,
-                               Vector3f& n,
-                               Vector3b& c,
+                               Vector3f &v,
+                               Vector3f &n,
+                               Vector3b &c,
                                PinholeCameraIntrinsicCuda &camera,
                                TransformCuda &transform_camera_to_world);
-    __DEVICE__ Vector3f VolumeRendering(const Vector2i &p,
-                                        PinholeCameraIntrinsicCuda &camera,
-                                        TransformCuda &transform_camera_to_world);
+    __DEVICE__ Vector3f
+    VolumeRendering(const Vector2i &p,
+                    PinholeCameraIntrinsicCuda &camera,
+                    TransformCuda &transform_camera_to_world);
 
 public:
     friend class ScalableTSDFVolumeCuda;
