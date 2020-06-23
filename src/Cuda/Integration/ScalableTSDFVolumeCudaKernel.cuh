@@ -24,7 +24,7 @@ __global__ void CreateKernel(ScalableTSDFVolumeCudaDevice server) {
 
     /** Assign memory **/
     subvolume.tsdf_ = &server.tsdf_memory_pool_[offset];
-    subvolume.tsdf_ = &server.logit_memory_pool_[offset];
+    subvolume.logit_ = &server.logit_memory_pool_[offset];
     subvolume.weight_ = &server.weight_memory_pool_[offset];
     subvolume.color_ = &server.color_memory_pool_[offset];
 
