@@ -100,24 +100,8 @@ __device__ float UniformTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
 }
 
 __device__ float UniformTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
-    Vector3i Xi = X.template cast<int>();
-    Vector3f r = X - Xi.template cast<float>();
-
-    return (1 - r(0)) *
-                   ((1 - r(1)) *
-                            ((1 - r(2)) *
-                                     logit_[IndexOf(Xi + Vector3i(0, 0, 0))] +
-                             r(2) * logit_[IndexOf(Xi + Vector3i(0, 0, 1))]) +
-                    r(1) * ((1 - r(2)) *
-                                    logit_[IndexOf(Xi + Vector3i(0, 1, 0))] +
-                            r(2) * logit_[IndexOf(Xi + Vector3i(0, 1, 1))])) +
-           r(0) * ((1 - r(1)) *
-                           ((1 - r(2)) *
-                                    logit_[IndexOf(Xi + Vector3i(1, 0, 0))] +
-                            r(2) * logit_[IndexOf(Xi + Vector3i(1, 0, 1))]) +
-                   r(1) * ((1 - r(2)) *
-                                   logit_[IndexOf(Xi + Vector3i(1, 1, 0))] +
-                           r(2) * logit_[IndexOf(Xi + Vector3i(1, 1, 1))]));
+    Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
+    return logit_[IndexOf(Xround)];
 }
 
 __device__ uchar UniformTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {
