@@ -631,6 +631,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
         const Vector3i &Xlocal,
         HashEntry<Vector3i> &entry,
         RGBDImageCudaDevice &rgbd,
+        ImageCudaDevice<float, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     /** Projective data association - additional local to global transform **/
@@ -644,6 +645,9 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     if (!camera.IsPixelValid(p)) return;
     float d = rgbd.depth_.interp_at(p(0), p(1))(0);
 
+    /** Foreground-Background probability **/
+    //! TODO(Akash): Should we use interpolated value here?
+    float prob = mask_image.at(int(p(0)), int(p(1)))(0);
     float tsdf = d - Xc(2);
     if (tsdf <= -sdf_trunc_) return;
     tsdf = fminf(tsdf / sdf_trunc_, 1.0f);
@@ -660,6 +664,8 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     float &tsdf_sum = subvolume->tsdf(Xlocal);
     uchar &weight_sum = subvolume->weight(Xlocal);
     Vector3b &color_sum = subvolume->color(Xlocal);
+    float &logit_sum = subvolume->logit(Xlocal);
+
 
     /// TODO: add logit update here
     /// Maybe we can replace weight with logit-related computation too
@@ -671,6 +677,13 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
                          color(1) * w0 + color_sum(1) * w1,
                          color(2) * w0 + color_sum(2) * w1);
     weight_sum = uchar(fminf(weight_sum + 1.0f, 255.0f));
+
+    //! Uniform prior for all voxels
+    if(prob < 1)
+        logit_sum += (log(prob) - log(1 - prob));
+    else
+        //! TODO: Not sure if this is the right thing to do
+        logit_sum = 1;
 }
 
 __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
@@ -728,9 +741,14 @@ __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
              * this/cache for individual accesses */
             Vector3f X_surface_t = volume_to_voxelf(Xv_surface_t);
             normal = GradientAt(X_surface_t).normalized();
-
             color = ColorAt(X_surface_t);
-            return true;
+
+            //! Interpolation will mess log odds
+            Vector3i X_surface_ti = X_surface_t.template cast<int>();
+            if(logit(X_surface_ti) > 0.0)
+                return true;
+
+            return false;
         }
 
         tsdf_prev = tsdf_curr;

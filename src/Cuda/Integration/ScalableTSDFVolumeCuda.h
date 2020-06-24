@@ -5,6 +5,7 @@
 #pragma once
 
 #include <Cuda/Common/UtilsCuda.h>
+#include "Cuda/Geometry/GeometryClasses.h"
 #include "IntegrationClasses.h"
 
 #include <Cuda/Container/HashTableCuda.h>
@@ -213,6 +214,7 @@ public:
     __DEVICE__ void Integrate(const Vector3i &Xlocal,
                               HashEntry<Vector3i> &target_subvolume_entry,
                               RGBDImageCudaDevice &rgbd,
+                              ImageCudaDevice<float, 1> &mask_image,
                               PinholeCameraIntrinsicCuda &camera,
                               TransformCuda &transform_camera_to_world);
     __DEVICE__ bool RayCasting(const Vector2i &p,
@@ -318,6 +320,7 @@ public:
                                 TransformCuda &transform_camera_to_world);
     void GetAllSubvolumes();
     void IntegrateSubvolumes(RGBDImageCuda &rgbd,
+                             ImageCuda<float, 1> &mask_image,
                              PinholeCameraIntrinsicCuda &camera,
                              TransformCuda &transform_camera_to_world);
 
@@ -325,7 +328,8 @@ public:
 
     void Integrate(RGBDImageCuda &rgbd,
                    PinholeCameraIntrinsicCuda &camera,
-                   TransformCuda &transform_camera_to_world);
+                   TransformCuda &transform_camera_to_world,
+                   const ImageCuda<float, 1> &mask_image = ImageCuda<float, 1>());
     void RayCasting(ImageCuda<float, 3> &vertex,
                     ImageCuda<float, 3> &normal,
                     ImageCuda<uchar, 3> &color,
@@ -348,6 +352,7 @@ public:
 
     static void IntegrateSubvolumes(ScalableTSDFVolumeCuda &volume,
                                     RGBDImageCuda &rgbd,
+                                    ImageCuda<float, 1> &mask_image,
                                     PinholeCameraIntrinsicCuda &camera,
                                     TransformCuda &transform_camera_to_world);
 
@@ -386,6 +391,7 @@ void TouchSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
 __GLOBAL__
 void IntegrateSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
                                RGBDImageCudaDevice depth,
+                               ImageCudaDevice<float, 1> mask_image,
                                PinholeCameraIntrinsicCuda camera,
                                TransformCuda transform_camera_to_world);
 

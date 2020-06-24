@@ -42,7 +42,7 @@ public:
     }
 
     __HOST__ explicit PinholeCameraIntrinsicCuda(
-        camera::PinholeCameraIntrinsic &intrinsic) {
+        const camera::PinholeCameraIntrinsic &intrinsic) {
         SetIntrinsics(intrinsic);
     }
 
@@ -79,7 +79,7 @@ public:
     }
 
     __HOST__ void SetIntrinsics(
-            camera::PinholeCameraIntrinsic &intrinsic) {
+            const camera::PinholeCameraIntrinsic &intrinsic) {
         width_ = intrinsic.width_;
         height_ = intrinsic.height_;
 

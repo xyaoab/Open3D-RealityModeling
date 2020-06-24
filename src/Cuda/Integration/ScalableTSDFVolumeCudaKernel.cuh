@@ -75,6 +75,7 @@ __host__ void ScalableTSDFVolumeCudaKernelCaller::TouchSubvolumes(
 __global__ void IntegrateSubvolumesKernel(
         ScalableTSDFVolumeCudaDevice server,
         RGBDImageCudaDevice rgbd,
+        ImageCudaDevice<float, 1> mask_image,
         PinholeCameraIntrinsicCuda camera,
         TransformCuda transform_camera_to_world) {
     const size_t entry_idx = blockIdx.x;
@@ -95,7 +96,7 @@ __global__ void IntegrateSubvolumesKernel(
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(entry.internal_addr >= 0);
 #endif
-        server.Integrate(Xlocal, entry, rgbd, camera,
+        server.Integrate(Xlocal, entry, rgbd, mask_image, camera,
                          transform_camera_to_world);
     }
 }
@@ -103,12 +104,13 @@ __global__ void IntegrateSubvolumesKernel(
 __host__ void ScalableTSDFVolumeCudaKernelCaller::IntegrateSubvolumes(
         ScalableTSDFVolumeCuda &volume,
         RGBDImageCuda &rgbd,
+        ImageCuda<float, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     const dim3 blocks(volume.active_subvolume_entry_array_.size());
     const dim3 threads(volume.N_, volume.N_, volume.N_ / 4);
     IntegrateSubvolumesKernel<<<blocks, threads>>>(
-            *volume.device_, *rgbd.device_, camera, transform_camera_to_world);
+            *volume.device_, *rgbd.device_, *mask_image.device_, camera, transform_camera_to_world);
     CheckCuda(cudaDeviceSynchronize());
     CheckCuda(cudaGetLastError());
 }

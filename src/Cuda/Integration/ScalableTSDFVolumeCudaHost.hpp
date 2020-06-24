@@ -4,7 +4,9 @@
 
 #include <Open3D/Utility/Console.h>
 #include <cuda_runtime.h>
+
 #include <Cuda/Container/HashTableCudaHost.hpp>
+
 #include "ScalableTSDFVolumeCuda.h"
 
 namespace open3d {
@@ -308,12 +310,13 @@ void ScalableTSDFVolumeCuda::GetAllSubvolumes() {
 
 void ScalableTSDFVolumeCuda::IntegrateSubvolumes(
         RGBDImageCuda &rgbd,
+        ImageCuda<float, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::IntegrateSubvolumes(
-            *this, rgbd, camera, transform_camera_to_world);
+            *this, rgbd, mask_image, camera, transform_camera_to_world);
 }
 
 void ScalableTSDFVolumeCuda::ResetActiveSubvolumeIndices() {
@@ -326,7 +329,8 @@ void ScalableTSDFVolumeCuda::ResetActiveSubvolumeIndices() {
 void ScalableTSDFVolumeCuda::Integrate(
         RGBDImageCuda &rgbd,
         PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+        TransformCuda &transform_camera_to_world,
+        const ImageCuda<float, 1> &r_mask_image) {
     assert(device_ != nullptr);
 
     hash_table_.ResetLocks();
@@ -337,8 +341,16 @@ void ScalableTSDFVolumeCuda::Integrate(
     GetSubvolumesInFrustum(camera, transform_camera_to_world);
     utility::LogInfo("Active subvolumes in volume: {}",
                      active_subvolume_entry_array_.size());
-    IntegrateSubvolumes(rgbd, camera, transform_camera_to_world);
+
+    ImageCuda<float, 1> mask_image;
+    if (r_mask_image.width_ > 0 && r_mask_image.height_ > 0 &&
+        r_mask_image.device_ != nullptr) {
+        mask_image = r_mask_image;
+    } else {
+        mask_image.Create(rgbd.depth_.width_, rgbd.depth_.height_, 1);
     }
+    IntegrateSubvolumes(rgbd, mask_image, camera, transform_camera_to_world);
+}
 
 void ScalableTSDFVolumeCuda::RayCasting(
         ImageCuda<float, 3> &vertex,
