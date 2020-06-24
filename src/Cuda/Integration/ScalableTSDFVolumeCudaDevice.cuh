@@ -140,18 +140,8 @@ __device__ float ScalableTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
 }
 
 __device__ float ScalableTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
-    Vector3i Xi = X.template cast<int>();
-    Vector3f r = Vector3f(X(0) - Xi(0), X(1) - Xi(1), X(2) - Xi(2));
-
-    return (1 - r(0)) *
-                   ((1 - r(1)) * ((1 - r(2)) * logit(Xi + Vector3i(0, 0, 0)) +
-                                  r(2) * logit(Xi + Vector3i(0, 0, 1))) +
-                    r(1) * ((1 - r(2)) * logit(Xi + Vector3i(0, 1, 0)) +
-                            r(2) * logit(Xi + Vector3i(0, 1, 1)))) +
-           r(0) * ((1 - r(1)) * ((1 - r(2)) * logit(Xi + Vector3i(1, 0, 0)) +
-                                 r(2) * logit(Xi + Vector3i(1, 0, 1))) +
-                   r(1) * ((1 - r(2)) * logit(Xi + Vector3i(1, 1, 0)) +
-                           r(2) * logit(Xi + Vector3i(1, 1, 1))));
+    Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
+    return logit(Xround);
 }
 
 __device__ uchar ScalableTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {
