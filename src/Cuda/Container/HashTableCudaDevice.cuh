@@ -112,13 +112,14 @@ int HashTableCudaDevice<Key, Value, Hasher>::New(
     new_entry.internal_addr = memory_heap_value_.Malloc();
 
     /* 3.1. Empty slot in ordered part */
-    if (entry_array_empty_slot_idx != (-1)) {
+    if (entry_array_empty_slot_idx == (-1)) {
         entry_array_.at(entry_array_empty_slot_idx) = new_entry;
     } else { /* 3.2. Insert in the unordered_part */
         linked_list.Insert(new_entry);
     }
 
     /** Don't unlock, otherwise the result can be inconsistent **/
+    atomicExch(&lock_array_.at(bucket_idx), UNLOCKED);
     return new_entry.internal_addr;
 }
 

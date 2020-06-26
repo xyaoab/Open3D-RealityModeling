@@ -24,7 +24,8 @@ __global__ void CreateKernel(ScalableTSDFVolumeCudaDevice server) {
 
     /** Assign memory **/
     subvolume.tsdf_ = &server.tsdf_memory_pool_[offset];
-    subvolume.logit_ = &server.logit_memory_pool_[offset];
+    subvolume.fg_ = &server.fg_memory_pool_[offset];
+    subvolume.bg_ = &server.bg_memory_pool_[offset];
     subvolume.weight_ = &server.weight_memory_pool_[offset];
     subvolume.color_ = &server.color_memory_pool_[offset];
 
@@ -34,6 +35,7 @@ __global__ void CreateKernel(ScalableTSDFVolumeCudaDevice server) {
     subvolume.sdf_trunc_ = server.sdf_trunc_;
     subvolume.transform_volume_to_world_ = server.transform_volume_to_world_;
     subvolume.transform_world_to_volume_ = server.transform_world_to_volume_;
+    subvolume.Initialize();
 }
 
 __host__ void ScalableTSDFVolumeCudaKernelCaller::Create(
@@ -75,7 +77,7 @@ __host__ void ScalableTSDFVolumeCudaKernelCaller::TouchSubvolumes(
 __global__ void IntegrateSubvolumesKernel(
         ScalableTSDFVolumeCudaDevice server,
         RGBDImageCudaDevice rgbd,
-        ImageCudaDevice<float, 1> mask_image,
+        ImageCudaDevice<uchar, 1> mask_image,
         PinholeCameraIntrinsicCuda camera,
         TransformCuda transform_camera_to_world) {
     const size_t entry_idx = blockIdx.x;
@@ -104,7 +106,7 @@ __global__ void IntegrateSubvolumesKernel(
 __host__ void ScalableTSDFVolumeCudaKernelCaller::IntegrateSubvolumes(
         ScalableTSDFVolumeCuda &volume,
         RGBDImageCuda &rgbd,
-        ImageCuda<float, 1> &mask_image,
+        ImageCuda<uchar, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     const dim3 blocks(volume.active_subvolume_entry_array_.size());

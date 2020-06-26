@@ -27,7 +27,8 @@ public:
     float *tsdf_;
     uchar *weight_;
     Vector3b *color_;
-    float *logit_;
+    uint16_t *fg_;
+    uint16_t *bg_;
 
 public:
     /** According to UniformTSDFVolume.cpp,
@@ -41,6 +42,7 @@ public:
     TransformCuda transform_world_to_volume_;
 
 public:
+
     __DEVICE__ inline Vector3i Vectorize(size_t index) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(index < N * N * N);
@@ -66,8 +68,11 @@ public:
     __DEVICE__ inline float &tsdf(const Vector3i &X) {
         return tsdf_[IndexOf(X)];
     }
-    __DEVICE__ inline float &logit(const Vector3i &X) {
-        return logit_[IndexOf(X)];
+    __DEVICE__ inline uint16_t &fg(const Vector3i &X) {
+        return fg_[IndexOf(X)];
+    }
+    __DEVICE__ inline uint16_t &bg(const Vector3i &X) {
+        return bg_[IndexOf(X)];
     }
     __DEVICE__ inline uchar &weight(const Vector3i &X) {
         return weight_[IndexOf(X)];
@@ -91,8 +96,10 @@ public:
 
 public:
     /** Value interpolating **/
+    __DEVICE__ void Initialize();
     __DEVICE__ float TSDFAt(const Vector3f &X);
-    __DEVICE__ float LogitAt(const Vector3f &X);
+    __DEVICE__ uint16_t FgAt(const Vector3f &X);
+    __DEVICE__ uint16_t BgAt(const Vector3f &X);
     __DEVICE__ uchar WeightAt(const Vector3f &X);
     __DEVICE__ Vector3b ColorAt(const Vector3f &X);
     __DEVICE__ Vector3f GradientAt(const Vector3f &X);

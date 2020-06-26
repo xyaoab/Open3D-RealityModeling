@@ -97,8 +97,10 @@ void ScalableTSDFVolumeCuda::Create(int N,
     const int NNN = N_ * N_ * N_;
     CheckCuda(cudaMalloc(&device_->tsdf_memory_pool_,
                          sizeof(float) * NNN * value_capacity));
-    CheckCuda(cudaMalloc(&device_->logit_memory_pool_,
-                         sizeof(float) * NNN * value_capacity));
+    CheckCuda(cudaMalloc(&device_->fg_memory_pool_,
+                         sizeof(uint16_t) * NNN * value_capacity));
+    CheckCuda(cudaMalloc(&device_->bg_memory_pool_,
+                         sizeof(uint16_t) * NNN * value_capacity));
     CheckCuda(cudaMalloc(&device_->weight_memory_pool_,
                          sizeof(uchar) * NNN * value_capacity));
     CheckCuda(cudaMalloc(&device_->color_memory_pool_,
@@ -118,18 +120,19 @@ void ScalableTSDFVolumeCuda::Reset() {
     const int NNN = N_ * N_ * N_;
     CheckCuda(cudaMemset(device_->tsdf_memory_pool_, 0,
                          sizeof(float) * NNN * value_capacity_));
-    CheckCuda(cudaMemset(device_->logit_memory_pool_, 0,
-                         sizeof(float) * NNN * value_capacity_));
     CheckCuda(cudaMemset(device_->weight_memory_pool_, 0,
                          sizeof(uchar) * NNN * value_capacity_));
     CheckCuda(cudaMemset(device_->color_memory_pool_, 0,
                          sizeof(Vector3b) * NNN * value_capacity_));
+
+
 }
 
 void ScalableTSDFVolumeCuda::Release() {
     if (device_ != nullptr && device_.use_count() == 1) {
         CheckCuda(cudaFree(device_->tsdf_memory_pool_));
-        CheckCuda(cudaFree(device_->logit_memory_pool_));
+        CheckCuda(cudaFree(device_->fg_memory_pool_));
+        CheckCuda(cudaFree(device_->bg_memory_pool_));
         CheckCuda(cudaFree(device_->weight_memory_pool_));
         CheckCuda(cudaFree(device_->color_memory_pool_));
         CheckCuda(cudaFree(device_->active_subvolume_indices_));
@@ -310,7 +313,7 @@ void ScalableTSDFVolumeCuda::GetAllSubvolumes() {
 
 void ScalableTSDFVolumeCuda::IntegrateSubvolumes(
         RGBDImageCuda &rgbd,
-        ImageCuda<float, 1> &mask_image,
+        ImageCuda<uchar, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
@@ -330,7 +333,7 @@ void ScalableTSDFVolumeCuda::Integrate(
         RGBDImageCuda &rgbd,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world,
-        const ImageCuda<float, 1> &r_mask_image) {
+        const ImageCuda<uchar, 1> &r_mask_image) {
     assert(device_ != nullptr);
 
     hash_table_.ResetLocks();
@@ -342,7 +345,7 @@ void ScalableTSDFVolumeCuda::Integrate(
     utility::LogInfo("Active subvolumes in volume: {}",
                      active_subvolume_entry_array_.size());
 
-    ImageCuda<float, 1> mask_image;
+    ImageCuda<uchar, 1> mask_image;
     if (r_mask_image.width_ > 0 && r_mask_image.height_ > 0 &&
         r_mask_image.device_ != nullptr) {
         mask_image = r_mask_image;

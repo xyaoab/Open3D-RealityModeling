@@ -33,14 +33,16 @@ public:
 
     /** (N * N * N) * value_capacity **/
     float *tsdf_memory_pool_;
-    float *logit_memory_pool_;
+    uint16_t *fg_memory_pool_;
+    uint16_t *bg_memory_pool_;
     uchar *weight_memory_pool_;
     Vector3b *color_memory_pool_;
 
     /** These are return values when subvolume is null.
      *  Refer to tsdf(), etc **/
     float tsdf_dummy_ = 0;
-    float logit_dummy_ = 0;
+    uint16_t fg_dummy_ = 0;
+    uint16_t bg_dummy_ = 0;
     uchar weight_dummy_ = 0;
     Vector3b color_dummy_ = Vector3b(0);
 
@@ -104,12 +106,14 @@ public:
     /** Unoptimized access and interpolation
      * (required hash-table access every access, good for RayCasting) **/
     __DEVICE__ float &tsdf(const Vector3i &X);
-    __DEVICE__ float &logit(const Vector3i &X);
+    __DEVICE__ uint16_t &fg(const Vector3i &X);
+    __DEVICE__ uint16_t &bg(const Vector3i &X);
     __DEVICE__ uchar &weight(const Vector3i &X);
     __DEVICE__ Vector3b &color(const Vector3i &X);
 
     __DEVICE__ float TSDFAt(const Vector3f &X);
-    __DEVICE__ float LogitAt(const Vector3f &X);
+    __DEVICE__ uint16_t FgAt(const Vector3f &X);
+    __DEVICE__ uint16_t BgAt(const Vector3f &X);
     __DEVICE__ uchar WeightAt(const Vector3f &X);
     __DEVICE__ Vector3b ColorAt(const Vector3f &X);
     __DEVICE__ Vector3f GradientAt(const Vector3f &X);
@@ -192,7 +196,10 @@ public:
     __DEVICE__ float TSDFOnBoundaryAt(
             const Vector3f &Xlocal,
             UniformTSDFVolumeCudaDevice **cached_subvolumes);
-    __DEVICE__ float LogitOnBoundaryAt(
+    __DEVICE__ uint16_t FgOnBoundaryAt(
+            const Vector3f &Xlocal,
+            UniformTSDFVolumeCudaDevice **cached_subvolumes);
+    __DEVICE__ uint16_t BgOnBoundaryAt(
             const Vector3f &Xlocal,
             UniformTSDFVolumeCudaDevice **cached_subvolumes);
 
@@ -214,7 +221,7 @@ public:
     __DEVICE__ void Integrate(const Vector3i &Xlocal,
                               HashEntry<Vector3i> &target_subvolume_entry,
                               RGBDImageCudaDevice &rgbd,
-                              ImageCudaDevice<float, 1> &mask_image,
+                              ImageCudaDevice<uchar, 1> &mask_image,
                               PinholeCameraIntrinsicCuda &camera,
                               TransformCuda &transform_camera_to_world);
     __DEVICE__ bool RayCasting(const Vector2i &p,
@@ -320,7 +327,7 @@ public:
                                 TransformCuda &transform_camera_to_world);
     void GetAllSubvolumes();
     void IntegrateSubvolumes(RGBDImageCuda &rgbd,
-                             ImageCuda<float, 1> &mask_image,
+                             ImageCuda<uchar, 1> &mask_image,
                              PinholeCameraIntrinsicCuda &camera,
                              TransformCuda &transform_camera_to_world);
 
@@ -329,7 +336,7 @@ public:
     void Integrate(RGBDImageCuda &rgbd,
                    PinholeCameraIntrinsicCuda &camera,
                    TransformCuda &transform_camera_to_world,
-                   const ImageCuda<float, 1> &mask_image = ImageCuda<float, 1>());
+                   const ImageCuda<uchar, 1> &mask_image = ImageCuda<uchar, 1>());
     void RayCasting(ImageCuda<float, 3> &vertex,
                     ImageCuda<float, 3> &normal,
                     ImageCuda<uchar, 3> &color,
@@ -352,7 +359,7 @@ public:
 
     static void IntegrateSubvolumes(ScalableTSDFVolumeCuda &volume,
                                     RGBDImageCuda &rgbd,
-                                    ImageCuda<float, 1> &mask_image,
+                                    ImageCuda<uchar, 1> &mask_image,
                                     PinholeCameraIntrinsicCuda &camera,
                                     TransformCuda &transform_camera_to_world);
 
@@ -391,7 +398,7 @@ void TouchSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
 __GLOBAL__
 void IntegrateSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
                                RGBDImageCudaDevice depth,
-                               ImageCudaDevice<float, 1> mask_image,
+                               ImageCudaDevice<uchar, 1> mask_image,
                                PinholeCameraIntrinsicCuda camera,
                                TransformCuda transform_camera_to_world);
 

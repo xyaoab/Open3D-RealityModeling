@@ -61,7 +61,8 @@ void UniformTSDFVolumeCuda::Create(int N) {
     device_ = std::make_shared<UniformTSDFVolumeCudaDevice>();
     const size_t NNN = N_ * N_ * N_;
     CheckCuda(cudaMalloc(&(device_->tsdf_), sizeof(float) * NNN));
-    CheckCuda(cudaMalloc(&(device_->logit_), sizeof(float) * NNN));
+    CheckCuda(cudaMalloc(&(device_->fg_), sizeof(uint16_t) * NNN));
+    CheckCuda(cudaMalloc(&(device_->bg_), sizeof(uint16_t) * NNN));
     CheckCuda(cudaMalloc(&(device_->weight_), sizeof(uchar) * NNN));
     CheckCuda(cudaMalloc(&(device_->color_), sizeof(Vector3b) * NNN));
 
@@ -72,7 +73,8 @@ void UniformTSDFVolumeCuda::Create(int N) {
 void UniformTSDFVolumeCuda::Release() {
     if (device_ != nullptr && device_.use_count() == 1) {
         CheckCuda(cudaFree(device_->tsdf_));
-        CheckCuda(cudaFree(device_->logit_));
+        CheckCuda(cudaFree(device_->fg_));
+        CheckCuda(cudaFree(device_->bg_));
         CheckCuda(cudaFree(device_->weight_));
         CheckCuda(cudaFree(device_->color_));
     }
@@ -98,6 +100,8 @@ void UniformTSDFVolumeCuda::Reset() {
     if (device_ != nullptr) {
         const size_t NNN = N_ * N_ * N_;
         CheckCuda(cudaMemset(device_->weight_, 0, sizeof(uchar) * NNN));
+        CheckCuda(cudaMemset(device_->fg_, 1, sizeof(uint16_t) * NNN));
+        CheckCuda(cudaMemset(device_->bg_, 1, sizeof(uint16_t) * NNN));
         CheckCuda(cudaMemset(device_->color_, 0, sizeof(Vector3b) * NNN));
         UniformTSDFVolumeCudaKernelCaller::Reset(*this);
     }

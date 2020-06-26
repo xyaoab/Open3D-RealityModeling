@@ -13,6 +13,18 @@ namespace cuda {
 /**
  * Server end
  */
+
+__device__ void UniformTSDFVolumeCudaDevice::Initialize() {
+    for(int i = 0; i < N_; i++) {
+        for(int j = 0; j < N_; j++) {
+            for(int k = 0; k < N_; k++) {
+                Vector3i X(i, j, k);
+                uint16_t& fg = this->fg(X); uint16_t& bg = this->bg(X);
+                fg = 1; bg = 1;
+            }
+        }
+    }
+}
 /** Coordinate conversions **/
 
 __device__ inline bool UniformTSDFVolumeCudaDevice::InVolume(
@@ -99,9 +111,13 @@ __device__ float UniformTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
                            r(2) * tsdf_[IndexOf(Xi + Vector3i(1, 1, 1))]));
 }
 
-__device__ float UniformTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
+__device__ uint16_t UniformTSDFVolumeCudaDevice::FgAt(const Vector3f &X) {
     Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
-    return logit_[IndexOf(Xround)];
+    return fg_[IndexOf(Xround)];
+}
+__device__ uint16_t UniformTSDFVolumeCudaDevice::BgAt(const Vector3f &X) {
+    Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
+    return bg_[IndexOf(Xround)];
 }
 
 __device__ uchar UniformTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {

@@ -19,7 +19,8 @@ __global__ void ResetUniformTSDFVolumeKernel(
 
     Vector3i X = Vector3i(x, y, z);
     server.tsdf(X) = 1.0f;
-    server.logit(X) = 0.0f;
+    server.fg(X) = 1;
+    server.bg(X) = 1;
 }
 
 __host__ void UniformTSDFVolumeCudaKernelCaller::Reset(

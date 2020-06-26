@@ -98,14 +98,21 @@ __device__ float &ScalableTSDFVolumeCudaDevice::tsdf(const Vector3i &X) {
                    : subvolume->tsdf(voxel_global_to_local(X, Xsv));
 }
 
-__device__ float &ScalableTSDFVolumeCudaDevice::logit(const Vector3i &X) {
+__device__ uint16_t &ScalableTSDFVolumeCudaDevice::fg(const Vector3i &X) {
     Vector3i Xsv = voxel_locate_subvolume(X);
     UniformTSDFVolumeCudaDevice *subvolume = QuerySubvolume(Xsv);
     return subvolume == nullptr
-                   ? logit_dummy_
-                   : subvolume->logit(voxel_global_to_local(X, Xsv));
+                   ? fg_dummy_
+                   : subvolume->fg(voxel_global_to_local(X, Xsv));
 }
 
+__device__ uint16_t &ScalableTSDFVolumeCudaDevice::bg(const Vector3i &X) {
+    Vector3i Xsv = voxel_locate_subvolume(X);
+    UniformTSDFVolumeCudaDevice *subvolume = QuerySubvolume(Xsv);
+    return subvolume == nullptr
+                   ? bg_dummy_
+                   : subvolume->bg(voxel_global_to_local(X, Xsv));
+}
 __device__ uchar &ScalableTSDFVolumeCudaDevice::weight(const Vector3i &X) {
     Vector3i Xsv = voxel_locate_subvolume(X);
     UniformTSDFVolumeCudaDevice *subvolume = QuerySubvolume(Xsv);
@@ -139,9 +146,14 @@ __device__ float ScalableTSDFVolumeCudaDevice::TSDFAt(const Vector3f &X) {
                            r(2) * tsdf(Xi + Vector3i(1, 1, 1))));
 }
 
-__device__ float ScalableTSDFVolumeCudaDevice::LogitAt(const Vector3f &X) {
+__device__ uint16_t ScalableTSDFVolumeCudaDevice::FgAt(const Vector3f &X) {
     Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
-    return logit(Xround);
+    return fg(Xround);
+}
+
+__device__ uint16_t ScalableTSDFVolumeCudaDevice::BgAt(const Vector3f &X) {
+    Vector3i Xround = Vector3i(round(X(0)), round(X(1)), round(X(2)));
+    return bg(Xround);
 }
 
 __device__ uchar ScalableTSDFVolumeCudaDevice::WeightAt(const Vector3f &X) {
@@ -352,7 +364,7 @@ __device__ float ScalableTSDFVolumeCudaDevice::TSDFOnBoundaryAt(
     return sum_weight_interp > 0 ? sum_tsdf / sum_weight_interp : 0;
 }
 
-__device__ float ScalableTSDFVolumeCudaDevice::LogitOnBoundaryAt(
+__device__ uint16_t ScalableTSDFVolumeCudaDevice::FgOnBoundaryAt(
         const Vector3f &Xlocal,
         UniformTSDFVolumeCudaDevice **cached_subvolumes) {
     /** X in range: [-1, N_ + 1) **/
@@ -368,7 +380,7 @@ __device__ float ScalableTSDFVolumeCudaDevice::LogitOnBoundaryAt(
     Vector3f rneg = Vector3f(1.0f - r(0), 1.0f - r(1), 1.0f - r(2));
 
     float sum_weight_interp = 0;
-    float sum_logit = 0;
+    float sum_fg = 0;
 
     for (size_t k = 0; k < 8; ++k) {
         Vector3i offset_k = Vector3i(shift[k][0], shift[k][1], shift[k][2]);
@@ -378,9 +390,9 @@ __device__ float ScalableTSDFVolumeCudaDevice::LogitOnBoundaryAt(
         UniformTSDFVolumeCudaDevice *subvolume =
                 cached_subvolumes[LinearizeNeighborOffset(dXsv_k)];
 
-        float logit_k = (subvolume == nullptr)
+        float fg_k = (subvolume == nullptr)
                                 ? 0.0f
-                                : subvolume->logit(BoundaryVoxelInNeighbor(
+                                : subvolume->fg(BoundaryVoxelInNeighbor(
                                           Xlocali_k, dXsv_k));
         float weight_interp_k =
                 (subvolume == nullptr)
@@ -391,13 +403,58 @@ __device__ float ScalableTSDFVolumeCudaDevice::LogitOnBoundaryAt(
                                   (rneg(2) * (1 - offset_k(2)) +
                                    r(2) * offset_k(2));
 
-        sum_logit += weight_interp_k * logit_k;
+        sum_fg += weight_interp_k * fg_k;
         sum_weight_interp += weight_interp_k;
     }
 
-    return sum_weight_interp > 0 ? sum_logit / sum_weight_interp : 0;
+    return sum_weight_interp > 0 ? uint16_t(sum_fg / sum_weight_interp) : uint16_t(0);
 }
 
+__device__ uint16_t ScalableTSDFVolumeCudaDevice::BgOnBoundaryAt(
+        const Vector3f &Xlocal,
+        UniformTSDFVolumeCudaDevice **cached_subvolumes) {
+    /** X in range: [-1, N_ + 1) **/
+#ifdef CUDA_DEBUG_ENABLE_ASSERTION
+    assert(-1 <= Xlocal(0) && Xlocal(0) < N_ + 1);
+    assert(-1 <= Xlocal(1) && Xlocal(1) < N_ + 1);
+    assert(-1 <= Xlocal(2) && Xlocal(2) < N_ + 1);
+#endif
+
+    const Vector3i Xlocali = Xlocal.template cast<int>();
+    Vector3f r = Vector3f(Xlocal(0) - Xlocali(0), Xlocal(1) - Xlocali(1),
+                          Xlocal(2) - Xlocali(2));
+    Vector3f rneg = Vector3f(1.0f - r(0), 1.0f - r(1), 1.0f - r(2));
+
+    float sum_weight_interp = 0;
+    float sum_bg = 0;
+
+    for (size_t k = 0; k < 8; ++k) {
+        Vector3i offset_k = Vector3i(shift[k][0], shift[k][1], shift[k][2]);
+        Vector3i Xlocali_k = Xlocali + offset_k;
+
+        Vector3i dXsv_k = NeighborOffsetOfBoundaryVoxel(Xlocali_k);
+        UniformTSDFVolumeCudaDevice *subvolume =
+                cached_subvolumes[LinearizeNeighborOffset(dXsv_k)];
+
+        float bg_k = (subvolume == nullptr)
+                                ? 0.0f
+                                : subvolume->bg(BoundaryVoxelInNeighbor(
+                                          Xlocali_k, dXsv_k));
+        float weight_interp_k =
+                (subvolume == nullptr)
+                        ? 0.0f
+                        : (rneg(0) * (1 - offset_k(0)) + r(0) * offset_k(0)) *
+                                  (rneg(1) * (1 - offset_k(1)) +
+                                   r(1) * offset_k(1)) *
+                                  (rneg(2) * (1 - offset_k(2)) +
+                                   r(2) * offset_k(2));
+
+        sum_bg += weight_interp_k * bg_k;
+        sum_weight_interp += weight_interp_k;
+    }
+
+    return sum_weight_interp > 0 ? uint16_t(sum_bg / sum_weight_interp) : uint16_t(0);
+}
 __device__ uchar ScalableTSDFVolumeCudaDevice::WeightOnBoundaryAt(
         const Vector3f &Xlocal,
         UniformTSDFVolumeCudaDevice **cached_subvolumes) {
@@ -572,7 +629,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
         ImageCudaDevice<float, 1> &depth,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
-    float d = depth.at(p(0), p(1))(0);
+    float d = depth.interp_at(p(0), p(1))(0);
     if (d < 0.1f || d > 3.5f) return;
 
     Vector3f Xw_near =
@@ -612,7 +669,9 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
     Vector3f Xsv_curr = Xsv_near.template cast<float>();
     HashEntry<Vector3i> entry;
     for (int k = 0; k <= step; ++k) {
-        hash_table_.New(Xsv_curr.template cast<int>());
+        int internal_addr = hash_table_.New(Xsv_curr.template cast<int>());
+        /* UniformTSDFVolumeCudaDevice *subvolume = hash_table_.GetValuePtrByInternalAddr(internal_addr); */
+        /* subvolume->reset(); */
         Xsv_curr += DXsv_normalized;
     }
 }
@@ -621,7 +680,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
         const Vector3i &Xlocal,
         HashEntry<Vector3i> &entry,
         RGBDImageCudaDevice &rgbd,
-        ImageCudaDevice<float, 1> &mask_image,
+        ImageCudaDevice<uchar, 1> &mask_image,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     /** Projective data association - additional local to global transform **/
@@ -635,9 +694,6 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     if (!camera.IsPixelValid(p)) return;
     float d = rgbd.depth_.interp_at(p(0), p(1))(0);
 
-    /** Foreground-Background probability **/
-    //! TODO(Akash): Should we use interpolated value here?
-    float prob = mask_image.at(int(p(0)), int(p(1)))(0);
     float tsdf = d - Xc(2);
     if (tsdf <= -sdf_trunc_) return;
     tsdf = fminf(tsdf / sdf_trunc_, 1.0f);
@@ -654,11 +710,9 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     float &tsdf_sum = subvolume->tsdf(Xlocal);
     uchar &weight_sum = subvolume->weight(Xlocal);
     Vector3b &color_sum = subvolume->color(Xlocal);
-    float &logit_sum = subvolume->logit(Xlocal);
+    uint16_t &fg_sum = subvolume->fg(Xlocal);
+    uint16_t &bg_sum = subvolume->bg(Xlocal);
 
-
-    /// TODO: add logit update here
-    /// Maybe we can replace weight with logit-related computation too
     float w0 = 1 / (weight_sum + 1.0f);
     float w1 = 1 - w0;
 
@@ -669,11 +723,16 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
     weight_sum = uchar(fminf(weight_sum + 1.0f, 255.0f));
 
     //! Uniform prior for all voxels
-    if(prob < 1)
-        logit_sum += (log(prob) - log(1 - prob));
+    /** Foreground-Background probability **/
+    //! TODO(Akash): Should we use interpolated value here?
+    uchar is_inside = mask_image.at(int(p(0)), int(p(1)))(0);
+    if(is_inside >= 1)
+        fg_sum = uint16_t(min(fg_sum + 1, 65535));
     else
-        //! TODO: Not sure if this is the right thing to do
-        logit_sum = 1;
+    {
+        /* printf("p(0), p(1): (%d, %d), is_inside: %d\n", int(p(0)), int(p(1)), is_inside); */
+        bg_sum = uint16_t(min(bg_sum + 1, 65535));
+    }
 }
 
 __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
@@ -718,7 +777,7 @@ __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
                 is_subvolume_valid ? subvolume->weight(Xlocal_t) : 0;
         float step_size = is_subvolume_valid
                                   ? fmaxf(tsdf_curr * sdf_trunc_, voxel_length_)
-                                  : block_step_size;
+                                  : 0.5 * block_step_size;
 
         /** Zero crossing **/
         if (tsdf_prev > 0 && weight_curr > 0 && tsdf_curr <= 0) {
@@ -733,9 +792,11 @@ __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
             normal = GradientAt(X_surface_t).normalized();
             color = ColorAt(X_surface_t);
 
-            //! Interpolation will mess log odds
-            Vector3i X_surface_ti = X_surface_t.template cast<int>();
-            if(logit(X_surface_ti) > 0.0)
+            uint16_t fg = FgAt(X_surface_t); uint16_t bg = BgAt(X_surface_t);
+            float prob = float(fg) / float(fg + bg);
+            /* printf("X_surface_t: (%f, %f, %f) ", X_surface_t(0), X_surface_t(1), X_surface_t(3)); */
+            /* printf("fg: %d, bg: %d prob: %f\n", fg, bg, prob); */
+            if(prob >= 0.5f)
                 return true;
 
             return false;
