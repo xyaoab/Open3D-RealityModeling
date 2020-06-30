@@ -111,6 +111,7 @@ public:
 /// Class that contains the registration results.
 class RegistrationResult {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /// \brief Parameterized Constructor.
     ///
     /// \param transformation The estimated transformation matrix.
@@ -121,7 +122,7 @@ public:
 
 public:
     /// The estimated transformation matrix.
-    Eigen::Matrix4d_u transformation_;
+    Eigen::Matrix4d transformation_;
     /// Correspondence set between source and target point cloud.
     CorrespondenceSet correspondence_set_;
     /// RMSE of all inlier correspondences. Lower is better.

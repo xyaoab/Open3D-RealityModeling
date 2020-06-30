@@ -129,7 +129,7 @@ template <typename Scalar, size_t Channel>
 void ImageCuda<Scalar, Channel>::Release() {
 #ifdef HOST_DEBUG_MONITOR_LIFECYCLE
     if (device_ != nullptr) {
-        LogInfo("ref count before releasing: %d\n", device_.use_count());
+        utility::LogInfo("ref count before releasing: {}\n", device_.use_count());
     }
 #endif
 

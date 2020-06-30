@@ -190,6 +190,7 @@ public:
     ArrayCuda<Vector4i> correspondences_;
 
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     float sigma_;
     OdometryType odometry_type_;
     odometry::OdometryOption option_;

@@ -40,6 +40,7 @@ namespace registration {
 /// \brief Node of PoseGraph.
 class PoseGraphNode : public utility::IJsonConvertible {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /// \brief Default Constructor.
     PoseGraphNode(const Eigen::Matrix4d &pose = Eigen::Matrix4d::Identity())
         : pose_(pose) {}
@@ -50,7 +51,7 @@ public:
     bool ConvertFromJsonValue(const Json::Value &value) override;
 
 public:
-    Eigen::Matrix4d_u pose_;
+    Eigen::Matrix4d pose_;
 };
 
 /// \class PoseGraphEdge
@@ -58,6 +59,7 @@ public:
 /// \brief Edge of PoseGraph.
 class PoseGraphEdge : public utility::IJsonConvertible {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /// \brief Parameterized Constructor.
     ///
     /// \param source_node_id Source PoseGraphNode id.
@@ -91,9 +93,9 @@ public:
     /// Target PoseGraphNode id.
     int target_node_id_;
     /// Transformation matrix.
-    Eigen::Matrix4d_u transformation_;
+    Eigen::Matrix4d transformation_;
     /// Information matrix.
-    Eigen::Matrix6d_u information_;
+    Eigen::Matrix6d information_;
     /// \brief Whether the edge is uncertain.
     ///
     /// Odometry edge has uncertain == false

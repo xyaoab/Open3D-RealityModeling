@@ -6,6 +6,7 @@
 
 #include "LinearAlgebraCuda.h"
 
+#include <Open3D/Utility/Eigen.h>
 #include <Eigen/Eigen>
 
 namespace open3d {

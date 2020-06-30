@@ -39,6 +39,7 @@ namespace camera {
 /// \brief Contains both intrinsic and extrinsic pinhole camera parameters.
 class PinholeCameraParameters : public utility::IJsonConvertible {
 public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     /// \brief Default Constructor.
     PinholeCameraParameters();
     ~PinholeCameraParameters() override;
@@ -51,7 +52,7 @@ public:
     /// PinholeCameraIntrinsic object.
     PinholeCameraIntrinsic intrinsic_;
     /// Camera extrinsic parameters.
-    Eigen::Matrix4d_u extrinsic_;
+    Eigen::Matrix4d extrinsic_;
 };
 }  // namespace camera
 }  // namespace open3d
