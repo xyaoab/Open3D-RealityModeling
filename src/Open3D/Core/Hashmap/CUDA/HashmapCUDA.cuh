@@ -213,7 +213,7 @@ template <typename Hash, typename KeyEq>
 size_t CUDAHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
     const uint32_t blocksize = 128;
     const uint32_t num_blocks =
-            (gpu_context_.capacity_ + blocksize - 1) / blocksize;
+            (gpu_context_.bucket_count_ * 32 + blocksize - 1) / blocksize;
 
     uint32_t* iterator_count =
             (uint32_t*)MemoryManager::Malloc(sizeof(uint32_t), this->device_);
@@ -364,6 +364,7 @@ std::shared_ptr<CUDAHashmap<Hash, KeyEq>> CreateCUDAHashmap(
         size_t dsize_key,
         size_t dsize_value,
         open3d::Device device) {
+  utility::LogInfo("init_buckets = {}, init_capacity = {}", init_buckets, init_capacity);
     return std::make_shared<CUDAHashmap<Hash, KeyEq>>(
             init_buckets, init_capacity, dsize_key, dsize_value, device);
 }

@@ -91,6 +91,7 @@ void CompareAllIterators(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
     // Grab all iterators
     thrust::device_vector<iterator_t> all_iterators_device(
             hashmap->bucket_count_ * 64);
+    std::cout << "Pre allocated: " << hashmap->bucket_count_ * 64 << "\n";
     size_t total_count = hashmap->GetIterators(reinterpret_cast<iterator_t *>(
             thrust::raw_pointer_cast(all_iterators_device.data())));
     std::cout << total_count << " " << hashmap_gt.size() << "\n";
