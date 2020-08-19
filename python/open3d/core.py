@@ -31,6 +31,8 @@ def _numpy_dtype_to_dtype(numpy_dtype):
         return Dtype.UInt16
     elif numpy_dtype == np.bool:
         return Dtype.Bool
+    elif numpy_dtype == np.object:
+        return Dtype.PyObject
     else:
         raise ValueError("Unsupported numpy dtype:", numpy_dtype)
 
@@ -209,6 +211,7 @@ class Tensor(o3d.pybind.core.Tensor):
         if device is None:
             device = Device("CPU:0")
         super(Tensor, self).__init__(data, dtype, device)
+
 
     @cast_to_py_tensor
     def __getitem__(self, key):
@@ -932,5 +935,7 @@ class Tensor(o3d.pybind.core.Tensor):
             return super(Tensor, self)._item_uint16_t()
         elif self.dtype == Dtype.Bool:
             return super(Tensor, self)._item_bool()
+        elif self.dtype == Dtype.PyObject:
+            return super(Tensor, self)._item_pyobject()
         else:
             raise TypeError("Unspported type when calling item()")

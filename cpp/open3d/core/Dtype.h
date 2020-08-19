@@ -59,6 +59,7 @@ enum class Dtype {
     UInt16,
     Bool,
     Object,
+    PyObject,
 };
 
 class DtypeUtil {
@@ -88,6 +89,9 @@ public:
                 break;
             case Dtype::Bool:
                 byte_size = 1;
+                break;
+            case Dtype::PyObject:
+                byte_size = 8;
                 break;
             case Dtype::Object:
                 utility::LogError(
@@ -144,6 +148,9 @@ public:
             case Dtype::Object:
                 str = "Object";
                 break;
+            case Dtype::PyObject:
+                str = "PyObject";
+                break;
             default:
                 utility::LogError("Unsupported data type");
         }
@@ -184,6 +191,13 @@ inline Dtype DtypeUtil::FromType<uint16_t>(bool is_object) {
 template <>
 inline Dtype DtypeUtil::FromType<bool>(bool is_object) {
     return Dtype::Bool;
+}
+
+// PyObject* will be converted to void* to cpp
+// and reconstructed with PyObject*
+template <>
+inline Dtype DtypeUtil::FromType<void *>(bool is_object) {
+    return Dtype::PyObject;
 }
 
 }  // namespace core

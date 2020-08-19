@@ -26,6 +26,8 @@
 
 #include "open3d/core/Tensor.h"
 
+#include <pybind11/pytypes.h>
+
 #include <vector>
 
 #include "open3d/core/Blob.h"
@@ -203,7 +205,7 @@ void pybind_core_tensor(py::module& m) {
         }
         core::Dtype dtype = pybind_utils::ArrayFormatToDtype(info.format);
 
-        // Only support scalar type now. Use DtypeUtil::ByteSize to detect.
+        // Works both for scalar types and PyObjects (pointers)
         int64_t byte_size = core::DtypeUtil::ByteSize(dtype);
         core::Device device("CPU:0");
 
@@ -386,6 +388,10 @@ void pybind_core_tensor(py::module& m) {
                [](const core::Tensor& t) { return t.Item<uint8_t>(); });
     tensor.def("_item_bool",
                [](const core::Tensor& t) { return t.Item<bool>(); });
+    tensor.def("_item_pyobject", [](const core::Tensor& t) {
+        PyObject* p = reinterpret_cast<PyObject*>(t.Item<void*>());
+        return pybind11::reinterpret_steal<py::object>(p);
+    });
 }
 
 }  // namespace open3d

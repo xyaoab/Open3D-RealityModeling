@@ -632,12 +632,16 @@ std::string Tensor::ScalarPtrToString(const void* ptr) const {
     std::string str = "";
     if (dtype_ == Dtype::Bool) {
         str = *static_cast<const unsigned char*>(ptr) ? "True" : "False";
-    } else if (dtype_ != Dtype::Object) {
+    } else if (dtype_ == Dtype::Object) {
+        str = fmt::format("<custom object at {}>", fmt::ptr(ptr));
+    } else if (dtype_ == Dtype::PyObject) {
+        str = fmt::format(
+                "<python object at {}>",
+                fmt::ptr(*reinterpret_cast<void**>(const_cast<void*>(ptr))));
+    } else {
         DISPATCH_DTYPE_TO_TEMPLATE(dtype_, [&]() {
             str = fmt::format("{}", *static_cast<const scalar_t*>(ptr));
         });
-    } else {
-        str = fmt::format("<custom object at {}>", fmt::ptr(ptr));
     }
     return str;
 }

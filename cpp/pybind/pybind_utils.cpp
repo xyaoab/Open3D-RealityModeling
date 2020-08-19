@@ -50,6 +50,8 @@ core::Dtype ArrayFormatToDtype(const std::string& format) {
         return core::Dtype::UInt16;
     } else if (format == py::format_descriptor<bool>::format()) {
         return core::Dtype::Bool;
+    } else if (format == "O") {
+        return core::Dtype::PyObject;
     } else {
         utility::LogError("Unsupported data type.");
     }
@@ -70,6 +72,8 @@ std::string DtypeToArrayFormat(const core::Dtype& dtype) {
         return py::format_descriptor<uint16_t>::format();
     } else if (dtype == core::Dtype::Bool) {
         return py::format_descriptor<bool>::format();
+    } else if (dtype == core::Dtype::PyObject) {
+        return "O";
     } else {
         utility::LogError("Unsupported data type.");
     }
