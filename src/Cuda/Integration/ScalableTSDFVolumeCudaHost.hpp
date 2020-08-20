@@ -290,25 +290,47 @@ bool ScalableTSDFVolumeCuda::UploadVolumes(
 void ScalableTSDFVolumeCuda::TouchSubvolumes(
         ImageCuda<float, 1> &depth,
         PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+        TransformCuda &transform_camera_to_world,
+        int frame_id) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::TouchSubvolumes(
-            *this, depth, camera, transform_camera_to_world);
+            *this, depth, camera, transform_camera_to_world, frame_id);
 }
 
 void ScalableTSDFVolumeCuda::GetSubvolumesInFrustum(
         PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+        TransformCuda &transform_camera_to_world,
+        int frame_id) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::GetSubvolumesInFrustum(
-            *this, camera, transform_camera_to_world);
+            *this, camera, transform_camera_to_world, frame_id);
 }
 
 void ScalableTSDFVolumeCuda::GetAllSubvolumes() {
     assert(device_ != nullptr);
     ScalableTSDFVolumeCudaKernelCaller::GetAllSubvolumes(*this);
+}
+
+int ScalableTSDFVolumeCuda::GetVisibleSubvolumesCount(int frame_id, int frame_threshold) const {
+    assert(device_ != nullptr);
+
+    int *total_visible;
+    CheckCuda(cudaMalloc(&total_visible, sizeof(int)));
+    CheckCuda(cudaMemset(total_visible, 0, sizeof(int)));
+
+    ScalableTSDFVolumeCudaKernelCaller::GetVisibleSubvolumesCount(*this, total_visible, frame_id, frame_threshold);
+
+    int visible_count;
+    CheckCuda(cudaMemcpy(&visible_count, total_visible, sizeof(int), cudaMemcpyDeviceToHost));
+    utility::LogInfo("Visible count: {}", visible_count);
+    return visible_count;
+}
+
+int ScalableTSDFVolumeCuda::GetTotalAllocatedSubvolumesCount() const {
+    assert(device_ != nullptr);
+    return hash_table_.memory_heap_value_.HeapCounter();
 }
 
 void ScalableTSDFVolumeCuda::IntegrateSubvolumes(
@@ -333,15 +355,16 @@ void ScalableTSDFVolumeCuda::Integrate(
         RGBDImageCuda &rgbd,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world,
+        int frame_id,
         const ImageCuda<uchar, 1> &r_mask_image) {
     assert(device_ != nullptr);
 
     hash_table_.ResetLocks();
     active_subvolume_entry_array_.set_iterator(0);
-    TouchSubvolumes(rgbd.depth_, camera, transform_camera_to_world);
+    TouchSubvolumes(rgbd.depth_, camera, transform_camera_to_world, frame_id);
 
     ResetActiveSubvolumeIndices();
-    GetSubvolumesInFrustum(camera, transform_camera_to_world);
+    GetSubvolumesInFrustum(camera, transform_camera_to_world, frame_id);
     utility::LogInfo("Active subvolumes in volume: {}",
                      active_subvolume_entry_array_.size());
 

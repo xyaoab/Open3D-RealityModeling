@@ -124,7 +124,7 @@ std::vector<T> MemoryHeapCuda<T>::DownloadValue() {
 }
 
 template<typename T>
-int MemoryHeapCuda<T>::HeapCounter() {
+int MemoryHeapCuda<T>::HeapCounter() const {
     assert(device_ != nullptr);
 
     int heap_counter;

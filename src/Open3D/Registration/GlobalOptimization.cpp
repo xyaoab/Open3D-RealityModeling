@@ -502,6 +502,7 @@ void GlobalOptimizationGaussNewton::OptimizePoseGraph(
     utility::LogDebug("Line process weight : {:f}", line_process_weight);
 
     Eigen::VectorXd zeta = ComputeZeta(pose_graph);
+
     double current_residual, new_residual;
     new_residual =
             ComputeResidual(pose_graph, zeta, line_process_weight, option);

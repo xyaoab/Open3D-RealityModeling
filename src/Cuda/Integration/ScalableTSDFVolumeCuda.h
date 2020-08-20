@@ -4,19 +4,18 @@
 
 #pragma once
 
-#include <Cuda/Common/UtilsCuda.h>
-#include "Cuda/Geometry/GeometryClasses.h"
-#include "IntegrationClasses.h"
-
-#include <Cuda/Container/HashTableCuda.h>
-
 #include <Cuda/Camera/PinholeCameraIntrinsicCuda.h>
+#include <Cuda/Common/Common.h>
 #include <Cuda/Common/LinearAlgebraCuda.h>
 #include <Cuda/Common/TransformCuda.h>
+#include <Cuda/Container/HashTableCuda.h>
+#include <Cuda/Geometry/PointCloudCuda.h>
 #include <Cuda/Geometry/RGBDImageCuda.h>
 
-#include <Cuda/Geometry/PointCloudCuda.h>
 #include <memory>
+
+#include "Cuda/Geometry/GeometryClasses.h"
+#include "IntegrationClasses.h"
 
 namespace open3d {
 namespace cuda {
@@ -196,12 +195,12 @@ public:
     __DEVICE__ float TSDFOnBoundaryAt(
             const Vector3f &Xlocal,
             UniformTSDFVolumeCudaDevice **cached_subvolumes);
-    __DEVICE__ uint16_t FgOnBoundaryAt(
-            const Vector3f &Xlocal,
-            UniformTSDFVolumeCudaDevice **cached_subvolumes);
-    __DEVICE__ uint16_t BgOnBoundaryAt(
-            const Vector3f &Xlocal,
-            UniformTSDFVolumeCudaDevice **cached_subvolumes);
+    __DEVICE__ uint16_t
+    FgOnBoundaryAt(const Vector3f &Xlocal,
+                   UniformTSDFVolumeCudaDevice **cached_subvolumes);
+    __DEVICE__ uint16_t
+    BgOnBoundaryAt(const Vector3f &Xlocal,
+                   UniformTSDFVolumeCudaDevice **cached_subvolumes);
 
     __DEVICE__ uchar
     WeightOnBoundaryAt(const Vector3f &Xlocal,
@@ -217,7 +216,8 @@ public:
     __DEVICE__ void TouchSubvolume(const Vector2i &p,
                                    ImageCudaDevice<float, 1> &depth,
                                    PinholeCameraIntrinsicCuda &camera,
-                                   TransformCuda &transform_camera_to_world);
+                                   TransformCuda &transform_camera_to_world,
+                                   int frame_id);
     __DEVICE__ void Integrate(const Vector3i &Xlocal,
                               HashEntry<Vector3i> &target_subvolume_entry,
                               RGBDImageCudaDevice &rgbd,
@@ -322,9 +322,11 @@ public:
      **/
     void TouchSubvolumes(ImageCuda<float, 1> &depth,
                          PinholeCameraIntrinsicCuda &camera,
-                         TransformCuda &transform_camera_to_world);
+                         TransformCuda &transform_camera_to_world,
+                         int frame_id);
     void GetSubvolumesInFrustum(PinholeCameraIntrinsicCuda &camera,
-                                TransformCuda &transform_camera_to_world);
+                                TransformCuda &transform_camera_to_world,
+                                int frame_id);
     void GetAllSubvolumes();
     void IntegrateSubvolumes(RGBDImageCuda &rgbd,
                              ImageCuda<uchar, 1> &mask_image,
@@ -332,11 +334,15 @@ public:
                              TransformCuda &transform_camera_to_world);
 
     void ResetActiveSubvolumeIndices();
+    int GetTotalAllocatedSubvolumesCount() const;
+    int GetVisibleSubvolumesCount(int frame_id, int frame_threshold) const;
 
-    void Integrate(RGBDImageCuda &rgbd,
-                   PinholeCameraIntrinsicCuda &camera,
-                   TransformCuda &transform_camera_to_world,
-                   const ImageCuda<uchar, 1> &mask_image = ImageCuda<uchar, 1>());
+    void Integrate(
+            RGBDImageCuda &rgbd,
+            PinholeCameraIntrinsicCuda &camera,
+            TransformCuda &transform_camera_to_world,
+            int frame_id = 0,
+            const ImageCuda<uchar, 1> &mask_image = ImageCuda<uchar, 1>());
     void RayCasting(ImageCuda<float, 3> &vertex,
                     ImageCuda<float, 3> &normal,
                     ImageCuda<uchar, 3> &color,
@@ -355,7 +361,8 @@ public:
     static void TouchSubvolumes(ScalableTSDFVolumeCuda &volume,
                                 ImageCuda<float, 1> &depth,
                                 PinholeCameraIntrinsicCuda &camera,
-                                TransformCuda &transform_camera_to_world);
+                                TransformCuda &transform_camera_to_world,
+                                int frame_id);
 
     static void IntegrateSubvolumes(ScalableTSDFVolumeCuda &volume,
                                     RGBDImageCuda &rgbd,
@@ -363,12 +370,17 @@ public:
                                     PinholeCameraIntrinsicCuda &camera,
                                     TransformCuda &transform_camera_to_world);
 
-    static void GetSubvolumesInFrustum(
-            ScalableTSDFVolumeCuda &volume,
-            PinholeCameraIntrinsicCuda &camera,
-            TransformCuda &transform_camera_to_world);
+    static void GetSubvolumesInFrustum(ScalableTSDFVolumeCuda &volume,
+                                       PinholeCameraIntrinsicCuda &camera,
+                                       TransformCuda &transform_camera_to_world,
+                                       int frame_id);
 
     static void GetAllSubvolumes(ScalableTSDFVolumeCuda &volume);
+
+    static void GetVisibleSubvolumesCount(const ScalableTSDFVolumeCuda &volume,
+                                         int* total_visible,
+                                         int frame_id,
+                                         int frame_threshold);
 
     static void RayCasting(ScalableTSDFVolumeCuda &volume,
                            ImageCuda<float, 3> &vertex,
@@ -393,7 +405,8 @@ __GLOBAL__
 void TouchSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
                            ImageCudaDevice<float, 1> depth,
                            PinholeCameraIntrinsicCuda camera,
-                           TransformCuda transform_camera_to_world);
+                           TransformCuda transform_camera_to_world,
+                           int frame_id);
 
 __GLOBAL__
 void IntegrateSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
@@ -405,10 +418,14 @@ void IntegrateSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
 __GLOBAL__
 void GetSubvolumesInFrustumKernel(ScalableTSDFVolumeCudaDevice device,
                                   PinholeCameraIntrinsicCuda camera,
-                                  TransformCuda transform_camera_to_world);
+                                  TransformCuda transform_camera_to_world,
+                                  int frame_id);
 
 __GLOBAL__
 void GetAllSubvolumesKernel(ScalableTSDFVolumeCudaDevice device);
+
+__GLOBAL__
+void GetVisibleSubvolumesCountKernel(ScalableTSDFVolumeCudaDevice device, int* total_visible, int frame_id, int frame_threshold);
 
 __GLOBAL__
 void RayCastingKernel(ScalableTSDFVolumeCudaDevice device,

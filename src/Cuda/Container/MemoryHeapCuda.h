@@ -63,7 +63,7 @@ template<typename T>
 class MemoryHeapCuda {
 public:
     std::shared_ptr<MemoryHeapCudaDevice<T>> device_ = nullptr;
-    int HeapCounter();
+    int HeapCounter() const;
 
 public:
     int max_capacity_;

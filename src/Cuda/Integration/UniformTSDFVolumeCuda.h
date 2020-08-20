@@ -38,6 +38,7 @@ public:
     float voxel_length_;
     float inv_voxel_length_;
     float sdf_trunc_;
+    int last_visible_index_;
     TransformCuda transform_volume_to_world_;
     TransformCuda transform_world_to_volume_;
 
