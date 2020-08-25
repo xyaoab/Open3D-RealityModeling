@@ -365,7 +365,7 @@ void ScalableTSDFVolumeCuda::Integrate(
 
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world, frame_id);
-    utility::LogInfo("Active subvolumes in volume: {}",
+    utility::LogDebug("Active subvolumes in volume: {}",
                      active_subvolume_entry_array_.size());
 
     ImageCuda<uchar, 1> mask_image;

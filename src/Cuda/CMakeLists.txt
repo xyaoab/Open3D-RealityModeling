@@ -63,6 +63,7 @@ open3d_link_3rdparty_libraries(${OPEN3D_CUDA_MODULE})
 # Build with legacy opencv support
 if(CUDA_WITH_OPENCV)
     find_package(OpenCV REQUIRED)
+    message("Building CUDA with OpenCV enabled")
     target_link_libraries(${OPEN3D_CUDA_MODULE} PUBLIC ${OpenCV_LIBS})
     target_compile_definitions(${OPEN3D_CUDA_MODULE} PUBLIC USE_OPENCV)
 endif()
