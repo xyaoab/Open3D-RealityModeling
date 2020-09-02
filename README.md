@@ -1,4 +1,5 @@
-# Open3D: The unofficial cuda branch
+# GPU Accelerated Robust Scene Reconstruction 
+## -- The unofficial Open3D cuda branch
 
 **We are pushing the development of the official cuda branch. Please be patient :)**
 
