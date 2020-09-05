@@ -324,7 +324,7 @@ int ScalableTSDFVolumeCuda::GetVisibleSubvolumesCount(int frame_id, int frame_th
 
     int visible_count;
     CheckCuda(cudaMemcpy(&visible_count, total_visible, sizeof(int), cudaMemcpyDeviceToHost));
-    utility::LogInfo("Visible count: {}", visible_count);
+    utility::LogDebug("Visible count: {}", visible_count);
     return visible_count;
 }
 
