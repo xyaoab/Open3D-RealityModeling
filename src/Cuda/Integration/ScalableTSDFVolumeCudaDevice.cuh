@@ -668,14 +668,14 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
     Vector3f DXsv_normalized = DXsv.template cast<float>() * (1.0f / step);
 
     Vector3f Xsv_curr = Xsv_near.template cast<float>();
-    HashEntry<Vector3i> entry;
     for (int k = 0; k <= step; ++k) {
         int internal_addr = hash_table_.New(Xsv_curr.template cast<int>());
 
-        if(internal_addr >= 0)
+        if(internal_addr > 0)
         {
             UniformTSDFVolumeCudaDevice *subvolume = hash_table_.GetValuePtrByInternalAddr(internal_addr);
             subvolume->last_visible_index_ = frame_id;
+            /* printf("Internal address: %d, last visible index: %d\n", internal_addr, frame_id); */
         }
         Xsv_curr += DXsv_normalized;
     }
