@@ -1,46 +1,73 @@
 import torch
+from torch.utils import dlpack
 import torch.nn as nn
 import open3d as o3d
 
+
 class SpVarModel(nn.Module):
+
     def __init__(self):
         super(SpVarModel, self).__init__()
 
+        # Default 1d coordinate 0, to be extended
         self.coords = [0]
-        self.params = nn.ParameterList([nn.Parameter(torch.randn(1))])
+        self.params = nn.ParameterList([
+            nn.Parameter(torch.randn(1))
+        ])
 
-    def forward(self, coord):
-        i = self.coords.index(coord)
-        return self.params[i]
+    def forward(self, cs, xs):
+        # Replace this with parallel hashmap.find(coords)
+        out = []
+        for c, x in zip(cs, xs):
+            i = self.coords.index(c)
+            out.append(self.params[i] * x)
+        return torch.stack(out)
 
-    def add_param(self, coord, optim):
-        if not coord in self.coords:
-            param = nn.Parameter(torch.randn(1))
-            self.coords.append(coord)
-            self.params.append(param)
-            optim.add_param_group({'params': param})
-            print(optim)
+    def add_param(self, coords, device, optim):
+        # Replace this with hashmap.activate(coords)
+        for coord in coords:
+            if not coord in self.coords:
+                param = nn.Parameter(nn.Parameter(torch.randn(1).to(device)))
+
+                self.coords.append(coord)
+                self.params.append(param)
+                optim.add_param_group({'params': param})
 
 
 if __name__ == '__main__':
-    model = SpVarModel()
-    optim = torch.optim.SGD(model.parameters(), lr=0.01)
+    device = 'cpu'
 
-    for i in range(1000):
-        optim.zero_grad()
+    model = SpVarModel().to(device)
+    optim = torch.optim.Adam(model.parameters(), lr=0.01)
 
-        coord_i = torch.Tensor([i % 3]).int()
-        gt_i = torch.Tensor([coord_i / 2.0])
+    # Generate test data:
+    # > param(coord) = coord * 0.01
+    # > gt: param(coord) * x(coord)
+    n = 10000
+    batchsize = 1
+    spatial_slots = 100
 
-        model.add_param(coord_i, optim)
+    coords = torch.randint(spatial_slots, (n,)).to(device)
+    xs = torch.randn(n).to(device)
+    gts = (coords.float() / spatial_slots * xs).to(device)
 
-        out = model(coord_i)
-        loss = torch.abs(gt_i - out)
-        loss.backward()
+    for epoch in range(1000):
+        for b in range(0, n, batchsize):
+            optim.zero_grad()
 
-        optim.step()
+            coords_b = coords[b:b + batchsize]
+            xs_b = xs[b:b + batchsize]
+            gts_b = gts[b:b + batchsize]
 
-    for param in model.params:
-        print(param)
+            model.add_param(coords_b, device, optim)
 
+            out = model(coords_b, xs_b)
+            loss = (gts_b - out).norm()
+            loss.backward()
 
+            optim.step()
+
+        print(epoch, loss)
+
+    for i, param in enumerate(model.params):
+        print(i, param.item())
