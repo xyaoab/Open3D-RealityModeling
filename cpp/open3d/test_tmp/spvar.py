@@ -13,41 +13,61 @@ class SpVarModel(nn.Module):
 
         self.device = device
 
-        coords = o3d.core.Tensor([[0], [1]],
+        coords = o3d.core.Tensor([[0]],
                                  dtype=o3d.core.Dtype.Int64,
                                  device=device)
-        elems = o3d.core.Tensor([[0.], [0.]],
+        elems = o3d.core.Tensor([[0.]],
                                 dtype=o3d.core.Dtype.Float32,
                                 device=device)
+        indices = o3d.core.Tensor([[0]],
+                                  dtype=o3d.core.Dtype.Int64,
+                                  device=device)
+
         self.spvar_params = o3d.core.SparseTensor(coords, elems)
         iterators, masks = self.spvar_params.insert_entries(coords, elems)
         params = self.spvar_params.get_elems_list(iterators[masks])
 
-        self.coords = [0, 1]
-        self.params = nn.ParameterList([nn.Parameter(dlpack.from_dlpack(param.to_dlpack()))
-                                        for param in params])
-
+        self.coord_param_map = o3d.core.SparseTensor(coords,
+                                                     indices,
+                                                     insert=True)
+        self.params = nn.ParameterList([
+            nn.Parameter(dlpack.from_dlpack(param.to_dlpack()))
+            for param in params
+        ])
 
     def forward(self, cs, xs):
         # Replace this with parallel hashmap.find(coords)
+        o3d_coords = o3d.core.Tensor.from_dlpack(dlpack.to_dlpack(cs))
+        iterators, masks = self.coord_param_map.find_entries(o3d_coords)
+
+        elem_list = self.coord_param_map.get_elems_list(iterators[masks])
+
         out = []
-        for c, x in zip(cs, xs):
-            i = self.coords.index(c.item())
-            out.append(self.params[i])
-        return torch.stack(out).squeeze()
+        for elem in elem_list:
+            out.append(self.params[elem[0].item()])
+        return torch.stack(out)
 
     def add_param(self, coords, device, optim):
-        # Replace this with hashmap.activate(coords)
-        # iterators, masks = self.hashmap.activate(coords)
-        # SparseTensor(iterators[masks]) => list of tensors
+        o3d_coords = o3d.core.Tensor.from_dlpack(dlpack.to_dlpack(coords))
+        iterators, masks = self.spvar_params.activate_entries(o3d_coords)
 
-        for coord in coords:
-            if not coord in self.coords:
-                param = nn.Parameter(nn.Parameter(torch.randn(1).to(device)))
+        new_params = self.spvar_params.get_elems_list(iterators[masks])
 
-                self.coords.append(coord.item())
-                self.params.append(param)
-                optim.add_param_group({'params': param})
+        if len(new_params) == 0:
+            return
+
+        self.coord_param_map.insert_entries(
+            o3d_coords[masks],
+            o3d.core.Tensor(np.expand_dims(np.arange(
+                len(self.params),
+                len(self.params) + len(new_params)),
+                                           axis=1),
+                            dtype=o3d.core.Dtype.Int64))
+
+        for i, param in enumerate(new_params):
+            param = nn.Parameter(dlpack.from_dlpack(param.to_dlpack()))
+            self.params.append(param)
+            optim.add_param_group({'params': param})
 
 
 if __name__ == '__main__':
@@ -79,9 +99,9 @@ if __name__ == '__main__':
         for b in range(0, n, batchsize):
             optim.zero_grad()
 
-            coords_b = coords[b:b + batchsize]
-            xs_b = xs[b:b + batchsize]
-            gts_b = gts[b:b + batchsize]
+            coords_b = coords[b:b + batchsize].unsqueeze(1)
+            xs_b = xs[b:b + batchsize].unsqueeze(1)
+            gts_b = gts[b:b + batchsize].unsqueeze(1)
 
             model.add_param(coords_b, device, optim)
 
@@ -90,5 +110,9 @@ if __name__ == '__main__':
             loss.backward()
             optim.step()
 
-    for c, p in zip(model.coords, model.params):
-        print(c, p)
+    coords = o3d.core.Tensor(np.expand_dims(np.arange(0, 10), axis=1),
+                             dtype=o3d.core.Dtype.Int64)
+    iterators, masks = model.spvar_params.find_entries(coords)
+    elems_list = model.spvar_params.get_elems_list(iterators[masks])
+    for elem in elems_list:
+        print(elem)
