@@ -16,7 +16,7 @@ int main() {
     core::Tensor valid_iterators = iterators.IndexGet({masks});
 
     std::vector<core::Tensor> sp_tensor_elems =
-            sp_tensor.GetElems(valid_iterators);
+            sp_tensor.GetElemsList(valid_iterators);
 
     for (auto &sp_tensor_elem : sp_tensor_elems) {
         std::cout << sp_tensor_elem.ToString() << "\n";

@@ -24,51 +24,31 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/core/Tensor.h"
-#include "open3d/core/hashmap/Hashmap.h"
+#include <pybind11/cast.h>
+#include <pybind11/pytypes.h>
+
+#include "open3d/core/SparseTensor.h"
+#include "open3d/utility/Console.h"
+#include "pybind/core/core.h"
+#include "pybind/docstring.h"
+#include "pybind/open3d_pybind.h"
 
 namespace open3d {
 namespace core {
+void pybind_core_sparse_tensor(py::module& m) {
+    py::class_<SparseTensor> sparse_tensor(
+            m, "SparseTensor",
+            "A SparseTensor is a map from coordinate tensors to element "
+            "tensors without bounds of coordinates.");
 
-class SparseTensor {
-public:
-    /// Constructors
-    // SparseTensor(const Dtype& coords_dtype,
-    //              const SizeVector& coords_shape,
-    //              const Dtype& elems_dtype,
-    //              const SizeVector& elems_shape,
-    //              const Device& device,
-    //              int64_t init_capacity = 10);
+    sparse_tensor.def(py::init<const Tensor&, const Tensor&, bool>(),
+                      "coords"_a, "elems"_a, "insert"_a = false);
 
-    SparseTensor(const Tensor& coords,
-                 const Tensor& elems,
-                 bool insert = false);
-    ~SparseTensor();
-
-    /// Wrappers to hashmap
-    std::pair<Tensor, Tensor> InsertEntries(const Tensor& coords,
-                                            const Tensor& elems);
-    std::pair<Tensor, Tensor> ActivateEntries(const Tensor& coords);
-    std::pair<Tensor, Tensor> FindEntries(const Tensor& coords);
-    Tensor EraseEntries(const Tensor& coords);
-
-    /// Unpack discontiguous elements to a sequence of elems,
-    /// important for converting tensors to nn.ParameterList in PyTorch.
-    std::vector<Tensor> GetElemsList(const Tensor& iterators);
-
-protected:
-    std::shared_ptr<Hashmap> hashmap_;
-
-    /// Used to destruct after hashmap_ is deleted
-    std::shared_ptr<Blob> dummy_blob_;
-
-    Dtype coords_dtype_;
-    Dtype elems_dtype_;
-
-    SizeVector coords_shape_;
-    SizeVector elems_shape_;
-
-    Device device_;
-};
+    sparse_tensor.def("insert_entries", &SparseTensor::InsertEntries);
+    sparse_tensor.def("activate_entries", &SparseTensor::ActivateEntries);
+    sparse_tensor.def("find_entries", &SparseTensor::FindEntries);
+    sparse_tensor.def("erase_entries", &SparseTensor::EraseEntries);
+    sparse_tensor.def("get_elems_list", &SparseTensor::GetElemsList);
+}
 }  // namespace core
 }  // namespace open3d

@@ -47,6 +47,12 @@ class SpVarModel(nn.Module):
 if __name__ == '__main__':
     device = 'cpu'
 
+    coords = o3d.core.Tensor([[100], [200], [300]], dtype=o3d.core.Dtype.Int64)
+    elems = o3d.core.Tensor([[1.0], [2.0], [3.0]], dtype=o3d.core.Dtype.Float32)
+    sp_tensor = o3d.core.SparseTensor(coords, elems)
+    iterators, masks = sp_tensor.insert_entries(coords, elems)
+    sp_tensor_elem_list = sp_tensor.get_elems_list(iterators[masks])
+
     model = SpVarModel().to(device)
     optim = torch.optim.SGD(model.parameters(), lr=1e-4)
 

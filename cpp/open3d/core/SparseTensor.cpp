@@ -29,27 +29,27 @@
 namespace open3d {
 namespace core {
 
-SparseTensor::SparseTensor(const Dtype& coords_dtype,
-                           const SizeVector& coords_shape,
-                           const Dtype& elems_dtype,
-                           const SizeVector& elems_shape,
-                           const Device& device,
-                           int64_t init_capacity)
-    : coords_dtype_(coords_dtype),
-      elems_dtype_(elems_dtype),
-      coords_shape_(coords_shape),
-      elems_shape_(elems_shape),
-      device_(device) {
-    Dtype hash_key_dtype(Dtype::DtypeCode::Object,
-                         coords_dtype_.ByteSize() * coords_shape_.NumElements(),
-                         "coords");
-    Dtype hash_val_dtype(Dtype::DtypeCode::Object,
-                         elems_dtype_.ByteSize() * elems_shape_.NumElements(),
-                         "elems");
-    hashmap_ = std::make_shared<Hashmap>(init_capacity, hash_key_dtype,
-                                         hash_val_dtype, device_);
-    dummy_blob_ = std::make_shared<Blob>(4, device_);
-}
+// SparseTensor::SparseTensor(const Dtype& coords_dtype,
+//                            const SizeVector& coords_shape,
+//                            const Dtype& elems_dtype,
+//                            const SizeVector& elems_shape,
+//                            const Device& device,
+//                            int64_t init_capacity)
+//     : coords_dtype_(coords_dtype),
+//       elems_dtype_(elems_dtype),
+//       coords_shape_(coords_shape),
+//       elems_shape_(elems_shape),
+//       device_(device) {
+//     Dtype hash_key_dtype(Dtype::DtypeCode::Object,
+//                          coords_dtype_.ByteSize() *
+//                          coords_shape_.NumElements(), "coords");
+//     Dtype hash_val_dtype(Dtype::DtypeCode::Object,
+//                          elems_dtype_.ByteSize() *
+//                          elems_shape_.NumElements(), "elems");
+//     hashmap_ = std::make_shared<Hashmap>(init_capacity * 2, hash_key_dtype,
+//                                          hash_val_dtype, device_);
+//     dummy_blob_ = std::make_shared<Blob>(4, device_);
+// }
 
 SparseTensor::SparseTensor(const Tensor& coords,
                            const Tensor& elems,
@@ -93,8 +93,8 @@ SparseTensor::SparseTensor(const Tensor& coords,
     Dtype hash_val_dtype(Dtype::DtypeCode::Object,
                          elems_dtype_.ByteSize() * elems_shape_.NumElements(),
                          "elems");
-    hashmap_ = std::make_shared<Hashmap>(coords_full_shape[0], hash_key_dtype,
-                                         hash_val_dtype, device_);
+    hashmap_ = std::make_shared<Hashmap>(
+            coords_full_shape[0] * 2, hash_key_dtype, hash_val_dtype, device_);
     dummy_blob_ = std::make_shared<Blob>(4, device_);
 
     if (insert) {
@@ -131,7 +131,7 @@ Tensor SparseTensor::EraseEntries(const Tensor& coords) {
     return masks;
 }
 
-std::vector<Tensor> SparseTensor::GetElems(const Tensor& iterators) {
+std::vector<Tensor> SparseTensor::GetElemsList(const Tensor& iterators) {
     // We assume iterators are all valid.
     int n = iterators.GetShape()[0];
     std::vector<Tensor> sparse_tensor_list;

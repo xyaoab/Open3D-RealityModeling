@@ -8,6 +8,7 @@ from open3d.pybind.core import cuda
 from open3d.pybind.core import nns
 from open3d.pybind.core import NoneType
 from open3d.pybind.core import TensorList
+from open3d.pybind.core import SparseTensor
 from open3d.pybind.core import SizeVector
 from open3d.pybind.core import matmul as pybind_matmul
 from open3d.pybind.core import lstsq as pybind_lstsq
@@ -953,3 +954,31 @@ class Hashmap(o3d.pybind.core.Hashmap):
     @cast_to_py_tensor
     def assign_iterators(self, iterators, values, masks=Tensor([])):
         return super(Hashmap, self).assign_iterators(iterators, values, masks)
+
+class SparseTensor(o3d.pybind.core.SparseTensor):
+    """
+    Open3D Hashmap class. A Hashmap is a map from key to data wrapped by Tensors.
+    """
+
+    def __init__(self, coords, elems):
+        super(SparseTensor, self).__init__(coords, elems)
+
+    @cast_to_py_tensor
+    def insert_entries(self, coords, elems):
+        return super(SparseTensor, self).insert_entries(coords, elems)
+
+    @cast_to_py_tensor
+    def find_entries(self, coords):
+        return super(SparseTensor, self).find_entries(coords)
+
+    @cast_to_py_tensor
+    def activate_entries(self, coords):
+        return super(SparseTensor, self).activate_entries(coords)
+
+    @cast_to_py_tensor
+    def erase_entries(self, coords):
+        return super(SparseTensor, self).erase(entries)
+
+    @cast_to_py_tensor
+    def get_elems_list(self, iterators):
+        return super(SparseTensor, self).get_elems_list(iterators)

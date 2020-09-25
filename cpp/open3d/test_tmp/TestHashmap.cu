@@ -34,7 +34,7 @@ using namespace open3d;
 using namespace open3d::core;
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareFind(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareFind(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                  std::unordered_map<Key, Value> &hashmap_gt,
                  const std::vector<Key> &keys) {
     // Prepare GPU memory
@@ -95,7 +95,7 @@ void CompareFind(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
 }
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareAllIterators(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareAllIterators(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                          std::unordered_map<Key, Value> &hashmap_gt) {
     // Grab all iterators
     thrust::device_vector<iterator_t> all_iterators_device(hashmap->capacity_);
@@ -142,7 +142,7 @@ void CompareAllIterators(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
 }
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareInsert(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareInsert(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                    std::unordered_map<Key, Value> &hashmap_gt,
                    const std::vector<Key> &keys,
                    const std::vector<Value> &vals) {
@@ -175,7 +175,7 @@ void CompareInsert(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
 }
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareActivate(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareActivate(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                      std::unordered_map<Key, Value> &hashmap_gt,
                      const std::vector<Key> &keys,
                      const std::vector<Value> &vals) {
@@ -217,7 +217,7 @@ void CompareActivate(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
 }
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareErase(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareErase(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                   std::unordered_map<Key, Value> &hashmap_gt,
                   const std::vector<Key> &keys) {
     // Prepare groundtruth
@@ -244,7 +244,7 @@ void CompareErase(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
 }
 
 template <typename Key, typename Value, typename Hash, typename Eq>
-void CompareRehash(std::shared_ptr<Hashmap<Hash, Eq>> &hashmap,
+void CompareRehash(std::shared_ptr<DeviceHashmap<Hash, Eq>> &hashmap,
                    std::unordered_map<Key, Value> &hashmap_gt,
                    const std::vector<Key> &keys) {
     hashmap->Rehash(hashmap->bucket_count_ * 2);
@@ -273,7 +273,7 @@ int main() {
             vals[i] = keys[i] * 100;
         }
 
-        auto hashmap = CreateHashmap<DefaultHash, DefaultKeyEq>(
+        auto hashmap = CreateDeviceHashmap<DefaultHash, DefaultKeyEq>(
                 capacity, sizeof(Key), sizeof(Value), Device("CUDA:0"));
         auto hashmap_gt = std::unordered_map<Key, Value>();
 
