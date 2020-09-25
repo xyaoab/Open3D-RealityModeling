@@ -1,5 +1,9 @@
 if (BUILD_CUDA_MODULE)
     # core
+    cuda_add_executable(TestSparseTensor TestSparseTensor.cpp)
+    open3d_set_global_properties(TestSparseTensor)
+    target_link_libraries(TestSparseTensor ${CMAKE_PROJECT_NAME})
+
     cuda_add_executable(TestHashmap TestHashmap.cu)
     open3d_set_global_properties(TestHashmap)
     target_link_libraries(TestHashmap ${CMAKE_PROJECT_NAME})

@@ -30,6 +30,45 @@
 namespace open3d {
 namespace core {
 
-class SparseTensor {};
+class SparseTensor {
+public:
+    /// Constructors
+    SparseTensor(const Dtype& coords_dtype,
+                 const SizeVector& coords_shape,
+                 const Dtype& elems_dtype,
+                 const SizeVector& elems_shape,
+                 const Device& device,
+                 int64_t init_capacity = 10);
+
+    SparseTensor(const Tensor& coords,
+                 const Tensor& elems,
+                 bool insert = false);
+    ~SparseTensor();
+
+    /// Wrappers to hashmap
+    std::pair<Tensor, Tensor> InsertEntries(const Tensor& coords,
+                                            const Tensor& elems);
+    std::pair<Tensor, Tensor> ActivateEntries(const Tensor& coords);
+    std::pair<Tensor, Tensor> FindEntries(const Tensor& coords);
+    Tensor EraseEntries(const Tensor& coords);
+
+    /// Unpack discontiguous elements to a sequence of elems,
+    /// important for converting tensors to nn.ParameterList in PyTorch.
+    std::vector<Tensor> GetElems(const Tensor& iterators);
+
+protected:
+    std::shared_ptr<Hashmap> hashmap_;
+
+    /// Used to destruct after hashmap_ is deleted
+    std::shared_ptr<Blob> dummy_blob_;
+
+    Dtype coords_dtype_;
+    Dtype elems_dtype_;
+
+    SizeVector coords_shape_;
+    SizeVector elems_shape_;
+
+    Device device_;
+};
 }  // namespace core
 }  // namespace open3d

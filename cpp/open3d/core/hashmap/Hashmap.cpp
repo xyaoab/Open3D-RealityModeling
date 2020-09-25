@@ -69,8 +69,8 @@ void Hashmap::Insert(const Tensor& input_keys,
                      const Tensor& input_values,
                      Tensor& output_iterators,
                      Tensor& output_masks) {
-    AssertKeyDtype(input_keys.GetDtype());
-    AssertValueDtype(input_values.GetDtype());
+    // AssertKeyDtype(input_keys.GetDtype());
+    // AssertValueDtype(input_values.GetDtype());
 
     SizeVector shape = input_keys.GetShape();
     if (shape.size() == 0 || shape[0] == 0) {
@@ -93,6 +93,7 @@ void Hashmap::Insert(const Tensor& input_keys,
     }
 
     int64_t count = shape[0];
+    std::cout << count << "\n";
     Dtype dtype_it(Dtype::DtypeCode::Object, sizeof(iterator_t), "iterator_t");
 
     output_iterators = Tensor({count}, dtype_it, GetDevice());
@@ -114,7 +115,7 @@ void Hashmap::Activate(const void* input_keys,
 void Hashmap::Activate(const Tensor& input_keys,
                        Tensor& output_iterators,
                        Tensor& output_masks) {
-    AssertKeyDtype(input_keys.GetDtype());
+    // AssertKeyDtype(input_keys.GetDtype());
 
     SizeVector shape = input_keys.GetShape();
     if (shape.size() == 0 || shape[0] == 0) {
@@ -148,7 +149,7 @@ void Hashmap::Find(const void* input_keys,
 void Hashmap::Find(const Tensor& input_keys,
                    Tensor& output_iterators,
                    Tensor& output_masks) {
-    AssertKeyDtype(input_keys.GetDtype());
+    // AssertKeyDtype(input_keys.GetDtype());
 
     SizeVector shape = input_keys.GetShape();
     if (shape.size() == 0 || shape[0] == 0) {
@@ -176,7 +177,7 @@ void Hashmap::Erase(const void* input_keys, bool* output_masks, size_t count) {
 }
 
 void Hashmap::Erase(const Tensor& input_keys, Tensor& output_masks) {
-    AssertKeyDtype(input_keys.GetDtype());
+    // AssertKeyDtype(input_keys.GetDtype());
 
     SizeVector shape = input_keys.GetShape();
     if (shape.size() == 0 || shape[0] == 0) {

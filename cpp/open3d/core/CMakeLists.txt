@@ -60,6 +60,7 @@ set(CORE_SRC
     MemoryManager.cpp
     MemoryManagerCPU.cpp
     Tensor.cpp
+    SparseTensor.cpp
     TensorKey.cpp
     TensorList.cpp
 )

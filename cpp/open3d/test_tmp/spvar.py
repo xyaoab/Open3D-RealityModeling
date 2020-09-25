@@ -2,18 +2,25 @@ import torch
 from torch.utils import dlpack
 import torch.nn as nn
 import open3d as o3d
+import numpy as np
 from tqdm import tqdm
+
 
 class SpVarModel(nn.Module):
 
-    def __init__(self):
+    def __init__(self, device=o3d.core.Device('cpu:0')):
         super(SpVarModel, self).__init__()
 
+        self.device = device
         # Default 1d coordinate 0, to be extended
-        self.coords = [i for i in range(10)]
-        self.params = nn.ParameterList([
-            nn.Parameter(torch.FloatTensor(1).uniform_(0, 1)) for i in range(10)
-        ])
+        # self.spvar_params = SparseTensor(10,
+        #                                  coord_dtype=.., coord_shape=..,
+        #                                  value_dtype=.., value_shape=..)
+        # params = self.spvar_params.get_values()
+        # self.params = nn.ParameterList([nn.Parameter(dlpack.(param) for param in params]))
+        self.coords = [0]
+        self.params = nn.ParameterList(
+            [nn.Parameter(torch.FloatTensor(1).uniform_(0, 1))])
 
     def forward(self, cs, xs):
         # Replace this with parallel hashmap.find(coords)
@@ -25,6 +32,9 @@ class SpVarModel(nn.Module):
 
     def add_param(self, coords, device, optim):
         # Replace this with hashmap.activate(coords)
+        # iterators, masks = self.hashmap.activate(coords)
+        # SparseTensor(iterators[masks]) => list of tensors
+
         for coord in coords:
             if not coord in self.coords:
                 param = nn.Parameter(nn.Parameter(torch.randn(1).to(device)))
@@ -47,11 +57,11 @@ if __name__ == '__main__':
     batchsize = 1000
     spatial_slots = 10
     torch.manual_seed(0)
+    np.random.seed(0)
 
     coords = torch.randint(spatial_slots, (n,)).to(device)
     xs = torch.randn(n).to(device)
     gts = (coords.float() / spatial_slots).to(device)
-    print(coords)
 
     for epoch in tqdm(range(10000)):
         for b in range(0, n, batchsize):
@@ -61,14 +71,12 @@ if __name__ == '__main__':
             xs_b = xs[b:b + batchsize]
             gts_b = gts[b:b + batchsize]
 
-            # model.add_param(coords_b, device, optim)
+            model.add_param(coords_b, device, optim)
 
             out = model(coords_b, xs_b)
             loss = (gts_b - out).norm()
             loss.backward()
-            print(loss.item())
             optim.step()
-
 
     for c, p in zip(model.coords, model.params):
         print(c, p)
