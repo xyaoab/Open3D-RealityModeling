@@ -960,8 +960,8 @@ class SparseTensor(o3d.pybind.core.SparseTensor):
     Open3D Hashmap class. A Hashmap is a map from key to data wrapped by Tensors.
     """
 
-    def __init__(self, coords, elems):
-        super(SparseTensor, self).__init__(coords, elems)
+    def __init__(self, coords, elems, insert=False):
+        super(SparseTensor, self).__init__(coords, elems, insert)
 
     @cast_to_py_tensor
     def insert_entries(self, coords, elems):

@@ -12,15 +12,21 @@ class SpVarModel(nn.Module):
         super(SpVarModel, self).__init__()
 
         self.device = device
-        # Default 1d coordinate 0, to be extended
-        # self.spvar_params = SparseTensor(10,
-        #                                  coord_dtype=.., coord_shape=..,
-        #                                  value_dtype=.., value_shape=..)
-        # params = self.spvar_params.get_values()
-        # self.params = nn.ParameterList([nn.Parameter(dlpack.(param) for param in params]))
-        self.coords = [0]
-        self.params = nn.ParameterList(
-            [nn.Parameter(torch.FloatTensor(1).uniform_(0, 1))])
+
+        coords = o3d.core.Tensor([[0], [1]],
+                                 dtype=o3d.core.Dtype.Int64,
+                                 device=device)
+        elems = o3d.core.Tensor([[0.], [0.]],
+                                dtype=o3d.core.Dtype.Float32,
+                                device=device)
+        self.spvar_params = o3d.core.SparseTensor(coords, elems)
+        iterators, masks = self.spvar_params.insert_entries(coords, elems)
+        params = self.spvar_params.get_elems_list(iterators[masks])
+
+        self.coords = [0, 1]
+        self.params = nn.ParameterList([nn.Parameter(dlpack.from_dlpack(param.to_dlpack()))
+                                        for param in params])
+
 
     def forward(self, cs, xs):
         # Replace this with parallel hashmap.find(coords)
@@ -49,8 +55,8 @@ if __name__ == '__main__':
 
     coords = o3d.core.Tensor([[100], [200], [300]], dtype=o3d.core.Dtype.Int64)
     elems = o3d.core.Tensor([[1.0], [2.0], [3.0]], dtype=o3d.core.Dtype.Float32)
-    sp_tensor = o3d.core.SparseTensor(coords, elems)
-    iterators, masks = sp_tensor.insert_entries(coords, elems)
+    sp_tensor = o3d.core.SparseTensor(coords, elems, insert=True)
+    iterators, masks = sp_tensor.find_entries(coords)
     sp_tensor_elem_list = sp_tensor.get_elems_list(iterators[masks])
 
     model = SpVarModel().to(device)
@@ -60,7 +66,7 @@ if __name__ == '__main__':
     # > param(coord) = coord * 0.01
     # > gt: param(coord) * x(coord)
     n = 1000
-    batchsize = 1000
+    batchsize = 10
     spatial_slots = 10
     torch.manual_seed(0)
     np.random.seed(0)
@@ -69,7 +75,7 @@ if __name__ == '__main__':
     xs = torch.randn(n).to(device)
     gts = (coords.float() / spatial_slots).to(device)
 
-    for epoch in tqdm(range(10000)):
+    for epoch in tqdm(range(1000)):
         for b in range(0, n, batchsize):
             optim.zero_grad()
 
