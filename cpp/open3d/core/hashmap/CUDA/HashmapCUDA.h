@@ -103,12 +103,15 @@ public:
     size_t Size() const override;
 
 protected:
-    /// struct directly passed to kernels, cannot be a pointer
+    /// The struct is directly passed to kernels by value, so cannot be a shared
+    /// pointer.
     CUDAHashmapImplContext<Hash, KeyEq> gpu_context_;
 
     std::shared_ptr<InternalKvPairManager> kv_mgr_;
     std::shared_ptr<InternalNodeManager> node_mgr_;
 
+    /// Rehash, Insert, Activate all call InsertImpl. It will be clean to
+    /// separate this implementation and avoid shared checks.
     void InsertImpl(const void* input_keys,
                     const void* input_values,
                     iterator_t* output_iterators,
@@ -159,11 +162,11 @@ void CUDAHashmap<Hash, KeyEq>::Rehash(size_t buckets) {
                         output_values, iterator_count);
     }
 
-    float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
+    float avg_capacity_per_bucket =
+            float(this->capacity_) / float(this->bucket_count_);
     MemoryManager::Free(gpu_context_.bucket_list_head_, this->device_);
-    Allocate(buckets, size_t(std::ceil(buckets * avg_ratio)));
+    Allocate(buckets, size_t(std::ceil(buckets * avg_capacity_per_bucket)));
 
-    /// Insert back
     if (iterator_count > 0) {
         InsertImpl(output_keys, output_values, output_iterators, output_masks,
                    iterator_count);
@@ -181,13 +184,14 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
                                       iterator_t* output_iterators,
                                       bool* output_masks,
                                       size_t count) {
-    // Check capacity and rehash if in need
     size_t new_size = Size() + count;
     if (new_size > this->capacity_) {
-        float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
-        size_t exp_buckets = std::max(this->bucket_count_ * 2,
-                                      size_t(std::ceil(new_size / avg_ratio)));
-        Rehash(exp_buckets);
+        float avg_capacity_per_bucket =
+                float(this->capacity_) / float(this->bucket_count_);
+        size_t expected_buckets =
+                std::max(this->bucket_count_ * 2,
+                         size_t(std::ceil(new_size / avg_capacity_per_bucket)));
+        Rehash(expected_buckets);
     }
 
     InsertImpl(input_keys, input_values, output_iterators, output_masks, count);
@@ -200,10 +204,12 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
                                         size_t count) {
     size_t new_size = Size() + count;
     if (new_size > this->capacity_) {
-        float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
-        size_t exp_buckets = std::max(this->bucket_count_ * 2,
-                                      size_t(std::ceil(new_size / avg_ratio)));
-        Rehash(exp_buckets);
+        float avg_capacity_per_bucket =
+                float(this->capacity_) / float(this->bucket_count_);
+        size_t expected_buckets =
+                std::max(this->bucket_count_ * 2,
+                         size_t(std::ceil(new_size / avg_capacity_per_bucket)));
+        Rehash(expected_buckets);
     }
 
     InsertImpl(input_keys, nullptr, output_iterators, output_masks, count);
@@ -214,6 +220,8 @@ void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
                                     iterator_t* output_iterators,
                                     bool* output_masks,
                                     size_t count) {
+    if (count == 0) return;
+
     OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
 
     const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
@@ -227,34 +235,33 @@ template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Erase(const void* input_keys,
                                      bool* output_masks,
                                      size_t count) {
-    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    if (count == 0) return;
 
+    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
     auto iterator_addrs = static_cast<addr_t*>(
             MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
+
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
     EraseKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, input_keys, iterator_addrs, output_masks, count);
     EraseKernelPass1<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, iterator_addrs,
                                                  output_masks, count);
-    MemoryManager::Free(iterator_addrs, this->device_);
-
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
+
+    MemoryManager::Free(iterator_addrs, this->device_);
 }
 
 template <typename Hash, typename KeyEq>
 size_t CUDAHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
-    // REVIEW: why not BLOCKSIZE_?
-    const size_t blocksize = 128;
-    const size_t num_blocks =
-            (gpu_context_.bucket_count_ * WARP_SIZE + blocksize - 1) /
-            blocksize;
-
-    // REVIEW: is this freed?
     uint32_t* iterator_count = static_cast<uint32_t*>(
             MemoryManager::Malloc(sizeof(uint32_t), this->device_));
     cudaMemset(iterator_count, 0, sizeof(uint32_t));
 
+    const size_t blocksize = 128;
+    const size_t num_blocks =
+            (gpu_context_.bucket_count_ * WARP_SIZE + blocksize - 1) /
+            blocksize;
     GetIteratorsKernel<<<num_blocks, blocksize>>>(
             gpu_context_, output_iterators, iterator_count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
@@ -263,6 +270,8 @@ size_t CUDAHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
     uint32_t ret;
     MemoryManager::MemcpyToHost(&ret, iterator_count, this->device_,
                                 sizeof(uint32_t));
+    MemoryManager::Free(iterator_count, this->device_);
+
     return static_cast<size_t>(ret);
 }
 
@@ -275,81 +284,53 @@ void CUDAHashmap<Hash, KeyEq>::UnpackIterators(
         size_t iterator_count) {
     if (iterator_count == 0) return;
 
-    // REVIEW: in other locations of this file, this is called block size. Shall
-    // we be consistent?
-    const size_t num_threads = 32;
-    const size_t num_blocks = (iterator_count + num_threads - 1) / num_threads;
-
-    UnpackIteratorsKernel<<<num_blocks, num_threads>>>(
+    const size_t blocksize = 128;
+    const size_t num_blocks = (iterator_count + blocksize - 1) / blocksize;
+    UnpackIteratorsKernel<<<num_blocks, blocksize>>>(
             input_iterators, input_masks, output_keys, output_values,
             this->dsize_key_, this->dsize_value_, iterator_count);
-
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-// REVIEW: what is the use case of AssignIterators? looks like it is not used by
-// insert/erase/find/activate. Can we remove this? Same for CPU.
 template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::AssignIterators(iterator_t* input_iterators,
                                                const bool* input_masks,
                                                const void* input_values,
                                                size_t iterator_count) {
     if (iterator_count == 0) return;
-    // REVIEW: in other locations of this file, this is called block size. Shall
-    // we be consistent?
-    const size_t num_threads = 32;
-    const size_t num_blocks = (iterator_count + num_threads - 1) / num_threads;
 
-    AssignIteratorsKernel<<<num_blocks, num_threads>>>(
+    const size_t blocksize = 128;
+    const size_t num_blocks = (iterator_count + blocksize - 1) / blocksize;
+    AssignIteratorsKernel<<<num_blocks, blocksize>>>(
             input_iterators, input_masks, input_values, this->dsize_value_,
             iterator_count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-/// Bucket-related utilities
-/// Return number of elems per bucket
 template <typename Hash, typename KeyEq>
 std::vector<size_t> CUDAHashmap<Hash, KeyEq>::BucketSizes() const {
-    auto elems_per_bucket_buffer = static_cast<size_t*>(MemoryManager::Malloc(
-            gpu_context_.bucket_count_ * sizeof(size_t), this->device_));
-
-    // REVIEW: Is this a copy? If yes, can we just let thrust manage the memory
-    // without preallocation?
-    thrust::device_vector<size_t> elems_per_bucket(
-            elems_per_bucket_buffer,
-            elems_per_bucket_buffer + gpu_context_.bucket_count_);
+    thrust::device_vector<size_t> elems_per_bucket(gpu_context_.bucket_count_);
     thrust::fill(elems_per_bucket.begin(), elems_per_bucket.end(), 0);
 
-    // REVIEW: why not BLOCKSIZE_?
     const size_t blocksize = 128;
     const size_t num_blocks =
             (gpu_context_.capacity_ + blocksize - 1) / blocksize;
     CountElemsPerBucketKernel<<<num_blocks, blocksize>>>(
             gpu_context_, thrust::raw_pointer_cast(elems_per_bucket.data()));
-    // REVIEW: do we need these after kernel call?
-    // OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    // OPEN3D_CUDA_CHECK(cudaGetLastError());
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+
     std::vector<size_t> result(gpu_context_.bucket_count_);
     thrust::copy(elems_per_bucket.begin(), elems_per_bucket.end(),
                  result.begin());
-    MemoryManager::Free(elems_per_bucket_buffer, this->device_);
     return std::move(result);
 }
 
-/// Return size / bucket_count
 template <typename Hash, typename KeyEq>
 float CUDAHashmap<Hash, KeyEq>::LoadFactor() const {
-    auto elems_per_bucket = BucketSizes();
-    // REVIEW: what is the difference between this and the Size() function?
-    int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
-                                             elems_per_bucket.end(), 0);
-
-    float load_factor =
-            float(total_elems_stored) / float(elems_per_bucket.size());
-
-    return load_factor;
+    return float(Size()) / float(this->bucket_count_);
 }
 
 template <typename Hash, typename KeyEq>
@@ -363,68 +344,53 @@ void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
                                           iterator_t* output_iterators,
                                           bool* output_masks,
                                           size_t count) {
-    auto iterator_ptrs = static_cast<addr_t*>(
+    if (count == 0) return;
+    auto iterator_addrs = static_cast<addr_t*>(
             MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
 
-    // REVIEW: I would call this heap_counter_prev to be consistent with the
-    // name inside the kernel.
-    int heap_counter =
+    /// Increase heap_counter to pre-allocate potential memory increment and
+    /// avoid atomicAdd in kernel.
+    int prev_heap_counter =
             *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_);
-    // REVIEW: Could you add comments on why do we increase the heap counter
-    // before but not after the insertion?
     *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_) =
-            heap_counter + count;
-    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
-    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
-    InsertKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_values, iterator_ptrs, output_iterators,
-            output_masks, count);
-    MemoryManager::Free(iterator_ptrs, this->device_);
+            prev_heap_counter + count;
 
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_addrs, prev_heap_counter, count);
+    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_addrs, output_masks, count);
+    InsertKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_values, iterator_addrs, output_iterators,
+            output_masks, count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
+
+    MemoryManager::Free(iterator_addrs, this->device_);
 }
 
-// REVIEW: nit: order these functions to be the same as the order declared in
-// the class.
 template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Allocate(size_t bucket_count, size_t capacity) {
-    // REVIEW: we could consider removing `this->` for simplicity.
     this->bucket_count_ = bucket_count;
     this->capacity_ = capacity;
 
-    // REVIEW: mention that we're allocating for the actual storage taht stores
-    // the key-value pair.
+    // Allocate buffer for key-values
     kv_mgr_ = std::make_shared<InternalKvPairManager>(
             this->capacity_, this->dsize_key_, this->dsize_value_,
             this->device_);
 
-    // Memory for hash table linked list nodes
-    // REVIEW: InternalNodeManager seems to determine the maximum number of
-    // entries that we can have. Do we have a mechanism to protect against
-    // indexing out-of-range? E.g. what is the maximum number of keys can
-    // hashmap support (e.g. can it be bigger than 4GB)? What is the maximum
-    // total memory used by the hashmap?
+    // Allocate buffer for linked list nodes
     node_mgr_ = std::make_shared<InternalNodeManager>(this->device_);
 
-    // REVIEW: move this after all teh allocations. e.g. after allocating
-    // gpu_context_.bucket_list_head_. In this way keep the 3 allocations
-    // together.
-    gpu_context_.Setup(this->bucket_count_, this->capacity_, this->dsize_key_,
-                       this->dsize_value_, node_mgr_->gpu_context_,
-                       kv_mgr_->gpu_context_);
-
-    // Memory for hash table
+    // Allocate linked list heads
     gpu_context_.bucket_list_head_ = static_cast<Slab*>(MemoryManager::Malloc(
             sizeof(Slab) * this->bucket_count_, this->device_));
     OPEN3D_CUDA_CHECK(cudaMemset(gpu_context_.bucket_list_head_, 0xFF,
                                  sizeof(Slab) * this->bucket_count_));
 
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
+    gpu_context_.Setup(this->bucket_count_, this->capacity_, this->dsize_key_,
+                       this->dsize_value_, node_mgr_->gpu_context_,
+                       kv_mgr_->gpu_context_);
 }
 
 }  // namespace core
