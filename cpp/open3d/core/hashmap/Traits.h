@@ -48,7 +48,8 @@ namespace core {
 
 static constexpr uint32_t MAX_KEY_BYTESIZE = 32;
 
-typedef uint32_t ptr_t;
+typedef uint32_t addr_t;
+
 struct iterator_t {
     OPEN3D_HOST_DEVICE iterator_t() : first(nullptr), second(nullptr) {}
     OPEN3D_HOST_DEVICE iterator_t(void* key_ptr, void* value_ptr)
