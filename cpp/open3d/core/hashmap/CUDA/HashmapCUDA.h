@@ -115,11 +115,6 @@ protected:
                     bool* output_masks,
                     size_t count);
 
-    void ActivateImpl(const void* input_keys,
-                      iterator_t* output_iterators,
-                      bool* output_masks,
-                      size_t count);
-
     void Allocate(size_t bucket_count, size_t capacity);
 };
 
@@ -211,7 +206,7 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
         Rehash(exp_buckets);
     }
 
-    ActivateImpl(input_keys, output_iterators, output_masks, count);
+    InsertImpl(input_keys, nullptr, output_iterators, output_masks, count);
 }
 
 template <typename Hash, typename KeyEq>
@@ -389,39 +384,6 @@ void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
             output_masks, count);
     MemoryManager::Free(iterator_ptrs, this->device_);
 
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::ActivateImpl(const void* input_keys,
-                                            iterator_t* output_iterators,
-                                            bool* output_masks,
-                                            size_t count) {
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    auto iterator_ptrs = static_cast<addr_t*>(
-            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
-
-    int heap_counter =
-            *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_);
-    *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_) =
-            heap_counter + count;
-    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
-
-    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
-
-    // REVIEW: since this is the only difference, can we reuse Insert for
-    // Activate? That is:
-    // - CUDAHashmap::Activate() calls CUDAHashmap::Insert() with input_values
-    //   == nullptr.
-    // - In `CUDAHashmap::InsertImpl()` checks input_values: if null_ptr, it
-    //   calls ActivateKernelPass2; otherwise, it calls InsertKernelPass2.
-    ActivateKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, iterator_ptrs, output_iterators, output_masks, count);
-
-    MemoryManager::Free(iterator_ptrs, this->device_);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }

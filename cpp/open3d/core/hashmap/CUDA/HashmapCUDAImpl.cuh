@@ -166,7 +166,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
         else {
             /* broadcast next slab: lane 31 reads 'next' */
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
             /** 2.1. Next slab is empty, ABORT **/
             if (next_slab_ptr == EMPTY_SLAB_PTR) {
@@ -272,7 +272,7 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
         else {
             /* broadcast next slab */
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
             /** Branch 3.1: next slab existing, RESTART this lane **/
             if (next_slab_ptr != EMPTY_SLAB_PTR) {
@@ -366,7 +366,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
             }
         } else {  // no matching slot found:
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
             if (next_slab_ptr == EMPTY_SLAB_PTR) {
                 // not found:
                 if (lane_id == src_lane) {
@@ -528,68 +528,21 @@ __global__ void InsertKernelPass2(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
         if (masks[tid]) {
             iterator_t iterator =
                     hash_ctx.kv_mgr_ctx_.extract_iterator(iterator_ptr);
+
             // Success: copy remaining values
-            auto src_value_ptr = static_cast<const int*>(values) +
-                                 tid * hash_ctx.dsize_value_ / sizeof(int);
-            auto dst_value_ptr = static_cast<int*>(iterator.second);
-            for (int i = 0; i < hash_ctx.dsize_value_ / sizeof(int); ++i) {
-                dst_value_ptr[i] = src_value_ptr[i];
+            if (values != nullptr) {
+                auto src_value_ptr = static_cast<const int*>(values) +
+                                     tid * hash_ctx.dsize_value_ / sizeof(int);
+                auto dst_value_ptr = static_cast<int*>(iterator.second);
+                for (int i = 0; i < hash_ctx.dsize_value_ / sizeof(int); ++i) {
+                    dst_value_ptr[i] = src_value_ptr[i];
+                }
             }
 
             if (iterators != nullptr) {
                 iterators[tid] = iterator;
             }
         } else {
-            hash_ctx.kv_mgr_ctx_.Free(iterator_ptr);
-
-            if (iterators != nullptr) {
-                iterators[tid] = iterator_t();
-            }
-        }
-    }
-}
-
-// REVIEW: rename parameters to be consistent with the caller, iterators ->
-// output_iterators; masks -> output_masks.
-template <typename Hash, typename KeyEq>
-__global__ void ActivateKernelPass2(
-        CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
-        addr_t* iterator_ptrs,
-        iterator_t* iterators,
-        bool* masks,
-        size_t input_count) {
-    uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-
-    if (tid < input_count) {
-        addr_t iterator_ptr = iterator_ptrs[tid];
-
-        if (masks[tid]) {
-            iterator_t iterator =
-                    hash_ctx.kv_mgr_ctx_.extract_iterator(iterator_ptr);
-            if (iterators != nullptr) {
-                iterators[tid] = iterator;
-            }
-
-            // void* key = iterator.first;
-            // int64_t key0 = *reinterpret_cast<const int64_t*>(key);
-            // int64_t key1 = *(reinterpret_cast<const int64_t*>(key) + 1);
-            // int64_t key2 = *(reinterpret_cast<const int64_t*>(key) + 2);
-            // printf("pass2 %d->%d: %ld, %ld, %ld, %d, %p\n", tid,
-            // iterator_ptr,
-            //        key0, key1, key2, masks[tid], iterator.second);
-
-        } else {
-            // iterator_t iterator =
-            //         hash_ctx.kv_mgr_ctx_.extract_iterator(iterator_ptr);
-            // void* key = iterator.first;
-            // int64_t key0 = *reinterpret_cast<const int64_t*>(key);
-            // int64_t key1 = *(reinterpret_cast<const int64_t*>(key) + 1);
-            // int64_t key2 = *(reinterpret_cast<const int64_t*>(key) + 2);
-
-            // printf("pass2 else %d->%d: %ld, %ld, %ld, %d, %p\n", tid,
-            //        iterator_ptr, key0, key1, key2, masks[tid],
-            //        iterator.second);
-
             hash_ctx.kv_mgr_ctx_.Free(iterator_ptr);
 
             if (iterators != nullptr) {
@@ -674,7 +627,7 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     }
 
     addr_t next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data,
-                             NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
     // count following nodes
     while (next != EMPTY_SLAB_PTR) {
@@ -720,7 +673,7 @@ __global__ void CountElemsPerBucketKernel(
     count += __popc(__ballot_sync(PAIR_PTR_LANES_MASK,
                                   src_unit_data != EMPTY_PAIR_PTR));
     addr_t next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data,
-                             NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
     // count following nodes
     while (next != EMPTY_SLAB_PTR) {
