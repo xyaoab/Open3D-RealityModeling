@@ -53,13 +53,13 @@ namespace core {
 template <typename Hash, typename KeyEq>
 class CUDAHashmap : public DeviceHashmap<Hash, KeyEq> {
 public:
-    ~CUDAHashmap();
-
     CUDAHashmap(size_t init_buckets,
                 size_t init_capacity,
                 size_t dsize_key,
                 size_t dsize_value,
                 const Device& device);
+
+    ~CUDAHashmap();
 
     void Rehash(size_t buckets) override;
 
@@ -107,10 +107,8 @@ protected:
     CUDAHashmapImplContext<Hash, KeyEq> gpu_context_;
 
     // REVIEW: i would call this kv_mgr_ to be consistent.
-    std::shared_ptr<InternalKvPairManager> mem_mgr_;
+    std::shared_ptr<InternalKvPairManager> kv_mgr_;
     std::shared_ptr<InternalNodeManager> node_mgr_;
-
-    void Allocate(size_t bucket_count, size_t capacity);
 
     // REVIEW: can we merge the `InsertImpl` to `Insert` directly. Same for the
     // others.
@@ -131,6 +129,8 @@ protected:
                   size_t count);
 
     void EraseImpl(const void* input_keys, bool* output_masks, size_t count);
+
+    void Allocate(size_t bucket_count, size_t capacity);
 };
 
 /// Interface
@@ -145,53 +145,56 @@ CUDAHashmap<Hash, KeyEq>::CUDAHashmap(size_t init_buckets,
     Allocate(init_buckets, init_capacity);
 }
 
-// REVIEW: nit: order these functions to be the same as the order declared in
-// the class.
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::Allocate(size_t bucket_count, size_t capacity) {
-    // REVIEW: we could consider removing `this->` for simplicity.
-    this->bucket_count_ = bucket_count;
-    this->capacity_ = capacity;
-
-    // REVIEW: mention that we're allocating for the actual storage taht stores
-    // the key-value pair.
-    mem_mgr_ = std::make_shared<InternalKvPairManager>(
-            this->capacity_, this->dsize_key_, this->dsize_value_,
-            this->device_);
-
-    // Memory for hash table linked list nodes
-    // REVIEW: InternalNodeManager seems to determine the maximum number of
-    // entries that we can have. Do we have a mechanism to protect against
-    // indexing out-of-range? E.g. what is the maximum number of keys can
-    // hashmap support (e.g. can it be bigger than 4GB)? What is the maximum
-    // total memory used by the hashmap?
-    node_mgr_ = std::make_shared<InternalNodeManager>(this->device_);
-
-    // REVIEW: move this after all teh allocations. e.g. after allocating
-    // gpu_context_.bucket_list_head_. In this way keep the 3 allocations
-    // together.
-    gpu_context_.Setup(this->bucket_count_, this->capacity_, this->dsize_key_,
-                       this->dsize_value_, node_mgr_->gpu_context_,
-                       mem_mgr_->gpu_context_);
-
-    // Memory for hash table
-    gpu_context_.bucket_list_head_ = static_cast<Slab*>(MemoryManager::Malloc(
-            sizeof(Slab) * this->bucket_count_, this->device_));
-    OPEN3D_CUDA_CHECK(cudaMemset(gpu_context_.bucket_list_head_, 0xFF,
-                                 sizeof(Slab) * this->bucket_count_));
-
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
 template <typename Hash, typename KeyEq>
 CUDAHashmap<Hash, KeyEq>::~CUDAHashmap() {
     MemoryManager::Free(gpu_context_.bucket_list_head_, this->device_);
 }
 
 template <typename Hash, typename KeyEq>
-size_t CUDAHashmap<Hash, KeyEq>::Size() const {
-    return *thrust::device_ptr<int>(gpu_context_.mem_mgr_ctx_.heap_counter_);
+void CUDAHashmap<Hash, KeyEq>::Rehash(size_t buckets) {
+    // TODO: add a size operator instead of rough estimation
+    // REVIEW: can the Size() funciton be used here?
+    size_t iterator_count = Size();
+    iterator_t* output_iterators = nullptr;
+
+    // REVIEW: currently we are copying twice 1) from old hashmap to temp, 2)
+    // from temp to new hashmap. Potentially it is possible to do this in
+    // one-shot by a adding a rehashing kernel? Can be done in future PR.
+    void* output_keys;
+    void* output_values;
+    if (iterator_count > 0) {
+        output_keys = MemoryManager::Malloc(this->dsize_key_ * iterator_count,
+                                            this->device_);
+        output_values = MemoryManager::Malloc(
+                this->dsize_value_ * iterator_count, this->device_);
+
+        output_iterators = (iterator_t*)MemoryManager::Malloc(
+                sizeof(iterator_t) * iterator_count, this->device_);
+        GetIterators(output_iterators);
+
+        UnpackIterators(output_iterators, /* masks = */ nullptr, output_keys,
+                        output_values, iterator_count);
+    }
+
+    // REVIEW: the caller of Rehash() e.g. Insert() already computes avg_ratio
+    // and etc, seems the logic is duplicated. Could it be simplified?
+    float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
+    MemoryManager::Free(gpu_context_.bucket_list_head_, this->device_);
+    Allocate(buckets, size_t(std::ceil(buckets * avg_ratio)));
+
+    /// Insert back
+    if (iterator_count > 0) {
+        auto output_masks = (bool*)MemoryManager::Malloc(
+                sizeof(bool) * iterator_count, this->device_);
+
+        InsertImpl(output_keys, output_values, output_iterators, output_masks,
+                   iterator_count);
+
+        MemoryManager::Free(output_keys, this->device_);
+        MemoryManager::Free(output_values, this->device_);
+        MemoryManager::Free(output_masks, this->device_);
+        MemoryManager::Free(output_iterators, this->device_);
+    }
 }
 
 template <typename Hash, typename KeyEq>
@@ -248,47 +251,6 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
 }
 
 template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
-                                          const void* input_values,
-                                          iterator_t* output_iterators,
-                                          bool* output_masks,
-                                          size_t count) {
-    bool extern_masks = (output_masks != nullptr);
-    // REVIEW: Since `InsertImpl` is called by `Insert`, `extern_masks` will
-    // never be `nullptr`. Perhapse we can merge InsertImpl` to `Insert`.
-    if (!extern_masks) {
-        output_masks = static_cast<bool*>(
-                MemoryManager::Malloc(count * sizeof(bool), this->device_));
-    }
-    auto iterator_ptrs = static_cast<ptr_t*>(
-            MemoryManager::Malloc(sizeof(ptr_t) * count, this->device_));
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-
-    // REVIEW: I would call this heap_counter_prev to be consistent with the
-    // name inside the kernel.
-    int heap_counter =
-            *thrust::device_ptr<int>(gpu_context_.mem_mgr_ctx_.heap_counter_);
-    // REVIEW: Could you add comments on why do we increase the heap counter
-    // before but not after the insertion?
-    *thrust::device_ptr<int>(gpu_context_.mem_mgr_ctx_.heap_counter_) =
-            heap_counter + count;
-    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
-    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
-    InsertKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_values, iterator_ptrs, output_iterators,
-            output_masks, count);
-    if (!extern_masks) {
-        MemoryManager::Free(output_masks, this->device_);
-    }
-    MemoryManager::Free(iterator_ptrs, this->device_);
-
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
                                         iterator_t* output_iterators,
                                         bool* output_masks,
@@ -325,39 +287,6 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
 }
 
 template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::ActivateImpl(const void* input_keys,
-                                            iterator_t* output_iterators,
-                                            bool* output_masks,
-                                            size_t count) {
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    auto iterator_ptrs = static_cast<ptr_t*>(
-            MemoryManager::Malloc(sizeof(ptr_t) * count, this->device_));
-
-    int heap_counter =
-            *thrust::device_ptr<int>(gpu_context_.mem_mgr_ctx_.heap_counter_);
-    *thrust::device_ptr<int>(gpu_context_.mem_mgr_ctx_.heap_counter_) =
-            heap_counter + count;
-    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
-
-    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
-
-    // REVIEW: since this is the only difference, can we reuse Insert for
-    // Activate? That is:
-    // - CUDAHashmap::Activate() calls CUDAHashmap::Insert() with input_values
-    //   == nullptr.
-    // - In `CUDAHashmap::InsertImpl()` checks input_values: if null_ptr, it
-    //   calls ActivateKernelPass2; otherwise, it calls InsertKernelPass2.
-    ActivateKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, iterator_ptrs, output_iterators, output_masks, count);
-
-    MemoryManager::Free(iterator_ptrs, this->device_);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
                                     iterator_t* output_iterators,
                                     bool* output_masks,
@@ -380,27 +309,6 @@ void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
 }
 
 template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::FindImpl(const void* input_keys,
-                                        iterator_t* output_iterators,
-                                        bool* output_masks,
-                                        size_t count) {
-    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
-
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    FindKernel<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, output_iterators, output_masks, count);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-
-    // thrust::device_vector<void*> all_iterators_device(
-    //         (void**)output_iterators, (void**)output_iterators + count * 2);
-    // for (int i = 0; i < count * 2; ++i) {
-    //     void* iterator = all_iterators_device[i];
-    //     std::cout << iterator << "\n";
-    // }
-}
-
-template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Erase(const void* input_keys,
                                      bool* output_masks,
                                      size_t count) {
@@ -418,27 +326,6 @@ void CUDAHashmap<Hash, KeyEq>::Erase(const void* input_keys,
     if (!extern_masks) {
         MemoryManager::Free(output_masks, this->device_);
     }
-}
-
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::EraseImpl(const void* input_keys,
-                                         bool* output_masks,
-                                         size_t count) {
-    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-
-    auto iterator_ptrs = static_cast<ptr_t*>(
-            MemoryManager::Malloc(sizeof(ptr_t) * count, this->device_));
-
-    EraseKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, (uint8_t*)input_keys, iterator_ptrs, output_masks,
-            count);
-    EraseKernelPass1<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, iterator_ptrs,
-                                                 output_masks, count);
-
-    MemoryManager::Free(iterator_ptrs, this->device_);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename Hash, typename KeyEq>
@@ -507,52 +394,6 @@ void CUDAHashmap<Hash, KeyEq>::AssignIterators(iterator_t* input_iterators,
     OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::Rehash(size_t buckets) {
-    utility::LogInfo("Rehashing: {} -> {}", this->bucket_count_, buckets);
-    // TODO: add a size operator instead of rough estimation
-    // REVIEW: can the Size() funciton be used here?
-    auto output_iterators = (iterator_t*)MemoryManager::Malloc(
-            sizeof(iterator_t) * this->capacity_, this->device_);
-    size_t iterator_count = GetIterators(output_iterators);
-
-    // REVIEW: currently we are copying twice 1) from old hashmap to temp, 2)
-    // from temp to new hashmap. Potentially it is possible to do this in
-    // one-shot by a adding a rehashing kernel? Can be done in future PR.
-    void* output_keys;
-    void* output_values;
-    if (iterator_count > 0) {
-        output_keys = MemoryManager::Malloc(this->dsize_key_ * iterator_count,
-                                            this->device_);
-        output_values = MemoryManager::Malloc(
-                this->dsize_value_ * iterator_count, this->device_);
-
-        UnpackIterators(output_iterators, /* masks = */ nullptr, output_keys,
-                        output_values, iterator_count);
-    }
-
-    // REVIEW: the caller of Rehash() e.g. Insert() already computes avg_ratio
-    // and etc, seems the logic is duplicated. Could it be simplified?
-    float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
-    MemoryManager::Free(gpu_context_.bucket_list_head_, this->device_);
-    Allocate(buckets, size_t(std::ceil(buckets * avg_ratio)));
-
-    /// Insert back
-    if (iterator_count > 0) {
-        auto output_masks = (bool*)MemoryManager::Malloc(
-                sizeof(bool) * iterator_count, this->device_);
-
-        Insert(output_keys, output_values, output_iterators, output_masks,
-               iterator_count);
-
-        MemoryManager::Free(output_keys, this->device_);
-        MemoryManager::Free(output_values, this->device_);
-        MemoryManager::Free(output_masks, this->device_);
-    }
-
-    MemoryManager::Free(output_iterators, this->device_);
-}
-
 /// Bucket-related utilities
 /// Return number of elems per bucket
 template <typename Hash, typename KeyEq>
@@ -605,6 +446,166 @@ float CUDAHashmap<Hash, KeyEq>::LoadFactor() const {
             float(total_elems_stored) / float(elems_per_bucket.size());
 
     return load_factor;
+}
+
+template <typename Hash, typename KeyEq>
+size_t CUDAHashmap<Hash, KeyEq>::Size() const {
+    return *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_);
+}
+
+template <typename Hash, typename KeyEq>
+void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
+                                          const void* input_values,
+                                          iterator_t* output_iterators,
+                                          bool* output_masks,
+                                          size_t count) {
+    bool extern_masks = (output_masks != nullptr);
+    // REVIEW: Since `InsertImpl` is called by `Insert`, `extern_masks` will
+    // never be `nullptr`. Perhapse we can merge InsertImpl` to `Insert`.
+    if (!extern_masks) {
+        output_masks = static_cast<bool*>(
+                MemoryManager::Malloc(count * sizeof(bool), this->device_));
+    }
+    auto iterator_ptrs = static_cast<addr_t*>(
+            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+
+    // REVIEW: I would call this heap_counter_prev to be consistent with the
+    // name inside the kernel.
+    int heap_counter =
+            *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_);
+    // REVIEW: Could you add comments on why do we increase the heap counter
+    // before but not after the insertion?
+    *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_) =
+            heap_counter + count;
+    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
+    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
+    InsertKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_values, iterator_ptrs, output_iterators,
+            output_masks, count);
+    if (!extern_masks) {
+        MemoryManager::Free(output_masks, this->device_);
+    }
+    MemoryManager::Free(iterator_ptrs, this->device_);
+
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename Hash, typename KeyEq>
+void CUDAHashmap<Hash, KeyEq>::ActivateImpl(const void* input_keys,
+                                            iterator_t* output_iterators,
+                                            bool* output_masks,
+                                            size_t count) {
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    auto iterator_ptrs = static_cast<addr_t*>(
+            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
+
+    int heap_counter =
+            *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_);
+    *thrust::device_ptr<int>(gpu_context_.kv_mgr_ctx_.heap_counter_) =
+            heap_counter + count;
+    InsertKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_ptrs, heap_counter, count);
+
+    InsertKernelPass1<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_ptrs, output_masks, count);
+
+    // REVIEW: since this is the only difference, can we reuse Insert for
+    // Activate? That is:
+    // - CUDAHashmap::Activate() calls CUDAHashmap::Insert() with input_values
+    //   == nullptr.
+    // - In `CUDAHashmap::InsertImpl()` checks input_values: if null_ptr, it
+    //   calls ActivateKernelPass2; otherwise, it calls InsertKernelPass2.
+    ActivateKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, iterator_ptrs, output_iterators, output_masks, count);
+
+    MemoryManager::Free(iterator_ptrs, this->device_);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+template <typename Hash, typename KeyEq>
+void CUDAHashmap<Hash, KeyEq>::FindImpl(const void* input_keys,
+                                        iterator_t* output_iterators,
+                                        bool* output_masks,
+                                        size_t count) {
+    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
+
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    FindKernel<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, output_iterators, output_masks, count);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+
+    // thrust::device_vector<void*> all_iterators_device(
+    //         (void**)output_iterators, (void**)output_iterators + count * 2);
+    // for (int i = 0; i < count * 2; ++i) {
+    //     void* iterator = all_iterators_device[i];
+    //     std::cout << iterator << "\n";
+    // }
+}
+
+template <typename Hash, typename KeyEq>
+void CUDAHashmap<Hash, KeyEq>::EraseImpl(const void* input_keys,
+                                         bool* output_masks,
+                                         size_t count) {
+    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+
+    auto iterator_ptrs = static_cast<addr_t*>(
+            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
+
+    EraseKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, (uint8_t*)input_keys, iterator_ptrs, output_masks,
+            count);
+    EraseKernelPass1<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, iterator_ptrs,
+                                                 output_masks, count);
+
+    MemoryManager::Free(iterator_ptrs, this->device_);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
+}
+
+// REVIEW: nit: order these functions to be the same as the order declared in
+// the class.
+template <typename Hash, typename KeyEq>
+void CUDAHashmap<Hash, KeyEq>::Allocate(size_t bucket_count, size_t capacity) {
+    // REVIEW: we could consider removing `this->` for simplicity.
+    this->bucket_count_ = bucket_count;
+    this->capacity_ = capacity;
+
+    // REVIEW: mention that we're allocating for the actual storage taht stores
+    // the key-value pair.
+    kv_mgr_ = std::make_shared<InternalKvPairManager>(
+            this->capacity_, this->dsize_key_, this->dsize_value_,
+            this->device_);
+
+    // Memory for hash table linked list nodes
+    // REVIEW: InternalNodeManager seems to determine the maximum number of
+    // entries that we can have. Do we have a mechanism to protect against
+    // indexing out-of-range? E.g. what is the maximum number of keys can
+    // hashmap support (e.g. can it be bigger than 4GB)? What is the maximum
+    // total memory used by the hashmap?
+    node_mgr_ = std::make_shared<InternalNodeManager>(this->device_);
+
+    // REVIEW: move this after all teh allocations. e.g. after allocating
+    // gpu_context_.bucket_list_head_. In this way keep the 3 allocations
+    // together.
+    gpu_context_.Setup(this->bucket_count_, this->capacity_, this->dsize_key_,
+                       this->dsize_value_, node_mgr_->gpu_context_,
+                       kv_mgr_->gpu_context_);
+
+    // Memory for hash table
+    gpu_context_.bucket_list_head_ = static_cast<Slab*>(MemoryManager::Malloc(
+            sizeof(Slab) * this->bucket_count_, this->device_));
+    OPEN3D_CUDA_CHECK(cudaMemset(gpu_context_.bucket_list_head_, 0xFF,
+                                 sizeof(Slab) * this->bucket_count_));
+
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 }  // namespace core

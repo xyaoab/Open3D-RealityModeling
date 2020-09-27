@@ -61,8 +61,8 @@ namespace core {
 /// An internal ptr managed by InternalNodeManager.
 class Slab {
 public:
-    ptr_t kv_pair_ptrs[WARP_WIDTH - 1];
-    ptr_t next_slab_ptr;
+    addr_t kv_pair_ptrs[WARP_WIDTH - 1];
+    addr_t next_slab_ptr;
 };
 
 // REVIEW: Update these to be consistent with Macros.h?
@@ -101,7 +101,7 @@ public:
     }
 
     __device__ __forceinline__ uint32_t* get_unit_ptr_from_slab(
-            const ptr_t& next_slab_ptr, const uint32_t& lane_id) {
+            const addr_t& next_slab_ptr, const uint32_t& lane_id) {
         return super_blocks_ + addressDecoder(next_slab_ptr) + lane_id;
     }
     __device__ __forceinline__ uint32_t* get_ptr_for_bitmap(
@@ -178,7 +178,7 @@ public:
     // This function, frees a recently allocated memory unit by a single thread.
     // Since it is untouched, there shouldn't be any worries for the actual
     // memory contents to be reset again.
-    __device__ void FreeUntouched(ptr_t ptr) {
+    __device__ void FreeUntouched(addr_t ptr) {
         atomicAnd(super_blocks_ + getSuperBlockIndex(ptr) * SUPER_BLOCK_SIZE_ +
                           getMemBlockIndex(ptr) * BITMAP_SIZE_ +
                           (getMemUnitIndex(ptr) >> 5),
@@ -190,23 +190,24 @@ private:
     // some helper inline address functions:
     // =========
     __device__ __host__ __forceinline__ uint32_t
-    getSuperBlockIndex(ptr_t address) const {
+    getSuperBlockIndex(addr_t address) const {
         return address >> SUPER_BLOCK_BIT_OFFSET_ALLOC_;
     }
     __device__ __host__ __forceinline__ uint32_t
-    getMemBlockIndex(ptr_t address) const {
+    getMemBlockIndex(addr_t address) const {
         return ((address >> MEM_BLOCK_BIT_OFFSET_ALLOC_) & 0x1FFFF);
     }
-    __device__ __host__ __forceinline__ ptr_t
-    getMemBlockAddress(ptr_t address) const {
+    __device__ __host__ __forceinline__ addr_t
+    getMemBlockAddress(addr_t address) const {
         return (MEM_BLOCK_OFFSET_ +
                 getMemBlockIndex(address) * MEM_BLOCK_SIZE_);
     }
     __device__ __host__ __forceinline__ uint32_t
-    getMemUnitIndex(ptr_t address) const {
+    getMemUnitIndex(addr_t address) const {
         return address & 0x3FF;
     }
-    __device__ __host__ __forceinline__ ptr_t getMemUnitAddress(ptr_t address) {
+    __device__ __host__ __forceinline__ addr_t
+    getMemUnitAddress(addr_t address) {
         return getMemUnitIndex(address) * MEM_UNIT_SIZE_;
     }
 
@@ -232,13 +233,13 @@ private:
                   memory_block_index_ * BITMAP_SIZE_ + (threadIdx.x & 0x1f));
     }
 
-    __host__ __device__ ptr_t addressDecoder(ptr_t address_ptr_index) {
+    __host__ __device__ addr_t addressDecoder(addr_t address_ptr_index) {
         return getSuperBlockIndex(address_ptr_index) * SUPER_BLOCK_SIZE_ +
                getMemBlockAddress(address_ptr_index) +
                getMemUnitIndex(address_ptr_index) * WARP_SIZE;
     }
 
-    __host__ __device__ void print_address(ptr_t address_ptr_index) {
+    __host__ __device__ void print_address(addr_t address_ptr_index) {
         printf("Super block Index: %d, Memory block index: %d, Memory unit "
                "index: "
                "%d\n",

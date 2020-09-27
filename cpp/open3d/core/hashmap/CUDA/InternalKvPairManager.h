@@ -46,7 +46,7 @@ class InternalKvPairManagerContext {
 public:
     uint8_t *keys_;     /* [N] * sizeof(Key) */
     uint8_t *values_;   /* [N] * sizeof(Value) */
-    ptr_t *heap_;       /* [N] */
+    addr_t *heap_;      /* [N] */
     int *heap_counter_; /* [1] */
 
 public:
@@ -73,19 +73,19 @@ public:
     //  0 <- heap_counter   0                    0                    0
 
     // REVIEW: Not used, remove?
-    __device__ ptr_t Allocate() {
+    __device__ addr_t Allocate() {
         int index = atomicAdd(heap_counter_, 1);
         return heap_[index];
     }
 
     // REVIEW: function not used, remove?
-    __device__ ptr_t SafeAllocate() {
+    __device__ addr_t SafeAllocate() {
         int index = atomicAdd(heap_counter_, 1);
         assert(index < max_capacity_);
         return heap_[index];
     }
 
-    __device__ void Free(ptr_t ptr) {
+    __device__ void Free(addr_t ptr) {
         // REVIEW: equivalent to
         // ```
         // atomicSub(heap_counter_, 1);
@@ -98,19 +98,19 @@ public:
     }
 
     // REVIEW: function not used, remove?
-    __device__ void SafeFree(ptr_t ptr) {
+    __device__ void SafeFree(addr_t ptr) {
         int index = atomicSub(heap_counter_, 1);
         assert(index >= 1);
         heap_[index - 1] = ptr;
     }
 
-    __device__ iterator_t extract_iterator(ptr_t ptr) {
+    __device__ iterator_t extract_iterator(addr_t ptr) {
         return iterator_t(keys_ + ptr * dsize_key_,
                           values_ + ptr * dsize_value_);
     }
 
     // REVIEW: the const version is not used, remove?
-    __device__ const iterator_t extract_iterator(ptr_t ptr) const {
+    __device__ const iterator_t extract_iterator(addr_t ptr) const {
         return iterator_t(keys_ + ptr * dsize_key_,
                           values_ + ptr * dsize_value_);
     }
@@ -118,14 +118,14 @@ public:
     // REVIEW: function not used, remove?
     // Or, in the caller, like InsertKernelPass0, actually call this function.
     __device__ iterator_t extract_iterator_from_heap_index(int index) {
-        ptr_t ptr = heap_[index];
+        addr_t ptr = heap_[index];
         return extract_iterator(ptr);
     }
 
     // REVIEW: function not used, remove?
     __device__ const iterator_t
     extract_iterator_from_heap_index(int index) const {
-        ptr_t ptr = heap_[index];
+        addr_t ptr = heap_[index];
         return extract_iterator(ptr);
     }
 };
@@ -167,8 +167,8 @@ public:
 
         gpu_context_.heap_counter_ =
                 static_cast<int *>(MemoryManager::Malloc(sizeof(int), device_));
-        gpu_context_.heap_ = static_cast<ptr_t *>(
-                MemoryManager::Malloc(max_capacity_ * sizeof(ptr_t), device_));
+        gpu_context_.heap_ = static_cast<addr_t *>(
+                MemoryManager::Malloc(max_capacity_ * sizeof(addr_t), device_));
         gpu_context_.keys_ = static_cast<uint8_t *>(
                 MemoryManager::Malloc(max_capacity_ * dsize_key_, device_));
         gpu_context_.values_ = static_cast<uint8_t *>(

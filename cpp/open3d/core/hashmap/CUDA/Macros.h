@@ -126,8 +126,6 @@ static constexpr uint32_t LOG_NUM_MEM_BLOCKS_ = 2;
 static constexpr uint32_t NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ = 4;
 static constexpr uint32_t NUM_MEM_UNITS_PER_BLOCK_ = 1024;
 
-// REVIEW: NUM_BITMAP_PER_MEM_BLOCK_ not used
-static constexpr uint32_t NUM_BITMAP_PER_MEM_BLOCK_ = 32;
 static constexpr uint32_t BITMAP_SIZE_ = 32;
 static constexpr uint32_t WARP_SIZE = 32;
 static constexpr uint32_t MEM_UNIT_SIZE_ = 32;
