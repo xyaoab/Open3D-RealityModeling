@@ -193,22 +193,6 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
                                       iterator_t* output_iterators,
                                       bool* output_masks,
                                       size_t count) {
-    // REVIEW: Do we ever check if the other pointers are nullptr or not?
-    //         Similarly, shall we check if the ptrs are device pointers located
-    //         in the same device? Same for the other user-facing functions
-    //         taking pointer inputs.
-    bool extern_masks = (output_masks != nullptr);
-    // REVIEW: Do we have protection against `output_iterators == nullptr` or
-    //         invalid address (e.g. allocated size is smaller than the size
-    //         needed). Shall we consider directly return these iterators?
-    //         (update: Looks like we have this in InsertKernelPass2, it protect
-    //         against nullptr but not smaller allocation. Shall we do something
-    //         more systematic?)
-    if (!extern_masks) {
-        output_masks = static_cast<bool*>(
-                MemoryManager::Malloc(count * sizeof(bool), this->device_));
-    }
-
     // Check capacity and rehash if in need
     size_t new_size = Size() + count;
     if (new_size > this->capacity_) {
@@ -219,12 +203,6 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
     }
 
     InsertImpl(input_keys, input_values, output_iterators, output_masks, count);
-
-    if (!extern_masks) {
-        // REVIEW: origianlly it is nullptr, we shall set it to null on exit.
-        MemoryManager::Free(output_masks, this->device_);
-        output_masks = nullptr;
-    }
 }
 
 template <typename Hash, typename KeyEq>
@@ -232,12 +210,6 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
                                         iterator_t* output_iterators,
                                         bool* output_masks,
                                         size_t count) {
-    bool extern_masks = (output_masks != nullptr);
-    if (!extern_masks) {
-        output_masks = static_cast<bool*>(
-                MemoryManager::Malloc(count * sizeof(bool), this->device_));
-    }
-
     size_t new_size = Size() + count;
     if (new_size > this->capacity_) {
         float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
@@ -247,10 +219,6 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
     }
 
     ActivateImpl(input_keys, output_iterators, output_masks, count);
-
-    if (!extern_masks) {
-        MemoryManager::Free(output_masks, this->device_);
-    }
 }
 
 template <typename Hash, typename KeyEq>
@@ -258,42 +226,14 @@ void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
                                     iterator_t* output_iterators,
                                     bool* output_masks,
                                     size_t count) {
-    bool extern_masks = (output_masks != nullptr);
-    // REVIEW: same, shall we guard against invalid output_iterators. Same for
-    // other functions in this file.
-    if (!extern_masks) {
-        output_masks = static_cast<bool*>(
-                MemoryManager::Malloc(count * sizeof(bool), this->device_));
-    }
-
     FindImpl(input_keys, output_iterators, output_masks, count);
-
-    if (!extern_masks) {
-        // REVIEW: same, reset to nullptr? Same for other functions in this
-        // file.
-        MemoryManager::Free(output_masks, this->device_);
-        output_masks = nullptr;
-    }
 }
 
 template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Erase(const void* input_keys,
                                      bool* output_masks,
                                      size_t count) {
-    bool extern_masks = (output_masks != nullptr);
-    if (!extern_masks) {
-        output_masks = (bool*)MemoryManager::Malloc(count * sizeof(bool),
-                                                    this->device_);
-    }
-
     EraseImpl(input_keys, output_masks, count);
-
-    // REVIEW: shall we provide a mechanism to shrink the table with rehash if
-    // the new size drops below certain threshold?
-
-    if (!extern_masks) {
-        MemoryManager::Free(output_masks, this->device_);
-    }
 }
 
 template <typename Hash, typename KeyEq>
