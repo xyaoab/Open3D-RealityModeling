@@ -4,7 +4,7 @@ import torch.nn as nn
 import open3d as o3d
 import numpy as np
 from tqdm import tqdm
-
+import matplotlib.pyplot as plt
 
 class SpVarModel(nn.Module):
 
@@ -43,8 +43,8 @@ class SpVarModel(nn.Module):
         elem_list = self.coord_param_map.get_elems_list(iterators[masks])
 
         out = []
-        for elem in elem_list:
-            out.append(self.params[elem[0].item()])
+        for i, elem in enumerate(elem_list):
+            out.append(self.params[elem[0].item()] * xs[i])
         return torch.stack(out)
 
     def add_param(self, coords, device, optim):
@@ -86,15 +86,16 @@ if __name__ == '__main__':
     # > param(coord) = coord * 0.01
     # > gt: param(coord) * x(coord)
     n = 1000
-    batchsize = 10
+    batchsize = 1000
     spatial_slots = 10
     torch.manual_seed(0)
     np.random.seed(0)
 
     coords = torch.randint(spatial_slots, (n,)).to(device)
     xs = torch.randn(n).to(device)
-    gts = (coords.float() / spatial_slots).to(device)
+    gts = (coords.float() / spatial_slots).to(device) * xs
 
+    losses = []
     for epoch in tqdm(range(1000)):
         for b in range(0, n, batchsize):
             optim.zero_grad()
@@ -106,8 +107,10 @@ if __name__ == '__main__':
             model.add_param(coords_b, device, optim)
 
             out = model(coords_b, xs_b)
+            # print(out.size(), gts_b.size())
             loss = (gts_b - out).norm()
             loss.backward()
+            losses.append(loss.item())
             optim.step()
 
     coords = o3d.core.Tensor(np.expand_dims(np.arange(0, 10), axis=1),
@@ -116,3 +119,6 @@ if __name__ == '__main__':
     elems_list = model.spvar_params.get_elems_list(iterators[masks])
     for elem in elems_list:
         print(elem)
+
+    plt.plot(np.arange(0, len(losses)), np.stack(losses).T)
+    plt.show()
