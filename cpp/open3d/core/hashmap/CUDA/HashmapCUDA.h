@@ -120,13 +120,6 @@ protected:
                       bool* output_masks,
                       size_t count);
 
-    void FindImpl(const void* input_keys,
-                  iterator_t* output_iterators,
-                  bool* output_masks,
-                  size_t count);
-
-    void EraseImpl(const void* input_keys, bool* output_masks, size_t count);
-
     void Allocate(size_t bucket_count, size_t capacity);
 };
 
@@ -226,14 +219,32 @@ void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
                                     iterator_t* output_iterators,
                                     bool* output_masks,
                                     size_t count) {
-    FindImpl(input_keys, output_iterators, output_masks, count);
+    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
+
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    FindKernel<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, output_iterators, output_masks, count);
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Erase(const void* input_keys,
                                      bool* output_masks,
                                      size_t count) {
-    EraseImpl(input_keys, output_masks, count);
+    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
+    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+
+    auto iterator_addrs = static_cast<addr_t*>(
+            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
+    EraseKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
+            gpu_context_, input_keys, iterator_addrs, output_masks, count);
+    EraseKernelPass1<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, iterator_addrs,
+                                                 output_masks, count);
+    MemoryManager::Free(iterator_addrs, this->device_);
+
+    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+    OPEN3D_CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename Hash, typename KeyEq>
@@ -409,41 +420,6 @@ void CUDAHashmap<Hash, KeyEq>::ActivateImpl(const void* input_keys,
     //   calls ActivateKernelPass2; otherwise, it calls InsertKernelPass2.
     ActivateKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, iterator_ptrs, output_iterators, output_masks, count);
-
-    MemoryManager::Free(iterator_ptrs, this->device_);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::FindImpl(const void* input_keys,
-                                        iterator_t* output_iterators,
-                                        bool* output_masks,
-                                        size_t count) {
-    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
-
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-    FindKernel<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, input_keys, output_iterators, output_masks, count);
-    OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-    OPEN3D_CUDA_CHECK(cudaGetLastError());
-}
-
-template <typename Hash, typename KeyEq>
-void CUDAHashmap<Hash, KeyEq>::EraseImpl(const void* input_keys,
-                                         bool* output_masks,
-                                         size_t count) {
-    OPEN3D_CUDA_CHECK(cudaMemset(output_masks, 0, sizeof(bool) * count));
-    const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-
-    auto iterator_ptrs = static_cast<addr_t*>(
-            MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
-
-    EraseKernelPass0<<<num_blocks, BLOCKSIZE_>>>(
-            gpu_context_, (uint8_t*)input_keys, iterator_ptrs, output_masks,
-            count);
-    EraseKernelPass1<<<num_blocks, BLOCKSIZE_>>>(gpu_context_, iterator_ptrs,
-                                                 output_masks, count);
 
     MemoryManager::Free(iterator_ptrs, this->device_);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
