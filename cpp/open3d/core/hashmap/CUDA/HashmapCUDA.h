@@ -106,12 +106,9 @@ protected:
     /// struct directly passed to kernels, cannot be a pointer
     CUDAHashmapImplContext<Hash, KeyEq> gpu_context_;
 
-    // REVIEW: i would call this kv_mgr_ to be consistent.
     std::shared_ptr<InternalKvPairManager> kv_mgr_;
     std::shared_ptr<InternalNodeManager> node_mgr_;
 
-    // REVIEW: can we merge the `InsertImpl` to `Insert` directly. Same for the
-    // others.
     void InsertImpl(const void* input_keys,
                     const void* input_values,
                     iterator_t* output_iterators,
@@ -152,41 +149,34 @@ CUDAHashmap<Hash, KeyEq>::~CUDAHashmap() {
 
 template <typename Hash, typename KeyEq>
 void CUDAHashmap<Hash, KeyEq>::Rehash(size_t buckets) {
-    // TODO: add a size operator instead of rough estimation
-    // REVIEW: can the Size() funciton be used here?
     size_t iterator_count = Size();
-    iterator_t* output_iterators = nullptr;
 
-    // REVIEW: currently we are copying twice 1) from old hashmap to temp, 2)
-    // from temp to new hashmap. Potentially it is possible to do this in
-    // one-shot by a adding a rehashing kernel? Can be done in future PR.
-    void* output_keys;
-    void* output_values;
+    void* output_keys = nullptr;
+    void* output_values = nullptr;
+    iterator_t* output_iterators = nullptr;
+    bool* output_masks = nullptr;
+
     if (iterator_count > 0) {
         output_keys = MemoryManager::Malloc(this->dsize_key_ * iterator_count,
                                             this->device_);
         output_values = MemoryManager::Malloc(
                 this->dsize_value_ * iterator_count, this->device_);
+        output_iterators = static_cast<iterator_t*>(MemoryManager::Malloc(
+                sizeof(iterator_t) * iterator_count, this->device_));
+        output_masks = static_cast<bool*>(MemoryManager::Malloc(
+                sizeof(bool) * iterator_count, this->device_));
 
-        output_iterators = (iterator_t*)MemoryManager::Malloc(
-                sizeof(iterator_t) * iterator_count, this->device_);
         GetIterators(output_iterators);
-
         UnpackIterators(output_iterators, /* masks = */ nullptr, output_keys,
                         output_values, iterator_count);
     }
 
-    // REVIEW: the caller of Rehash() e.g. Insert() already computes avg_ratio
-    // and etc, seems the logic is duplicated. Could it be simplified?
     float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
     MemoryManager::Free(gpu_context_.bucket_list_head_, this->device_);
     Allocate(buckets, size_t(std::ceil(buckets * avg_ratio)));
 
     /// Insert back
     if (iterator_count > 0) {
-        auto output_masks = (bool*)MemoryManager::Malloc(
-                sizeof(bool) * iterator_count, this->device_);
-
         InsertImpl(output_keys, output_values, output_iterators, output_masks,
                    iterator_count);
 
@@ -220,26 +210,12 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
     }
 
     // Check capacity and rehash if in need
-    // REVIEW: It would be cleaner to do some renames and clean ups.
-    // ```cpp
-    // size_t new_size = Size() + count;
-    // if (new_size > capacity_) {
-    //    float avg_ratio = float(this->capacity_) /
-    //                      float(this->bucket_count_);
-    //    size_t exp_buckets = size_t(std::max(bucket_count_ * 2,
-    //                                    std::ceil(new_capacity / avg_ratio)));
-    //    ....
-    // }
-    // ```
-    int capacity = Size();
-    size_t new_capacity = capacity + count;
-
-    if (new_capacity > this->capacity_) {
+    size_t new_size = Size() + count;
+    if (new_size > this->capacity_) {
         float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
-        size_t exp_buckets = size_t(std::ceil(new_capacity / avg_ratio));
-
-        // At least increase by a factor of 2
-        Rehash(size_t(std::max(this->bucket_count_ * 2, exp_buckets)));
+        size_t exp_buckets = std::max(this->bucket_count_ * 2,
+                                      size_t(std::ceil(new_size / avg_ratio)));
+        Rehash(exp_buckets);
     }
 
     InsertImpl(input_keys, input_values, output_iterators, output_masks, count);
@@ -247,6 +223,7 @@ void CUDAHashmap<Hash, KeyEq>::Insert(const void* input_keys,
     if (!extern_masks) {
         // REVIEW: origianlly it is nullptr, we shall set it to null on exit.
         MemoryManager::Free(output_masks, this->device_);
+        output_masks = nullptr;
     }
 }
 
@@ -255,28 +232,18 @@ void CUDAHashmap<Hash, KeyEq>::Activate(const void* input_keys,
                                         iterator_t* output_iterators,
                                         bool* output_masks,
                                         size_t count) {
-    // REVIEW: Remove this debugging info?
-    static int rehash_count = 0;
-
     bool extern_masks = (output_masks != nullptr);
     if (!extern_masks) {
         output_masks = static_cast<bool*>(
                 MemoryManager::Malloc(count * sizeof(bool), this->device_));
     }
 
-    // Check capacity
-    // REVIEW: Same comments as Insert(), do some cleanups and renaming.
-    int capacity = Size();
-    size_t new_capacity = capacity + count;
-    utility::LogInfo("Rehash count = {}, capacity = {}, new_capacity = {}",
-                     count, this->capacity_, new_capacity);
-    if (new_capacity > this->capacity_) {
+    size_t new_size = Size() + count;
+    if (new_size > this->capacity_) {
         float avg_ratio = float(this->capacity_) / float(this->bucket_count_);
-        size_t exp_buckets = size_t(std::ceil(new_capacity / avg_ratio));
-
-        // At least increase by a factor of 2
-        Rehash(std::max(this->bucket_count_ * 2, exp_buckets));
-        rehash_count++;
+        size_t exp_buckets = std::max(this->bucket_count_ * 2,
+                                      size_t(std::ceil(new_size / avg_ratio)));
+        Rehash(exp_buckets);
     }
 
     ActivateImpl(input_keys, output_iterators, output_masks, count);
@@ -305,6 +272,7 @@ void CUDAHashmap<Hash, KeyEq>::Find(const void* input_keys,
         // REVIEW: same, reset to nullptr? Same for other functions in this
         // file.
         MemoryManager::Free(output_masks, this->device_);
+        output_masks = nullptr;
     }
 }
 
@@ -432,16 +400,6 @@ float CUDAHashmap<Hash, KeyEq>::LoadFactor() const {
     int total_elems_stored = std::accumulate(elems_per_bucket.begin(),
                                              elems_per_bucket.end(), 0);
 
-    // REVIEW: not used, comment out this line as well?
-    node_mgr_->gpu_context_ = gpu_context_.node_mgr_ctx_;
-
-    /// Unrelated factor for now
-    // auto slabs_per_bucket = node_mgr_->CountSlabsPerSuperblock();
-    // int total_slabs_stored =
-    //         std::accumulate(slabs_per_bucket.begin(),
-    //         slabs_per_bucket.end(),
-    //                         gpu_context_.bucket_count_);
-
     float load_factor =
             float(total_elems_stored) / float(elems_per_bucket.size());
 
@@ -459,13 +417,6 @@ void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
                                           iterator_t* output_iterators,
                                           bool* output_masks,
                                           size_t count) {
-    bool extern_masks = (output_masks != nullptr);
-    // REVIEW: Since `InsertImpl` is called by `Insert`, `extern_masks` will
-    // never be `nullptr`. Perhapse we can merge InsertImpl` to `Insert`.
-    if (!extern_masks) {
-        output_masks = static_cast<bool*>(
-                MemoryManager::Malloc(count * sizeof(bool), this->device_));
-    }
     auto iterator_ptrs = static_cast<addr_t*>(
             MemoryManager::Malloc(sizeof(addr_t) * count, this->device_));
     const size_t num_blocks = (count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
@@ -485,9 +436,6 @@ void CUDAHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
     InsertKernelPass2<<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, input_values, iterator_ptrs, output_iterators,
             output_masks, count);
-    if (!extern_masks) {
-        MemoryManager::Free(output_masks, this->device_);
-    }
     MemoryManager::Free(iterator_ptrs, this->device_);
 
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
@@ -539,13 +487,6 @@ void CUDAHashmap<Hash, KeyEq>::FindImpl(const void* input_keys,
             gpu_context_, input_keys, output_iterators, output_masks, count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
-
-    // thrust::device_vector<void*> all_iterators_device(
-    //         (void**)output_iterators, (void**)output_iterators + count * 2);
-    // for (int i = 0; i < count * 2; ++i) {
-    //     void* iterator = all_iterators_device[i];
-    //     std::cout << iterator << "\n";
-    // }
 }
 
 template <typename Hash, typename KeyEq>
