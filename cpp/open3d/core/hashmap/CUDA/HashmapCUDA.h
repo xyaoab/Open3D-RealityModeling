@@ -258,11 +258,10 @@ size_t CUDAHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
             MemoryManager::Malloc(sizeof(uint32_t), this->device_));
     cudaMemset(iterator_count, 0, sizeof(uint32_t));
 
-    const size_t blocksize = 128;
     const size_t num_blocks =
-            (gpu_context_.bucket_count_ * WARP_SIZE + blocksize - 1) /
-            blocksize;
-    GetIteratorsKernel<<<num_blocks, blocksize>>>(
+            (gpu_context_.bucket_count_ * WARP_SIZE + BLOCKSIZE_ - 1) /
+            BLOCKSIZE_;
+    GetIteratorsKernel<<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, output_iterators, iterator_count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
@@ -284,9 +283,8 @@ void CUDAHashmap<Hash, KeyEq>::UnpackIterators(
         size_t iterator_count) {
     if (iterator_count == 0) return;
 
-    const size_t blocksize = 128;
-    const size_t num_blocks = (iterator_count + blocksize - 1) / blocksize;
-    UnpackIteratorsKernel<<<num_blocks, blocksize>>>(
+    const size_t num_blocks = (iterator_count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    UnpackIteratorsKernel<<<num_blocks, BLOCKSIZE_>>>(
             input_iterators, input_masks, output_keys, output_values,
             this->dsize_key_, this->dsize_value_, iterator_count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
@@ -300,9 +298,8 @@ void CUDAHashmap<Hash, KeyEq>::AssignIterators(iterator_t* input_iterators,
                                                size_t iterator_count) {
     if (iterator_count == 0) return;
 
-    const size_t blocksize = 128;
-    const size_t num_blocks = (iterator_count + blocksize - 1) / blocksize;
-    AssignIteratorsKernel<<<num_blocks, blocksize>>>(
+    const size_t num_blocks = (iterator_count + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    AssignIteratorsKernel<<<num_blocks, BLOCKSIZE_>>>(
             input_iterators, input_masks, input_values, this->dsize_value_,
             iterator_count);
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
@@ -314,10 +311,9 @@ std::vector<size_t> CUDAHashmap<Hash, KeyEq>::BucketSizes() const {
     thrust::device_vector<size_t> elems_per_bucket(gpu_context_.bucket_count_);
     thrust::fill(elems_per_bucket.begin(), elems_per_bucket.end(), 0);
 
-    const size_t blocksize = 128;
     const size_t num_blocks =
-            (gpu_context_.capacity_ + blocksize - 1) / blocksize;
-    CountElemsPerBucketKernel<<<num_blocks, blocksize>>>(
+            (gpu_context_.capacity_ + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+    CountElemsPerBucketKernel<<<num_blocks, BLOCKSIZE_>>>(
             gpu_context_, thrust::raw_pointer_cast(elems_per_bucket.data()));
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
     OPEN3D_CUDA_CHECK(cudaGetLastError());
