@@ -140,5 +140,13 @@ static constexpr uint32_t SUPER_BLOCK_SIZE_ =
 static constexpr uint32_t MEM_BLOCK_OFFSET_ =
         (BITMAP_SIZE_ * NUM_MEM_BLOCKS_PER_SUPER_BLOCK_);
 
+#define MEMCPY_AS_INTS(dst, src, num_bytes)              \
+    auto dst_in_int = reinterpret_cast<int*>(dst);       \
+    auto src_in_int = reinterpret_cast<const int*>(src); \
+    int count_in_int = num_bytes / sizeof(int);          \
+    for (int i = 0; i < count_in_int; ++i) {             \
+        dst_in_int[i] = src_in_int[i];                   \
+    }
+
 }  // namespace core
 }  // namespace open3d
