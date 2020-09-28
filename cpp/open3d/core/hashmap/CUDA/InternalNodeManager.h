@@ -65,14 +65,6 @@ public:
     addr_t next_slab_ptr;
 };
 
-// REVIEW: Update these to be consistent with Macros.h?
-/// 32 super blocks (5 bit)
-/// 256 memory blocks (8 bit) per super block
-/// 1024 slabs (10 bit) per memory block
-/// 32 pair ptrs (5 bit) per slab
-
-/// Each warp is assigned to a memory block and simultaneously look for an empty
-/// slab in 1024 candidates.
 class InternalNodeManagerContext {
 public:
     InternalNodeManagerContext()
@@ -81,24 +73,6 @@ public:
           num_attempts_(0),
           memory_block_index_(0),
           super_block_index_(0) {}
-
-    // REVIEW: this is not used, consider removing?
-    InternalNodeManagerContext& operator=(
-            const InternalNodeManagerContext& rhs) {
-        super_blocks_ = rhs.super_blocks_;
-        hash_coef_ = rhs.hash_coef_;
-        super_block_index_ = 0;
-        memory_block_index_ = 0;
-        num_attempts_ = 0;
-        return *this;
-    }
-
-    // REVIEW: Can the constructor only take (uint32_t* super_blocks, uint32_t
-    // hash_coef) and merge Setup to the constructor?
-    void Setup(uint32_t* super_blocks, uint32_t hash_coef) {
-        super_blocks_ = super_blocks;
-        hash_coef_ = hash_coef;
-    }
 
     __device__ __forceinline__ uint32_t* get_unit_ptr_from_slab(
             const addr_t& next_slab_ptr, const uint32_t& lane_id) {
@@ -186,9 +160,6 @@ public:
     }
 
 private:
-    // =========
-    // some helper inline address functions:
-    // =========
     __device__ __host__ __forceinline__ uint32_t
     getSuperBlockIndex(addr_t address) const {
         return address >> SUPER_BLOCK_BIT_OFFSET_ALLOC_;
@@ -248,14 +219,14 @@ private:
                getMemUnitIndex(address_ptr_index));
     }
 
-private:
+public:
     // a pointer to each super-block
     uint32_t* super_blocks_;
-
     // hash_coef (register): used as (16 bits, 16 bits) for hashing
     uint32_t hash_coef_;  // a random 32-bit
 
-    // memory_block (16 bits       + 5 bits) (memory block  + super block)
+private:
+    // memory_block (16 bits + 5 bits) (memory block + super block)
     uint32_t num_attempts_;
     uint32_t memory_block_index_;
     uint32_t memory_block_bitmap_;
@@ -265,88 +236,65 @@ private:
 __global__ void CountSlabsPerSuperblockKernel(
         InternalNodeManagerContext context, uint32_t* slabs_per_superblock);
 
-/*
- * This class owns the memory for the allocator on the device
- */
 class InternalNodeManager {
-private:
-    uint32_t* super_blocks_;
-
-    // hash a warp id to a memory block index
-    uint32_t hash_coef_;  // a random 32-bit
-
-public:
-    InternalNodeManagerContext gpu_context_;
-    Device device_;
-
 public:
     // REVIEW: the initialization list seems not useful, since the values are
     // overwritten in function body, except for device_.
-    InternalNodeManager(const Device& device)
-        : super_blocks_(nullptr), hash_coef_(0), device_(device) {
+    InternalNodeManager(const Device& device) : device_(device) {
         // random coefficients for allocator's hash function
         std::mt19937 rng(time(0));
-        hash_coef_ = rng();
+        gpu_context_.hash_coef_ = rng();
 
         // In the light version, we put num_super_blocks super blocks within
         // a single array
-        super_blocks_ = static_cast<uint32_t*>(MemoryManager::Malloc(
-                SUPER_BLOCK_SIZE_ * NUM_SUPER_BLOCKS_ * sizeof(uint32_t),
-                device_));
+        gpu_context_.super_blocks_ = static_cast<uint32_t*>(
+                MemoryManager::Malloc(SUPER_BLOCK_SIZE_ * NUM_SUPER_BLOCKS_ *
+                                              sizeof(uint32_t),
+                                      device_));
 
         OPEN3D_CUDA_CHECK(cudaMemset(
-                super_blocks_, 0xFF,
+                gpu_context_.super_blocks_, 0xFF,
                 SUPER_BLOCK_SIZE_ * NUM_SUPER_BLOCKS_ * sizeof(uint32_t)));
-        // printf("TOTAL ITERATORS: %ld\n", SUPER_BLOCK_SIZE_ *
-        // NUM_SUPER_BLOCKS_);
 
         for (uint32_t i = 0; i < NUM_SUPER_BLOCKS_; i++) {
             // setting bitmaps into zeros:
-            OPEN3D_CUDA_CHECK(
-                    cudaMemset(super_blocks_ + i * SUPER_BLOCK_SIZE_, 0x00,
-                               NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * BITMAP_SIZE_ *
-                                       sizeof(uint32_t)));
+            OPEN3D_CUDA_CHECK(cudaMemset(
+                    gpu_context_.super_blocks_ + i * SUPER_BLOCK_SIZE_, 0x00,
+                    NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * BITMAP_SIZE_ *
+                            sizeof(uint32_t)));
         }
-
-        // initializing the slab context:
-        gpu_context_.Setup(super_blocks_, hash_coef_);
     }
 
-    ~InternalNodeManager() { MemoryManager::Free(super_blocks_, device_); }
+    ~InternalNodeManager() {
+        MemoryManager::Free(gpu_context_.super_blocks_, device_);
+    }
 
     std::vector<int> CountSlabsPerSuperblock() {
         const uint32_t num_super_blocks = NUM_SUPER_BLOCKS_;
 
-        auto slabs_per_superblock_buffer =
-                static_cast<uint32_t*>(MemoryManager::Malloc(
-                        NUM_SUPER_BLOCKS_ * sizeof(uint32_t), device_));
-        // REVIEW: Is this a copy? If yes, we can let thrust manage the memory
-        // allocation directly.
-        // e.g. thrust::device_vector<uint32_t> vec(num_super_blocks, 0);
-        thrust::device_vector<uint32_t> slabs_per_superblock(
-                slabs_per_superblock_buffer,
-                slabs_per_superblock_buffer + num_super_blocks);
+        thrust::device_vector<uint32_t> slabs_per_superblock(NUM_SUPER_BLOCKS_);
         thrust::fill(slabs_per_superblock.begin(), slabs_per_superblock.end(),
                      0);
 
         // counting total number of allocated memory units:
-        // REVIEW: replace 128 and 32 with values from Macros.h?
-        int blocksize = 128;
         int num_mem_units = NUM_MEM_BLOCKS_PER_SUPER_BLOCK_ * 32;
-        int num_cuda_blocks = (num_mem_units + blocksize - 1) / blocksize;
-        CountSlabsPerSuperblockKernel<<<num_cuda_blocks, blocksize>>>(
+        int num_cuda_blocks = (num_mem_units + BLOCKSIZE_ - 1) / BLOCKSIZE_;
+        CountSlabsPerSuperblockKernel<<<num_cuda_blocks, BLOCKSIZE_>>>(
                 gpu_context_,
                 thrust::raw_pointer_cast(slabs_per_superblock.data()));
-        // REVIEW: do we need these after kernel call?
-        // OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-        // OPEN3D_CUDA_CHECK(cudaGetLastError());
+        OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
+        OPEN3D_CUDA_CHECK(cudaGetLastError());
+
         std::vector<int> result(num_super_blocks);
         thrust::copy(slabs_per_superblock.begin(), slabs_per_superblock.end(),
                      result.begin());
-        MemoryManager::Free(slabs_per_superblock_buffer, device_);
 
         return std::move(result);
     }
+
+public:
+    InternalNodeManagerContext gpu_context_;
+    Device device_;
 };
 
 __global__ void CountSlabsPerSuperblockKernel(
