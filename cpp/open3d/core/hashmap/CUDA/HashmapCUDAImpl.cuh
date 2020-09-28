@@ -60,19 +60,9 @@ CUDAHashmapImplContext<Hash, KeyEq>::ComputeBucket(const void* key) const {
 template <typename Hash, typename KeyEq>
 __device__ void CUDAHashmapImplContext<Hash, KeyEq>::WarpSyncKey(
         const void* key_ptr, uint32_t lane_id, void* ret_key_ptr) {
-    // REVIEW: can we directly use hash_fn_.key_size_in_int_? If yes, we can
-    // apply this change to the rest of this file. Same with
-    // cmp_fn_.key_size_in_int_.
-    //
-    // REVIEW: we should probably be more consistent with int v.s. int32_t v.s.
-    // size_t. Here __shfl_sync works with 32-bit, so probably we should
-    // use int32_t when we want to indicate this.
-    const int chunks = dsize_key_ / sizeof(int);
-
-    auto src_key_ptr = static_cast<const int*>(key_ptr);
     auto dst_key_ptr = static_cast<int*>(ret_key_ptr);
-    // REVIEW: int instead of size_t?
-    for (size_t i = 0; i < chunks; ++i) {
+    auto src_key_ptr = static_cast<const int*>(key_ptr);
+    for (int i = 0; i < hash_fn_.key_size_in_int_; ++i) {
         dst_key_ptr[i] = __shfl_sync(ACTIVE_LANES_MASK, src_key_ptr[i], lane_id,
                                      WARP_WIDTH);
     }
@@ -82,11 +72,11 @@ template <typename Hash, typename KeyEq>
 __device__ int32_t CUDAHashmapImplContext<Hash, KeyEq>::WarpFindKey(
         const void* key_ptr, uint32_t lane_id, addr_t ptr) {
     bool is_lane_found =
-            /* select key lanes */
+            // select key lanes
             ((1 << lane_id) & PAIR_PTR_LANES_MASK)
-            /* validate key addrs */
+            // validate key addrs
             && (ptr != EMPTY_PAIR_PTR)
-            /* find keys in memory heap */
+            // find keys in memory heap
             && cmp_fn_(kv_mgr_ctx_.extract_iterator(ptr).first, key_ptr);
 
     return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
@@ -124,10 +114,9 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
     addr_t iterator = NULL_ITERATOR;
     bool mask = false;
 
-    /** > Loop when we have active lanes **/
+    // > Loop when we have active lanes
     while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, to_search))) {
-        /** 0. Restart from linked list head if the last query is finished
-         * **/
+        // 0. Restart from linked list head if the last query is finished
         curr_slab_ptr =
                 (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
@@ -137,8 +126,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
         uint8_t src_key[MAX_KEY_BYTESIZE];
         WarpSyncKey(query_key, src_lane, src_key);
 
-        // REVIEW: uint or unit?
-        /* Each lane in the warp reads a uint in the slab in parallel */
+        // Each lane in the warp reads a uint in the slab in parallel
         const uint32_t unit_data =
                 (curr_slab_ptr == HEAD_SLAB_PTR)
                         ? *(get_unit_ptr_from_list_head(src_bucket, lane_id))
@@ -147,34 +135,34 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
 
         int32_t lane_found = WarpFindKey(src_key, lane_id, unit_data);
 
-        /** 1. Found in this slab, SUCCEED **/
+        // 1. Found in this slab, SUCCEED
         if (lane_found >= 0) {
-            /* broadcast found value */
+            // broadcast found value
             addr_t found_pair_internal_ptr = __shfl_sync(
                     ACTIVE_LANES_MASK, unit_data, lane_found, WARP_WIDTH);
 
             if (lane_id == src_lane) {
                 to_search = false;
 
-                /// Actually iterator_ptr
+                // Actually iterator_ptr
                 iterator = found_pair_internal_ptr;
                 mask = true;
             }
         }
 
-        /** 2. Not found in this slab **/
+        // 2. Not found in this slab
         else {
-            /* broadcast next slab: lane 31 reads 'next' */
+            // broadcast next slab: lane 31 reads 'next'
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
                                                NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
-            /** 2.1. Next slab is empty, ABORT **/
+            // 2.1. Next slab is empty, ABORT
             if (next_slab_ptr == EMPTY_SLAB_PTR) {
                 if (lane_id == src_lane) {
                     to_search = false;
                 }
             }
-            /** 2.2. Next slab exists, RESTART **/
+            // 2.2. Next slab exists, RESTART
             else {
                 curr_slab_ptr = next_slab_ptr;
             }
@@ -186,12 +174,6 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
     return make_pair(iterator, mask);
 }
 
-// REVIEW: update comments: replacePair?
-/*
- * Insert: ABORT if found
- * replacePair: REPLACE if found
- * WE DO NOT ALLOW DUPLICATE KEYSn
- */
 template <typename Hash, typename KeyEq>
 __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
         bool to_be_inserted,
@@ -206,10 +188,9 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
 
     bool mask = false;
 
-    /** > Loop when we have active lanes **/
+    // > Loop when we have active lanes
     while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, to_be_inserted))) {
-        /** 0. Restart from linked list head if last insertion is finished
-         * **/
+        // 0. Restart from linked list head if last insertion is finished
         curr_slab_ptr =
                 (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
@@ -218,8 +199,7 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
 
         WarpSyncKey(key, src_lane, src_key);
 
-        // REVIEW: uint or unit?
-        /* Each lane in the warp reads a uint in the slab */
+        // Each lane in the warp reads a uint in the slab
         uint32_t unit_data =
                 (curr_slab_ptr == HEAD_SLAB_PTR)
                         ? *(get_unit_ptr_from_list_head(src_bucket, lane_id))
@@ -229,15 +209,15 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
         int32_t lane_found = WarpFindKey(src_key, lane_id, unit_data);
         int32_t lane_empty = WarpFindEmpty(unit_data);
 
-        /** Branch 1: key already existing, ABORT **/
+        // Branch 1: key already existing, ABORT
         if (lane_found >= 0) {
             if (lane_id == src_lane) {
-                /* free memory heap */
+                // free memory heap
                 to_be_inserted = false;
             }
         }
 
-        /** Branch 2: empty slot available, try to insert **/
+        // Branch 2: empty slot available, try to insert
         else if (lane_empty >= 0) {
             if (lane_id == src_lane) {
                 // TODO: check why we cannot put malloc here
@@ -253,33 +233,32 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
                                   iterator_ptr);
 
                 // Remember to clean up in another pass
-                /** Branch 2.1: SUCCEED **/
+                // Branch 2.1: SUCCEED
                 if (old_iterator_ptr == EMPTY_PAIR_PTR) {
                     to_be_inserted = false;
                     mask = true;
                 }
-                /** Branch 2.2: failed: RESTART
-                 *  In the consequent attempt,
-                 *  > if the same key was inserted in this slot,
-                 *    we fall back to Branch 1;
-                 *  > if a different key was inserted,
-                 *    we go to Branch 2 or 3.
-                 * **/
+                // Branch 2.2: failed: RESTART
+                // In the consequent attempt,
+                // > if the same key was inserted in this slot,
+                //   we fall back to Branch 1;
+                // > if a different key was inserted,
+                //   we go to Branch 2 or 3.
             }
         }
 
-        /** Branch 3: nothing found in this slab, goto next slab **/
+        // Branch 3: nothing found in this slab, goto next slab
         else {
-            /* broadcast next slab */
+            // broadcast next slab
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
                                                NEXT_SLAB_PTR_LANE, WARP_WIDTH);
 
-            /** Branch 3.1: next slab existing, RESTART this lane **/
+            // Branch 3.1: next slab existing, RESTART this lane
             if (next_slab_ptr != EMPTY_SLAB_PTR) {
                 curr_slab_ptr = next_slab_ptr;
             }
 
-            /** Branch 3.2: next slab empty, try to allocate one **/
+            // Branch 3.2: next slab empty, try to allocate one
             else {
                 addr_t new_next_slab_ptr = AllocateSlab(lane_id);
 
@@ -296,13 +275,13 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
                             atomicCAS((unsigned int*)unit_data_ptr,
                                       EMPTY_SLAB_PTR, new_next_slab_ptr);
 
-                    /** Branch 3.2.1: other thread allocated, RESTART lane
-                     *  In the consequent attempt, goto Branch 2' **/
+                    // Branch 3.2.1: other thread allocated, RESTART lane. In
+                    // the consequent attempt, goto Branch 2'
                     if (old_next_slab_ptr != EMPTY_SLAB_PTR) {
                         FreeSlab(new_next_slab_ptr);
                     }
-                    /** Branch 3.2.2: this thread allocated, RESTART lane,
-                     * 'goto Branch 2' **/
+                    // Branch 3.2.2: this thread allocated, RESTART lane, 'goto
+                    // Branch 2'
                 }
             }
         }
@@ -327,10 +306,9 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
     addr_t iterator_ptr = 0;
     bool mask = false;
 
-    /** > Loop when we have active lanes **/
+    // > Loop when we have active lanes
     while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, to_be_deleted))) {
-        /** 0. Restart from linked list head if last insertion is finished
-         * **/
+        // 0. Restart from linked list head if last insertion is finished
         curr_slab_ptr =
                 (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
@@ -347,7 +325,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
 
         int32_t lane_found = WarpFindKey(src_key, lane_id, unit_data);
 
-        /** Branch 1: key found **/
+        // Branch 1: key found
         if (lane_found >= 0) {
             if (lane_id == src_lane) {
                 uint32_t* unit_data_ptr =
@@ -361,8 +339,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
                         (unsigned int*)unit_data_ptr, EMPTY_PAIR_PTR);
                 mask = pair_to_delete != EMPTY_PAIR_PTR;
                 iterator_ptr = pair_to_delete;
-                /** Branch 1.2: other thread did the job, avoid double free
-                 * **/
+                // Branch 1.2: other thread did the job, avoid double free
             }
         } else {  // no matching slot found:
             addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
@@ -391,12 +368,12 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
 
-    /* This warp is idle */
+    // This warp is idle
     if ((tid - lane_id) >= input_count) {
         return;
     }
 
-    /* Initialize the memory allocator on each warp */
+    // Initialize the memory allocator on each warp
     hash_ctx.node_mgr_ctx_.Init(tid, lane_id);
 
     bool lane_active = false;
@@ -430,48 +407,30 @@ __global__ void InsertKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
     if (tid < input_count) {
-        /** First write ALL keys to avoid potential thread conflicts **/
-        // addr_t iterator_ptr = hash_ctx.kv_mgr_ctx_.Allocate();
-        // REVIEW: this is equivalent to extract_iterator_from_heap_index?
+        // First write ALL keys to avoid potential thread conflicts
         addr_t iterator_ptr =
                 hash_ctx.kv_mgr_ctx_.heap_[heap_counter_prev + tid];
         iterator_t iterator =
                 hash_ctx.kv_mgr_ctx_.extract_iterator(iterator_ptr);
 
-        auto dst_key_ptr = static_cast<int*>(iterator.first);
-        auto src_key_ptr = static_cast<const int*>(keys) +
-                           tid * hash_ctx.dsize_key_ / sizeof(int);
-        // REVIEW: This happens many times, woult it help to do a macro? e.g.
-        // #define MEMCPY_AS_INTS(dst, src, num_bytes)
-        for (int i = 0; i < hash_ctx.dsize_key_ / sizeof(int); ++i) {
-            dst_key_ptr[i] = src_key_ptr[i];
-        }
-
-        // if (input_count < 100) {
-        //     int64_t key0 = *reinterpret_cast<int64_t*>(dst_key_ptr);
-        //     int64_t key1 = *(reinterpret_cast<int64_t*>(dst_key_ptr) + 1);
-        //     int64_t key2 = *(reinterpret_cast<int64_t*>(dst_key_ptr) + 2);
-        //     printf("pass0 %d: %ld %ld %ld\n", tid, key0, key1, key2);
-        // }
-
+        MEMCPY_AS_INTS(
+                iterator.first,
+                static_cast<const uint8_t*>(keys) + tid * hash_ctx.dsize_key_,
+                hash_ctx.dsize_key_);
         iterator_ptrs[tid] = iterator_ptr;
     }
 }
 
-// REVIEW: rename parameters. To be consistent with the caller, masks ->
-// output_masks.
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* keys,
                                   addr_t* iterator_ptrs,
-                                  bool* masks,
+                                  bool* output_masks,
                                   size_t input_count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
-    // REVIEW: use WARP_SIZE instead of 32, or use & 0x1F to be consistent?
-    uint32_t lane_id = tid % 32;
+    uint32_t lane_id = tid & 0x1F;
 
-    // REVIEW: tid - lane_id >= input_coun.
-    if ((tid - lane_id) >= input_count) {
+    if (tid - lane_id >= input_count) {
         return;
     }
 
@@ -492,61 +451,47 @@ __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
         bucket_id = hash_ctx.ComputeBucket(key);
     }
 
-    // REVIEW: maybe mention in comments the reason why `hash_ctx.Insert` has to
-    // be outside of `if (tid < input_count). Is it for warp functions to work?
+    // Index out-of-bound threads still have to run for warp synchronization.
     bool mask =
             hash_ctx.Insert(lane_active, lane_id, bucket_id, key, iterator_ptr);
 
     if (tid < input_count) {
-        masks[tid] = mask;
-
-        // if (input_count < 100) {
-        //     int64_t key0 = *reinterpret_cast<const int64_t*>(key);
-        //     int64_t key1 = *(reinterpret_cast<const int64_t*>(key) + 1);
-        //     int64_t key2 = *(reinterpret_cast<const int64_t*>(key) + 2);
-        //     printf("pass1 %d->%d: %ld %ld %ld, %d\n", tid, iterator_ptr,
-        //     key0,
-        //            key1, key2, mask);
-        // }
+        output_masks[tid] = mask;
     }
 }
 
-// REVIEW: rename parameters to be consistent with the caller, iterators ->
-// output_iterators; masks -> output_masks.
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass2(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* values,
                                   addr_t* iterator_ptrs,
-                                  iterator_t* iterators,
-                                  bool* masks,
+                                  iterator_t* output_iterators,
+                                  bool* output_masks,
                                   size_t input_count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
     if (tid < input_count) {
         addr_t iterator_ptr = iterator_ptrs[tid];
 
-        if (masks[tid]) {
+        if (output_masks[tid]) {
             iterator_t iterator =
                     hash_ctx.kv_mgr_ctx_.extract_iterator(iterator_ptr);
 
             // Success: copy remaining values
             if (values != nullptr) {
-                auto src_value_ptr = static_cast<const int*>(values) +
-                                     tid * hash_ctx.dsize_value_ / sizeof(int);
-                auto dst_value_ptr = static_cast<int*>(iterator.second);
-                for (int i = 0; i < hash_ctx.dsize_value_ / sizeof(int); ++i) {
-                    dst_value_ptr[i] = src_value_ptr[i];
-                }
+                MEMCPY_AS_INTS(iterator.second,
+                               static_cast<const uint8_t*>(values) +
+                                       tid * hash_ctx.dsize_value_,
+                               hash_ctx.dsize_value_);
             }
 
-            if (iterators != nullptr) {
-                iterators[tid] = iterator;
+            if (output_iterators != nullptr) {
+                output_iterators[tid] = iterator;
             }
         } else {
             hash_ctx.kv_mgr_ctx_.Free(iterator_ptr);
 
-            if (iterators != nullptr) {
-                iterators[tid] = iterator_t();
+            if (output_iterators != nullptr) {
+                output_iterators[tid] = iterator_t();
             }
         }
     }
@@ -561,8 +506,7 @@ __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
 
-    // REVIEW: if (tid - lane_id >= input_count)
-    if ((tid - lane_id) >= input_count) {
+    if (tid - lane_id >= input_count) {
         return;
     }
 
@@ -607,7 +551,6 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     uint32_t lane_id = threadIdx.x & 0x1F;
 
     // assigning a warp per bucket
-    // REVIEW: bucket_id seems more clear.
     uint32_t wid = tid >> 5;
     if (wid >= hash_ctx.bucket_count_) {
         return;
@@ -645,10 +588,6 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     }
 }
 
-/*
- * This kernel can be used to compute total number of elements within each
- * bucket. The final results per bucket is stored in d_count_result array
- */
 template <typename Hash, typename KeyEq>
 __global__ void CountElemsPerBucketKernel(
         CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
@@ -657,7 +596,6 @@ __global__ void CountElemsPerBucketKernel(
     uint32_t lane_id = threadIdx.x & 0x1F;
 
     // assigning a warp per bucket
-    // REVIEW: bucket_id seems more clear.
     uint32_t wid = tid >> 5;
     if (wid >= hash_ctx.bucket_count_) {
         return;
@@ -702,24 +640,17 @@ __global__ void UnpackIteratorsKernel(const iterator_t* input_iterators,
     // Valid queries
     if (tid < iterator_count && (input_masks == nullptr || input_masks[tid])) {
         if (output_keys != nullptr) {
-            uint8_t* dst_key_ptr = (uint8_t*)output_keys + dsize_key * tid;
-            uint8_t* src_key_ptr =
-                    static_cast<uint8_t*>(input_iterators[tid].first);
-
-            for (size_t i = 0; i < dsize_key; ++i) {
-                dst_key_ptr[i] = src_key_ptr[i];
-            }
+            MEMCPY_AS_INTS(
+                    static_cast<uint8_t*>(output_keys) + tid * dsize_key,
+                    static_cast<const uint8_t*>(input_iterators[tid].first),
+                    dsize_key)
         }
 
         if (output_values != nullptr) {
-            uint8_t* dst_value_ptr =
-                    (uint8_t*)output_values + dsize_value * tid;
-            uint8_t* src_value_ptr =
-                    static_cast<uint8_t*>(input_iterators[tid].second);
-
-            for (size_t i = 0; i < dsize_value; ++i) {
-                dst_value_ptr[i] = src_value_ptr[i];
-            }
+            MEMCPY_AS_INTS(
+                    static_cast<uint8_t*>(output_values) + tid * dsize_value,
+                    static_cast<const uint8_t*>(input_iterators[tid].second),
+                    dsize_value);
         }
     }
 }
@@ -733,14 +664,19 @@ __global__ void AssignIteratorsKernel(iterator_t* input_iterators,
 
     // Valid queries
     if (tid < iterator_count && (input_masks == nullptr || input_masks[tid])) {
-        uint8_t* src_value_ptr = (uint8_t*)input_values + dsize_value * tid;
-        uint8_t* dst_value_ptr =
-                static_cast<uint8_t*>(input_iterators[tid].second);
+        MEMCPY_AS_INTS(
+                static_cast<uint8_t*>(input_iterators[tid].second),
+                static_cast<const uint8_t*>(input_values) + dsize_value * tid,
+                dsize_value);
 
-        // Byte-by-byte copy, can be improved
-        for (size_t i = 0; i < dsize_value; ++i) {
-            dst_value_ptr[i] = src_value_ptr[i];
-        }
+        // uint8_t* src_value_ptr = (uint8_t*)input_values + dsize_value * tid;
+        // uint8_t* dst_value_ptr =
+        //         static_cast<uint8_t*>(input_iterators[tid].second);
+
+        // // Byte-by-byte copy, can be improved
+        // for (size_t i = 0; i < dsize_value; ++i) {
+        //     dst_value_ptr[i] = src_value_ptr[i];
+        // }
     }
 }
 }  // namespace core
