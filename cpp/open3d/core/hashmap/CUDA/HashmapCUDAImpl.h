@@ -48,7 +48,7 @@ public:
                            uint32_t lane_id,
                            uint32_t bucket_id,
                            const void* key_ptr,
-                           addr_t iterator_ptr);
+                           addr_t iterator_addr);
 
     __device__ Pair<addr_t, bool> Find(bool lane_active,
                                        uint32_t lane_id,
@@ -71,6 +71,10 @@ public:
     // Hash function
     __device__ size_t ComputeBucket(const void* key_ptr) const;
 
+    // Node manager
+    __device__ addr_t AllocateSlab(uint32_t lane_id);
+    __device__ void FreeSlab(addr_t slab_ptr);
+
     // Helpers
     __device__ addr_t* get_unit_ptr_from_list_nodes(addr_t slab_ptr,
                                                     uint32_t lane_id) {
@@ -81,10 +85,6 @@ public:
         return reinterpret_cast<uint32_t*>(bucket_list_head_) +
                bucket_id * BASE_UNIT_SIZE + lane_id;
     }
-
-    // Node manager
-    __device__ addr_t AllocateSlab(uint32_t lane_id);
-    __device__ void FreeSlab(addr_t slab_ptr);
 
 public:
     Hash hash_fn_;
@@ -104,21 +104,21 @@ public:
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* output_iterator_ptrs,
-                                  int iterator_heap_index0,
+                                  addr_t* output_iterator_addrs,
+                                  int heap_counter_prev,
                                   size_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* output_iterator_ptrs,
+                                  addr_t* input_iterator_addrs,
                                   bool* output_masks,
                                   size_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass2(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_values,
-                                  addr_t* input_iterator_ptrs,
+                                  addr_t* input_iterator_addrs,
                                   iterator_t* output_iterators,
                                   bool* output_masks,
                                   size_t count);
@@ -133,13 +133,13 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                  const void* input_keys,
-                                 addr_t* output_iterator_ptrs,
+                                 addr_t* output_iterator_addrs,
                                  bool* output_masks,
                                  size_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
-                                 addr_t* output_iterator_ptrs,
+                                 addr_t* input_iterator_addrs,
                                  bool* output_masks,
                                  size_t count);
 
