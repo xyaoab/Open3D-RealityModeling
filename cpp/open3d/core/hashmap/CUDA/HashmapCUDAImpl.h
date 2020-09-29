@@ -83,7 +83,7 @@ public:
     __device__ addr_t* get_unit_ptr_from_list_head(uint32_t bucket_id,
                                                    uint32_t lane_id) {
         return reinterpret_cast<uint32_t*>(bucket_list_head_) +
-               bucket_id * BASE_UNIT_SIZE + lane_id;
+               bucket_id * kWarpSize + lane_id;
     }
 
 public:

@@ -59,25 +59,25 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
         addr_t iterator_addr) {
     uint32_t work_queue = 0;
     uint32_t prev_work_queue = 0;
-    uint32_t curr_slab_ptr = HEAD_SLAB_PTR;
-    uint8_t src_key[MAX_KEY_BYTESIZE];
+    uint32_t curr_slab_ptr = kHeadSlabAddr;
+    uint8_t src_key[kMaxKeyByteSize];
 
     bool mask = false;
 
     // > Loop when we have active lanes
-    while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, lane_active))) {
+    while ((work_queue = __ballot_sync(kSyncLanesMask, lane_active))) {
         // 0. Restart from linked list head if last insertion is finished
         curr_slab_ptr =
-                (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
+                (prev_work_queue != work_queue) ? kHeadSlabAddr : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
         uint32_t src_bucket =
-                __shfl_sync(ACTIVE_LANES_MASK, bucket_id, src_lane, WARP_WIDTH);
+                __shfl_sync(kSyncLanesMask, bucket_id, src_lane, kWarpSize);
 
         WarpSyncKey(key, src_lane, src_key);
 
         // Each lane in the warp reads a uint in the slab
         uint32_t unit_data =
-                (curr_slab_ptr == HEAD_SLAB_PTR)
+                (curr_slab_ptr == kHeadSlabAddr)
                         ? *(get_unit_ptr_from_list_head(src_bucket, lane_id))
                         : *(get_unit_ptr_from_list_nodes(curr_slab_ptr,
                                                          lane_id));
@@ -98,19 +98,19 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
             if (lane_id == src_lane) {
                 // TODO: check why we cannot put malloc here
                 const uint32_t* unit_data_ptr =
-                        (curr_slab_ptr == HEAD_SLAB_PTR)
+                        (curr_slab_ptr == kHeadSlabAddr)
                                 ? get_unit_ptr_from_list_head(src_bucket,
                                                               lane_empty)
                                 : get_unit_ptr_from_list_nodes(curr_slab_ptr,
                                                                lane_empty);
 
                 addr_t old_iterator_addr =
-                        atomicCAS((unsigned int*)unit_data_ptr, EMPTY_PAIR_PTR,
+                        atomicCAS((unsigned int*)unit_data_ptr, kEmptyNodeAddr,
                                   iterator_addr);
 
                 // Remember to clean up in another pass
                 // Branch 2.1: SUCCEED
-                if (old_iterator_addr == EMPTY_PAIR_PTR) {
+                if (old_iterator_addr == kEmptyNodeAddr) {
                     lane_active = false;
                     mask = true;
                 }
@@ -126,11 +126,11 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
         // Branch 3: nothing found in this slab, goto next slab
         else {
             // broadcast next slab
-            addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+            addr_t next_slab_ptr = __shfl_sync(kSyncLanesMask, unit_data,
+                                               kNextSlabPtrLaneId, kWarpSize);
 
             // Branch 3.1: next slab existing, RESTART this lane
-            if (next_slab_ptr != EMPTY_SLAB_PTR) {
+            if (next_slab_ptr != kEmptySlabAddr) {
                 curr_slab_ptr = next_slab_ptr;
             }
 
@@ -138,22 +138,22 @@ __device__ bool CUDAHashmapImplContext<Hash, KeyEq>::Insert(
             else {
                 addr_t new_next_slab_ptr = AllocateSlab(lane_id);
 
-                if (lane_id == NEXT_SLAB_PTR_LANE) {
+                if (lane_id == kNextSlabPtrLaneId) {
                     const uint32_t* unit_data_ptr =
-                            (curr_slab_ptr == HEAD_SLAB_PTR)
+                            (curr_slab_ptr == kHeadSlabAddr)
                                     ? get_unit_ptr_from_list_head(
-                                              src_bucket, NEXT_SLAB_PTR_LANE)
+                                              src_bucket, kNextSlabPtrLaneId)
                                     : get_unit_ptr_from_list_nodes(
                                               curr_slab_ptr,
-                                              NEXT_SLAB_PTR_LANE);
+                                              kNextSlabPtrLaneId);
 
                     addr_t old_next_slab_ptr =
                             atomicCAS((unsigned int*)unit_data_ptr,
-                                      EMPTY_SLAB_PTR, new_next_slab_ptr);
+                                      kEmptySlabAddr, new_next_slab_ptr);
 
                     // Branch 3.2.1: other thread allocated, RESTART lane. In
                     // the consequent attempt, goto Branch 2'
-                    if (old_next_slab_ptr != EMPTY_SLAB_PTR) {
+                    if (old_next_slab_ptr != kEmptySlabAddr) {
                         FreeSlab(new_next_slab_ptr);
                     }
                     // Branch 3.2.2: this thread allocated, RESTART lane, 'goto
@@ -176,26 +176,26 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
         const void* query_key) {
     uint32_t work_queue = 0;
     uint32_t prev_work_queue = work_queue;
-    uint32_t curr_slab_ptr = HEAD_SLAB_PTR;
+    uint32_t curr_slab_ptr = kHeadSlabAddr;
 
-    addr_t iterator = NULL_ITERATOR;
+    addr_t iterator = kNullAddr;
     bool mask = false;
 
     // > Loop when we have active lanes
-    while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, lane_active))) {
+    while ((work_queue = __ballot_sync(kSyncLanesMask, lane_active))) {
         // 0. Restart from linked list head if the last query is finished
         curr_slab_ptr =
-                (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
+                (prev_work_queue != work_queue) ? kHeadSlabAddr : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
         uint32_t src_bucket =
-                __shfl_sync(ACTIVE_LANES_MASK, bucket_id, src_lane, WARP_WIDTH);
+                __shfl_sync(kSyncLanesMask, bucket_id, src_lane, kWarpSize);
 
-        uint8_t src_key[MAX_KEY_BYTESIZE];
+        uint8_t src_key[kMaxKeyByteSize];
         WarpSyncKey(query_key, src_lane, src_key);
 
         // Each lane in the warp reads a uint in the slab in parallel
         const uint32_t unit_data =
-                (curr_slab_ptr == HEAD_SLAB_PTR)
+                (curr_slab_ptr == kHeadSlabAddr)
                         ? *(get_unit_ptr_from_list_head(src_bucket, lane_id))
                         : *(get_unit_ptr_from_list_nodes(curr_slab_ptr,
                                                          lane_id));
@@ -206,7 +206,7 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
         if (lane_found >= 0) {
             // broadcast found value
             addr_t found_pair_internal_ptr = __shfl_sync(
-                    ACTIVE_LANES_MASK, unit_data, lane_found, WARP_WIDTH);
+                    kSyncLanesMask, unit_data, lane_found, kWarpSize);
 
             if (lane_id == src_lane) {
                 lane_active = false;
@@ -220,11 +220,11 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Find(
         // 2. Not found in this slab
         else {
             // broadcast next slab: lane 31 reads 'next'
-            addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+            addr_t next_slab_ptr = __shfl_sync(kSyncLanesMask, unit_data,
+                                               kNextSlabPtrLaneId, kWarpSize);
 
             // 2.1. Next slab is empty, ABORT
-            if (next_slab_ptr == EMPTY_SLAB_PTR) {
+            if (next_slab_ptr == kEmptySlabAddr) {
                 if (lane_id == src_lane) {
                     lane_active = false;
                 }
@@ -249,25 +249,25 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
         const void* key) {
     uint32_t work_queue = 0;
     uint32_t prev_work_queue = 0;
-    uint32_t curr_slab_ptr = HEAD_SLAB_PTR;
-    uint8_t src_key[MAX_KEY_BYTESIZE];
+    uint32_t curr_slab_ptr = kHeadSlabAddr;
+    uint8_t src_key[kMaxKeyByteSize];
 
     addr_t iterator_addr = 0;
     bool mask = false;
 
     // > Loop when we have active lanes
-    while ((work_queue = __ballot_sync(ACTIVE_LANES_MASK, lane_active))) {
+    while ((work_queue = __ballot_sync(kSyncLanesMask, lane_active))) {
         // 0. Restart from linked list head if last insertion is finished
         curr_slab_ptr =
-                (prev_work_queue != work_queue) ? HEAD_SLAB_PTR : curr_slab_ptr;
+                (prev_work_queue != work_queue) ? kHeadSlabAddr : curr_slab_ptr;
         uint32_t src_lane = __ffs(work_queue) - 1;
         uint32_t src_bucket =
-                __shfl_sync(ACTIVE_LANES_MASK, bucket_id, src_lane, WARP_WIDTH);
+                __shfl_sync(kSyncLanesMask, bucket_id, src_lane, kWarpSize);
 
         WarpSyncKey(key, src_lane, src_key);
 
         const uint32_t unit_data =
-                (curr_slab_ptr == HEAD_SLAB_PTR)
+                (curr_slab_ptr == kHeadSlabAddr)
                         ? *(get_unit_ptr_from_list_head(src_bucket, lane_id))
                         : *(get_unit_ptr_from_list_nodes(curr_slab_ptr,
                                                          lane_id));
@@ -278,22 +278,22 @@ __device__ Pair<addr_t, bool> CUDAHashmapImplContext<Hash, KeyEq>::Erase(
         if (lane_found >= 0) {
             if (lane_id == src_lane) {
                 uint32_t* unit_data_ptr =
-                        (curr_slab_ptr == HEAD_SLAB_PTR)
+                        (curr_slab_ptr == kHeadSlabAddr)
                                 ? get_unit_ptr_from_list_head(src_bucket,
                                                               lane_found)
                                 : get_unit_ptr_from_list_nodes(curr_slab_ptr,
                                                                lane_found);
 
                 uint32_t pair_to_delete = atomicExch(
-                        (unsigned int*)unit_data_ptr, EMPTY_PAIR_PTR);
-                mask = pair_to_delete != EMPTY_PAIR_PTR;
+                        (unsigned int*)unit_data_ptr, kEmptyNodeAddr);
+                mask = pair_to_delete != kEmptyNodeAddr;
                 iterator_addr = pair_to_delete;
                 // Branch 1.2: other thread did the job, avoid double free
             }
         } else {  // no matching slot found:
-            addr_t next_slab_ptr = __shfl_sync(ACTIVE_LANES_MASK, unit_data,
-                                               NEXT_SLAB_PTR_LANE, WARP_WIDTH);
-            if (next_slab_ptr == EMPTY_SLAB_PTR) {
+            addr_t next_slab_ptr = __shfl_sync(kSyncLanesMask, unit_data,
+                                               kNextSlabPtrLaneId, kWarpSize);
+            if (next_slab_ptr == kEmptySlabAddr) {
                 // not found:
                 if (lane_id == src_lane) {
                     lane_active = false;
@@ -314,8 +314,8 @@ __device__ void CUDAHashmapImplContext<Hash, KeyEq>::WarpSyncKey(
     auto dst_key_ptr = static_cast<int*>(ret_key_ptr);
     auto src_key_ptr = static_cast<const int*>(key_ptr);
     for (int i = 0; i < hash_fn_.key_size_in_int_; ++i) {
-        dst_key_ptr[i] = __shfl_sync(ACTIVE_LANES_MASK, src_key_ptr[i], lane_id,
-                                     WARP_WIDTH);
+        dst_key_ptr[i] =
+                __shfl_sync(kSyncLanesMask, src_key_ptr[i], lane_id, kWarpSize);
     }
 }
 
@@ -324,20 +324,20 @@ __device__ int32_t CUDAHashmapImplContext<Hash, KeyEq>::WarpFindKey(
         const void* key_ptr, uint32_t lane_id, addr_t ptr) {
     bool is_lane_found =
             // select key lanes
-            ((1 << lane_id) & PAIR_PTR_LANES_MASK)
+            ((1 << lane_id) & kNodePtrLanesMask)
             // validate key addrs
-            && (ptr != EMPTY_PAIR_PTR)
+            && (ptr != kEmptyNodeAddr)
             // find keys in memory heap
             && cmp_fn_(kv_mgr_ctx_.extract_iterator(ptr).first, key_ptr);
 
-    return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_found)) - 1;
+    return __ffs(__ballot_sync(kNodePtrLanesMask, is_lane_found)) - 1;
 }
 
 template <typename Hash, typename KeyEq>
 __device__ int32_t
 CUDAHashmapImplContext<Hash, KeyEq>::WarpFindEmpty(addr_t ptr) {
-    bool is_lane_empty = (ptr == EMPTY_PAIR_PTR);
-    return __ffs(__ballot_sync(PAIR_PTR_LANES_MASK, is_lane_empty)) - 1;
+    bool is_lane_empty = (ptr == kEmptyNodeAddr);
+    return __ffs(__ballot_sync(kNodePtrLanesMask, is_lane_empty)) - 1;
 }
 
 template <typename Hash, typename KeyEq>
@@ -401,7 +401,7 @@ __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     addr_t iterator_addr = 0;
 
     // dummy
-    uint8_t dummy_key[MAX_KEY_BYTESIZE];
+    uint8_t dummy_key[kMaxKeyByteSize];
     const void* key = reinterpret_cast<const void*>(dummy_key);
 
     if (tid < count) {
@@ -479,7 +479,7 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     uint32_t bucket_id = 0;
 
     // dummy
-    uint8_t dummy_key[MAX_KEY_BYTESIZE];
+    uint8_t dummy_key[kMaxKeyByteSize];
     const void* key = reinterpret_cast<const void*>(dummy_key);
     Pair<addr_t, bool> result;
 
@@ -517,7 +517,7 @@ __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     bool lane_active = false;
     uint32_t bucket_id = 0;
 
-    uint8_t dummy_key[MAX_KEY_BYTESIZE];
+    uint8_t dummy_key[kMaxKeyByteSize];
     const void* key = reinterpret_cast<const void*>(dummy_key);
 
     if (tid < count) {
@@ -563,31 +563,31 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
 
     uint32_t src_unit_data =
             *hash_ctx.get_unit_ptr_from_list_head(bucket_id, lane_id);
-    bool is_active = src_unit_data != EMPTY_PAIR_PTR;
+    bool is_active = src_unit_data != kEmptyNodeAddr;
 
-    if (is_active && ((1 << lane_id) & PAIR_PTR_LANES_MASK)) {
+    if (is_active && ((1 << lane_id) & kNodePtrLanesMask)) {
         iterator_t iterator =
                 hash_ctx.kv_mgr_ctx_.extract_iterator(src_unit_data);
         uint32_t index = atomicAdd(output_iterator_count, 1);
         output_iterators[index] = iterator;
     }
 
-    addr_t next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data,
-                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+    addr_t next = __shfl_sync(kSyncLanesMask, src_unit_data, kNextSlabPtrLaneId,
+                              kWarpSize);
 
     // count following nodes
-    while (next != EMPTY_SLAB_PTR) {
+    while (next != kEmptySlabAddr) {
         src_unit_data = *hash_ctx.get_unit_ptr_from_list_nodes(next, lane_id);
-        is_active = (src_unit_data != EMPTY_PAIR_PTR);
+        is_active = (src_unit_data != kEmptyNodeAddr);
 
-        if (is_active && ((1 << lane_id) & PAIR_PTR_LANES_MASK)) {
+        if (is_active && ((1 << lane_id) & kNodePtrLanesMask)) {
             iterator_t iterator =
                     hash_ctx.kv_mgr_ctx_.extract_iterator(src_unit_data);
             uint32_t index = atomicAdd(output_iterator_count, 1);
             output_iterators[index] = iterator;
         }
-        next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data, NEXT_SLAB_PTR_LANE,
-                           WARP_WIDTH);
+        next = __shfl_sync(kSyncLanesMask, src_unit_data, kNextSlabPtrLaneId,
+                           kWarpSize);
     }
 }
 
@@ -611,18 +611,18 @@ __global__ void CountElemsPerBucketKernel(
     // count head node
     uint32_t src_unit_data =
             *hash_ctx.get_unit_ptr_from_list_head(bucket_id, lane_id);
-    count += __popc(__ballot_sync(PAIR_PTR_LANES_MASK,
-                                  src_unit_data != EMPTY_PAIR_PTR));
-    addr_t next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data,
-                              NEXT_SLAB_PTR_LANE, WARP_WIDTH);
+    count += __popc(
+            __ballot_sync(kNodePtrLanesMask, src_unit_data != kEmptyNodeAddr));
+    addr_t next = __shfl_sync(kSyncLanesMask, src_unit_data, kNextSlabPtrLaneId,
+                              kWarpSize);
 
     // count following nodes
-    while (next != EMPTY_SLAB_PTR) {
+    while (next != kEmptySlabAddr) {
         src_unit_data = *hash_ctx.get_unit_ptr_from_list_nodes(next, lane_id);
-        count += __popc(__ballot_sync(PAIR_PTR_LANES_MASK,
-                                      src_unit_data != EMPTY_PAIR_PTR));
-        next = __shfl_sync(ACTIVE_LANES_MASK, src_unit_data, NEXT_SLAB_PTR_LANE,
-                           WARP_WIDTH);
+        count += __popc(__ballot_sync(kNodePtrLanesMask,
+                                      src_unit_data != kEmptyNodeAddr));
+        next = __shfl_sync(kSyncLanesMask, src_unit_data, kNextSlabPtrLaneId,
+                           kWarpSize);
     }
 
     // write back the results:

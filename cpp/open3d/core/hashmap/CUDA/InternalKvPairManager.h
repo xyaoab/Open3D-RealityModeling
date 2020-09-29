@@ -120,8 +120,9 @@ public:
         gpu_context_.values_ = static_cast<uint8_t *>(
                 MemoryManager::Malloc(capacity * dsize_value, device_));
 
-        const int blocks = (capacity + BLOCKSIZE_ - 1) / BLOCKSIZE_;
-        ResetInternalKvPairManagerKernel<<<blocks, BLOCKSIZE_>>>(gpu_context_);
+        const int blocks = (capacity + kThreadsPerBlock - 1) / kThreadsPerBlock;
+        ResetInternalKvPairManagerKernel<<<blocks, kThreadsPerBlock>>>(
+                gpu_context_);
         OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
         OPEN3D_CUDA_CHECK(cudaGetLastError());
 
