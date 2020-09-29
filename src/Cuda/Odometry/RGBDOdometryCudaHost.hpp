@@ -360,6 +360,7 @@ void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source,
     /* Compute gradients */
     for (int i = 0; i < N; ++i) {
         //! target depth gradients are the target normals
+        utility::LogInfo("Error in computing gradient");
         target_intensity_[i].Sobel(target_intensity_dx_[i],
                                    target_intensity_dy_[i]);
     }
@@ -390,6 +391,7 @@ std::tuple<bool, Eigen::Matrix4d, float> RGBDOdometryCuda<N>::DoSingleIteration(
             "> Level {}, iter {}: loss = {}, avg loss = {}, "
             "inliers = {}",
             level, iter, loss, loss / inliers, inliers);
+    utility::LogDebug("JtJ: \n{}\n, Jtr: \n{}\n", JtJ, Jtr);
     bool is_success;
     Eigen::Matrix4d extrinsic;
     std::tie(is_success, extrinsic) =

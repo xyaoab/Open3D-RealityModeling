@@ -259,7 +259,8 @@ void SobelKernel(ImageCudaDevice<Scalar, Channel> src,
 
     int u = blockIdx.x * blockDim.x + threadIdx.x;
     int v = blockIdx.y * blockDim.y + threadIdx.y;
-    if (u >= src.width_ || v >= src.height_) return;
+    if (u >= src.width_ - 1|| v >= src.height_ - 1) return;
+    if (u <= 0 || v <= 0) return;
 
     typename ImageCudaDevice<Scalar, Channel>::Grad grad;
 

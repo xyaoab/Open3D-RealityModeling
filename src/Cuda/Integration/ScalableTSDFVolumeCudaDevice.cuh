@@ -630,6 +630,8 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world,
         int frame_id) {
+
+    if(!camera.IsPixelValid(Vector2f(p(0), p(1)))) return;
     float d = depth.interp_at(p(0), p(1))(0);
     if (d < 0.1f || d > 3.5f) return;
 
@@ -671,7 +673,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
     for (int k = 0; k <= step; ++k) {
         int internal_addr = hash_table_.New(Xsv_curr.template cast<int>());
 
-        if(internal_addr > 0)
+        if(internal_addr >= 0)
         {
             UniformTSDFVolumeCudaDevice *subvolume = hash_table_.GetValuePtrByInternalAddr(internal_addr);
             subvolume->last_visible_index_ = frame_id;

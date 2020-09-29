@@ -77,8 +77,8 @@ __device__ void ScalableMeshVolumeCudaDevice::AllocateVertex(
                              Xlocal(2) + edge_shift[edge][2]);
 
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
-            assert(Xlocal_edge_holder(0) < N && Xlocal_edge_holder(1) < N &&
-                   Xlocal_edge_holder(2) < N);
+            assert(Xlocal_edge_holder(0) < N_ && Xlocal_edge_holder(1) < N_ &&
+                   Xlocal_edge_holder(2) < N_);
 #endif
             vertex_indices(Xlocal_edge_holder, subvolume_idx)(
                     edge_shift[edge][3]) = VERTEX_TO_ALLOCATE;

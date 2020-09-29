@@ -91,8 +91,8 @@ __global__ void IntegrateSubvolumesKernel(
                                          threadIdx.z + blockDim.z * workload);
 
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
-        assert(entry_idx < server.active_subvolume_entry_array().size() &&
-               Xlocal(0) < N && Xlocal(1) < N && Xlocal(2) < N);
+        assert(entry_idx < server.active_subvolume_entry_array_.size() &&
+               Xlocal(0) < server.N_ && Xlocal(1) < server.N_ && Xlocal(2) < server.N_);
 #endif
 
         HashEntry<Vector3i> &entry =
@@ -113,6 +113,7 @@ __host__ void ScalableTSDFVolumeCudaKernelCaller::IntegrateSubvolumes(
         TransformCuda &transform_camera_to_world) {
     const dim3 blocks(volume.active_subvolume_entry_array_.size());
     const dim3 threads(volume.N_, volume.N_, volume.N_ / 4);
+    printf("blocks: %d, threads: %d", volume.active_subvolume_entry_array_.size(), volume.N_);
     IntegrateSubvolumesKernel<<<blocks, threads>>>(
             *volume.device_, *rgbd.device_, *mask_image.device_, camera, transform_camera_to_world);
     CheckCuda(cudaDeviceSynchronize());

@@ -57,7 +57,7 @@ public:
 
     __DEVICE__ inline Vector3i Vectorize(size_t index) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
-        assert(index < N * N * N);
+        assert(index < N_ * N_ * N_);
 #endif
         Vector3i ret(0);
         ret(0) = int(index % N_);
@@ -69,7 +69,7 @@ public:
     __DEVICE__ inline int IndexOf(const Vector3i &X) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(X(0) >= 0 && X(1) >= 0 && X(2) >= 0);
-        assert(X(0) < N && X(1) < N && X(2) < N);
+        assert(X(0) < N_ && X(1) < N_ && X(2) < N_);
 #endif
         return int(X(2) * (N_ * N_) + X(1) * N_ + X(0));
     }
