@@ -245,6 +245,7 @@ size_t CPUHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
     return count;
 }
 
+namespace {
 void UnpackIteratorsStep(const iterator_t* input_iterators,
                          const bool* input_masks,
                          void* output_keys,
@@ -274,6 +275,7 @@ void UnpackIteratorsStep(const iterator_t* input_iterators,
         }
     }
 }
+}  // namespace
 
 template <typename Hash, typename KeyEq>
 void CPUHashmap<Hash, KeyEq>::UnpackIterators(const iterator_t* input_iterators,
@@ -287,7 +289,7 @@ void CPUHashmap<Hash, KeyEq>::UnpackIterators(const iterator_t* input_iterators,
                             this->dsize_value_, i);
     }
 }
-
+namespace {
 void AssignIteratorsStep(iterator_t* input_iterators,
                          const bool* input_masks,
                          const void* input_values,
@@ -304,7 +306,7 @@ void AssignIteratorsStep(iterator_t* input_iterators,
                               dsize_value);
     }
 }
-
+}  // namespace
 template <typename Hash, typename KeyEq>
 void CPUHashmap<Hash, KeyEq>::AssignIterators(iterator_t* input_iterators,
                                               const bool* input_masks,

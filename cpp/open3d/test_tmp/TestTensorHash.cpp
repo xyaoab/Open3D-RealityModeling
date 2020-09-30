@@ -24,7 +24,7 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/core/hashmap/TensorHash.h"
+#include "open3d/core/hashmap/TensorHashmap.h"
 
 using namespace open3d;
 using namespace open3d::core;
@@ -40,13 +40,13 @@ int main() {
                            Dtype::Int64, device);
         utility::LogInfo("Create");
         auto tensor_hash =
-                std::make_shared<TensorHash>(init_coords, init_values);
+                std::make_shared<TensorHashmap>(init_coords, init_values);
 
         /// Query
         utility::LogInfo("Query");
         Tensor query_coords(std::vector<float>({0, 0, 3, 3, 1, 1, 4, 4, 8, 8}),
                             {5, 2}, Dtype::Float32, device);
-        auto results = tensor_hash->Query(query_coords);
+        auto results = tensor_hash->Find(query_coords);
 
         // [Open3D INFO] IndexTensor [0 3 1 4 0]
         // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f85dde01600]
@@ -64,7 +64,7 @@ int main() {
         tensor_hash->Assign(assign_coords, assign_values);
 
         /// Query init after reassignment
-        results = tensor_hash->Query(init_coords);
+        results = tensor_hash->Find(init_coords);
         // [Open3D INFO] IndexTensor [2 1 0 3 4]
         // Tensor[shape={5}, stride={1}, Int64, CUDA:0, 0x7f8615e01e00]
         // [Open3D INFO] MaskTensor [1 1 1 1 1]
@@ -76,7 +76,7 @@ int main() {
         Tensor duplicate_coords(
                 std::vector<float>({0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 4, 4, 3, 3}),
                 {7, 2}, Dtype::Float32, device);
-        results = Unique(duplicate_coords);
+        results = TensorHashmap::Unique(duplicate_coords);
 
         // [Open3D INFO] IndexTensor [[0 0],
         //                            [1 1],

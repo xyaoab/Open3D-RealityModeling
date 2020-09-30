@@ -273,8 +273,9 @@ int main() {
             vals[i] = keys[i] * 100;
         }
 
-        auto hashmap = CreateDeviceHashmap<DefaultHash, DefaultKeyEq>(
-                capacity, sizeof(Key), sizeof(Value), Device("CUDA:0"));
+        auto hashmap = CreateTemplateDeviceHashmap<DefaultHash, DefaultKeyEq>(
+                capacity / 2, capacity, sizeof(Key), sizeof(Value),
+                Device("CUDA:0"));
         auto hashmap_gt = std::unordered_map<Key, Value>();
 
         CompareInsert(hashmap, hashmap_gt, keys, vals);
