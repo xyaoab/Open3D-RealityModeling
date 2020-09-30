@@ -51,8 +51,7 @@ def merge_normal_hist(normals,
     for i in range(len(active_hist)):
         active_dict[(active_xx[i], active_yy[i])] = active_hist[i]
     active_dict = {
-        k: v
-        for k, v in sorted(
+        k: v for k, v in sorted(
             active_dict.items(), key=lambda item: item[1], reverse=True)
     }
 
@@ -118,8 +117,7 @@ def dist_hist(dists, bins=10):
 def merge_dist_hist(dists, hist, labels):
     active_dict = {i: v[0] for i, v in enumerate(hist)}
     active_dict = {
-        k: v
-        for k, v in sorted(
+        k: v for k, v in sorted(
             active_dict.items(), key=lambda item: item[1], reverse=True)
     }
 
@@ -167,7 +165,7 @@ if __name__ == '__main__':
     voxel_size = 0.025
     radius_normal = voxel_size * 2
     pcd = o3d.io.read_point_cloud(args.pcd)
-    pcd.paint_uniform_color([0, 1, 0])
+    pcd = pcd.voxel_down_sample(voxel_size)
     pcd.estimate_normals(
         o3d.geometry.KDTreeSearchParamHybrid(radius=radius_normal, max_nn=30))
 
@@ -179,37 +177,57 @@ if __name__ == '__main__':
                                                    n_label,
                                                    plane_size_thr=0.01 *
                                                    len(points))
-    plt.imshow(n_hist)
-    plt.show()
 
     pcd_clusters = []
     for i, mask_cluster in enumerate(n_cluster):
         points_n = points[mask_cluster, :]
         normals_n = normals[mask_cluster, :]
 
-        pcd_b = o3d.geometry.PointCloud()
-        pcd_b.points = o3d.utility.Vector3dVector(points_n + 0.01)
-        pcd_b.normals = o3d.utility.Vector3dVector(normals_n)
-        pcd_b.paint_uniform_color(COLORS[i % len(COLORS)])
-        pcd_clusters.append(pcd_b)
-        o3d.visualization.draw_geometries([pcd_b])
+        # pcd_b = o3d.geometry.PointCloud()
+        # pcd_b.points = o3d.utility.Vector3dVector(points_n + 0.01)
+        # pcd_b.normals = o3d.utility.Vector3dVector(normals_n)
+        # pcd_b.paint_uniform_color(COLORS[i % len(COLORS)])
+        # pcd_clusters.append(pcd_b)
 
         dists = np.sum(normals_n * points_n, axis=1)
         d_hist, d_label = dist_hist(dists)
         d_hist, d_label, d_cluster = merge_dist_hist(dists, d_hist, d_label)
 
-        # print('------')
-        # for d_mask in d_cluster:
-        #     dist_cluster = dists[d_mask]
-        #     dist_medium = np.sort(dist_cluster)[len(dist_cluster) // 2]
-        #     d_mask_plane = np.abs(dist_cluster - dist_medium) < 0.03
-        #     print(dist_cluster[d_mask_plane])
+        for d_mask in d_cluster:
+            dist_cluster = dists[d_mask]
+            dist_medium = np.sort(dist_cluster)[len(dist_cluster) // 2]
+            d_mask_plane = np.abs(dist_cluster - dist_medium) < 0.03
 
-        #     pcd_b = o3d.geometry.PointCloud()
-        #     pcd_b.points = o3d.utility.Vector3dVector(points_n[d_mask][d_mask_plane] + 0.01)
-        #     pcd_b.normals = o3d.utility.Vector3dVector(normals_n[d_mask][d_mask_plane])
-        #     pcd_b.paint_uniform_color(COLORS[len(pcd_clusters) % len(COLORS)])
-        #     pcd_clusters.append(pcd_b)
-        #     o3d.visualization.draw_geometries([pcd_b])
+            points_d = points_n[d_mask][d_mask_plane]
+            normals_d = normals_n[d_mask][d_mask_plane]
+            color_d = COLORS[len(pcd_clusters) % len(COLORS)]
 
+            pcd_d = o3d.geometry.PointCloud()
+            pcd_d.points = o3d.utility.Vector3dVector(points_d + 0.01)
+            pcd_d.normals = o3d.utility.Vector3dVector(normals_d)
+            pcd_d.paint_uniform_color(color_d)
+            # pcd_clusters.append(pcd_d)
+
+            n = np.mean(normals_d, axis=0)
+            d = -np.mean(np.dot(points_d, n))
+
+            max_x = np.max(points_d[:, 0])
+            min_x = np.min(points_d[:, 0])
+            max_y = np.max(points_d[:, 1])
+            min_y = np.min(points_d[:, 1])
+            xys = np.array([[min_x, min_y], [min_x, max_y], [max_x, min_y],
+                            [max_x, max_y]]).astype(np.float64)
+            zs = -(np.dot(xys, n[:2]) + d) / n[2]
+            xyzs = np.concatenate((xys, np.expand_dims(zs, axis=1)), axis=1)
+            tris = np.array([[0, 1, 2], [2, 1, 3]])
+
+            mesh_d = o3d.geometry.TriangleMesh()
+            mesh_d.vertices = o3d.utility.Vector3dVector(xyzs)
+            mesh_d.triangles = o3d.utility.Vector3iVector(tris)
+            mesh_d.paint_uniform_color(color_d)
+            pcd_clusters.append(mesh_d)
+
+            # o3d.visualization.draw_geometries([pcd_d, mesh_d])
+
+    pcd_clusters.append(pcd)
     o3d.visualization.draw_geometries(pcd_clusters)
