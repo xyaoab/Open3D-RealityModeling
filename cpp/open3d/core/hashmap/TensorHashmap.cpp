@@ -30,6 +30,11 @@
 
 namespace open3d {
 namespace core {
+
+namespace {
+static constexpr size_t kMaxKeyByteSize = 32;
+}
+
 std::pair<Tensor, Tensor> TensorHashmap::Unique(const Tensor &tensor) {
     std::vector<int64_t> indices_data(tensor.GetShape()[0]);
     std::iota(indices_data.begin(), indices_data.end(), 0);
@@ -72,12 +77,12 @@ TensorHashmap::TensorHashmap(const Tensor &coords,
     int64_t N = coords_shape[0];
 
     size_t key_size = key_dtype_.ByteSize() * key_dim_;
-    if (key_size > MAX_KEY_BYTESIZE) {
+    if (key_size > kMaxKeyByteSize) {
         utility::LogError(
                 "TensorHashmap::Unsupported key size: at most {} bytes per "
                 "key is "
                 "supported, received {} bytes per key",
-                MAX_KEY_BYTESIZE, key_size);
+                kMaxKeyByteSize, key_size);
     }
     size_t value_size = val_dtype_.ByteSize() * val_dim_;
 
