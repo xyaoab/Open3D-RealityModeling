@@ -6,8 +6,8 @@
 
 #include <Cuda/Common/Common.h>
 #include <Cuda/Common/TypeConversion.h>
-#include <Eigen/Eigen>
 
+#include <Eigen/Eigen>
 #include <cassert>
 
 namespace open3d {
@@ -19,7 +19,7 @@ namespace cuda {
  * Write my own version to do this.
  */
 
-template<typename T, size_t N>
+template <typename T, size_t N>
 class VectorCuda {
 public:
     T v[N];
@@ -34,20 +34,24 @@ public:
     typedef VectorCuda<uchar, N> VecTypeb;
 
     /*********************** Conversions ***********************/
-    template<typename D>
+    template <typename D>
     __HOSTDEVICE__ inline VectorCuda<D, N> cast() const {
         VectorCuda<D, N> ret;
+#ifdef __CUDACC__
 #pragma unroll 1
+#endif
         for (int i = 0; i < N; ++i) {
             ret(i) = D(v[i]);
         }
         return ret;
     }
 
-    template<typename D>
+    template <typename D>
     __HOSTDEVICE__ inline VectorCuda<D, N> saturate_cast() const {
         VectorCuda<D, N> ret;
+#ifdef __CUDACC__
 #pragma unroll 1
+#endif
         for (int i = 0; i < N; ++i) {
             ret(i) = open3d::number_traits::saturate_cast<D>(v[i]);
         }
@@ -78,13 +82,13 @@ public:
 #endif
         for (int i = 0; i < N; ++i) {
             is_nan = is_nan || isnan(v[i]);
-            if(is_nan) return true;
+            if (is_nan) return true;
         }
         return is_nan;
     }
 
     /*********************** Constructors ***********************/
-    __HOSTDEVICE__ inline VectorCuda() {};
+    __HOSTDEVICE__ inline VectorCuda(){};
     __HOSTDEVICE__ inline VectorCuda(const VecType &other) {
 #ifdef __CUDACC__
 #pragma unroll 1
@@ -325,15 +329,12 @@ public:
     __HOSTDEVICE__ inline VecType cross(const VecType &other) const {
         static_assert(N == 3, "Invalid vector dimension");
 
-        return VecType(
-            v[1] * other.v[2] - v[2] * other.v[1],
-            v[2] * other.v[0] - v[0] * other.v[2],
-            v[0] * other.v[1] - v[1] * other.v[0]);
+        return VecType(v[1] * other.v[2] - v[2] * other.v[1],
+                       v[2] * other.v[0] - v[0] * other.v[2],
+                       v[0] * other.v[1] - v[1] * other.v[0]);
     }
 
-    __HOSTDEVICE__ inline float norm() const {
-        return sqrtf(dot(*this));
-    }
+    __HOSTDEVICE__ inline float norm() const { return sqrtf(dot(*this)); }
 
     __HOSTDEVICE__ inline VectorCuda<T, N> normalized() const {
         float n = norm();
@@ -349,23 +350,23 @@ public:
 
     /** CPU CODE **/
     inline void FromEigen(Eigen::Matrix<double, N, 1> &other) {
-        for (int i = 0; i < N; ++i) {
+        for (size_t i = 0; i < N; ++i) {
             v[i] = T(other(i));
         }
     }
 
     inline Eigen::Matrix<double, N, 1> ToEigen() {
         Eigen::Matrix<double, N, 1> ret;
-        for (int i = 0; i < N; ++i) {
+        for (size_t i = 0; i < N; ++i) {
             ret(i) = double(v[i]);
         }
         return ret;
     }
 };
 
-template<typename T, size_t N>
-__HOSTDEVICE__ inline
-VectorCuda<T, N> operator*(T s, const VectorCuda<T, N> &vec) {
+template <typename T, size_t N>
+__HOSTDEVICE__ inline VectorCuda<T, N> operator*(T s,
+                                                 const VectorCuda<T, N> &vec) {
     return vec * s;
 }
 
@@ -385,10 +386,10 @@ typedef VectorCuda<float, 3> Vector3f;
 typedef VectorCuda<float, 4> Vector4f;
 typedef VectorCuda<float, 6> Vector6f;
 
-template<typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N>
 class LDLT;
 
-template<typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N>
 class MatrixCuda {
 public:
     T v[M * N];
@@ -405,11 +406,9 @@ public:
         }
     }
 
-    __HOSTDEVICE__ T &at(size_t i, size_t j) {
-        return v[i * N + j];
-    }
+    __HOSTDEVICE__ T &at(size_t i, size_t j) { return v[i * N + j]; }
 
-    __HOSTDEVICE__ const T& at(size_t i, size_t j) const {
+    __HOSTDEVICE__ const T &at(size_t i, size_t j) const {
         return v[i * N + j];
     }
 
@@ -420,7 +419,7 @@ public:
         return v[i * N + j];
     }
 
-    __HOSTDEVICE__ const T& operator() (size_t i, size_t j) const {
+    __HOSTDEVICE__ const T &operator()(size_t i, size_t j) const {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
         assert(i < M && j < N);
 #endif
@@ -428,7 +427,7 @@ public:
     }
 
     __HOSTDEVICE__ MatrixCuda<T, M, N> &operator=(
-        const MatrixCuda<T, M, N> &other) {
+            const MatrixCuda<T, M, N> &other) {
 #ifdef __CUDACC__
 #pragma unroll 1
 #endif
@@ -452,14 +451,12 @@ public:
         return res;
     }
 
-    __HOSTDEVICE__ LDLT<T, M, N> ldlt() {
-        return LDLT<T, M, N>(*this);
-    }
+    __HOSTDEVICE__ LDLT<T, M, N> ldlt() { return LDLT<T, M, N>(*this); }
 
     /* CPU code */
     void FromEigen(const Eigen::Matrix<double, M, N> &other) {
-        for (int i = 0; i < M; ++i) {
-            for (int j = 0; j < N; ++j) {
+        for (size_t i = 0; i < M; ++i) {
+            for (size_t j = 0; j < N; ++j) {
                 at(i, j) = T(other(i, j));
             }
         }
@@ -476,7 +473,7 @@ public:
     }
 };
 
-template<typename T, size_t M, size_t N>
+template <typename T, size_t M, size_t N>
 class LDLT {
 public:
     bool valid = true;
@@ -484,7 +481,8 @@ public:
     VectorCuda<T, N> D;
 
     /* https://en.wikipedia.org/wiki/Cholesky_decomposition#LDL_decomposition */
-    /* http://mathforcollege.com/nm/mws/gen/04sle/mws_gen_sle_txt_cholesky.pdf */
+    /* http://mathforcollege.com/nm/mws/gen/04sle/mws_gen_sle_txt_cholesky.pdf
+     */
     /* A = LDL^T */
     __HOSTDEVICE__ LDLT(const MatrixCuda<T, M, N> &A) {
         static_assert(M == N, "M != N");
@@ -549,5 +547,5 @@ public:
 typedef MatrixCuda<float, 3, 3> Matrix3f;
 typedef LDLT<float, 3, 3> LDLT3;
 
-} // cuda
-} // open3d
+}  // namespace cuda
+}  // namespace open3d
