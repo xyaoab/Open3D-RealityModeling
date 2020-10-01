@@ -24,11 +24,11 @@ public:
     int N_;
 
     /** [N * N * N] **/
-    float *tsdf_;
+    float16_t *tsdf_;
     uchar *weight_;
     Vector3b *color_;
-    uint16_t *fg_;
-    uint16_t *bg_;
+    uint8_t *fg_;
+    uint8_t *bg_;
 
 public:
     /** According to UniformTSDFVolume.cpp,

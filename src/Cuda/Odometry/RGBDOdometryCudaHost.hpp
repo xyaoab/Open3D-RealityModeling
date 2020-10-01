@@ -360,7 +360,6 @@ void RGBDOdometryCuda<N>::Initialize(RGBDImageCuda &source,
     /* Compute gradients */
     for (int i = 0; i < N; ++i) {
         //! target depth gradients are the target normals
-        utility::LogInfo("Error in computing gradient");
         target_intensity_[i].Sobel(target_intensity_dx_[i],
                                    target_intensity_dy_[i]);
     }

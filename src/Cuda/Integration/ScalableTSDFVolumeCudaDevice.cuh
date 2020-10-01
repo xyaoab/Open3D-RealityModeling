@@ -632,6 +632,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
         int frame_id) {
 
     if(!camera.IsPixelValid(Vector2f(p(0), p(1)))) return;
+
     float d = depth.interp_at(p(0), p(1))(0);
     if (d < 0.1f || d > 3.5f) return;
 
