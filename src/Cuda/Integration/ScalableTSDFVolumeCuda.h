@@ -378,9 +378,9 @@ public:
     static void GetAllSubvolumes(ScalableTSDFVolumeCuda &volume);
 
     static void GetVisibleSubvolumesCount(const ScalableTSDFVolumeCuda &volume,
-                                         int* total_visible,
-                                         int frame_id,
-                                         int frame_threshold);
+                                          int *total_visible,
+                                          int frame_id,
+                                          int frame_threshold);
 
     static void RayCasting(ScalableTSDFVolumeCuda &volume,
                            ImageCuda<float, 3> &vertex,
@@ -425,11 +425,14 @@ __GLOBAL__
 void GetAllSubvolumesKernel(ScalableTSDFVolumeCudaDevice device);
 
 __GLOBAL__
-void GetVisibleSubvolumesCountKernel(ScalableTSDFVolumeCudaDevice device, int* total_visible, int frame_id, int frame_threshold);
+void GetVisibleSubvolumesCountKernel(ScalableTSDFVolumeCudaDevice device,
+                                     int *total_visible,
+                                     int frame_id,
+                                     int frame_threshold);
 
 __GLOBAL__
 void RayCastingKernel(ScalableTSDFVolumeCudaDevice device,
-                      ImageCudaDevice<float, 3> vertex,
+                      p ImageCudaDevice<float, 3> vertex,
                       ImageCudaDevice<float, 3> normal,
                       ImageCudaDevice<uchar, 3> color,
                       PinholeCameraIntrinsicCuda camera,
