@@ -93,7 +93,6 @@ void Hashmap::Insert(const Tensor& input_keys,
     }
 
     int64_t count = shape[0];
-    std::cout << count << "\n";
     Dtype dtype_it(Dtype::DtypeCode::Object, sizeof(iterator_t), "iterator_t");
 
     output_iterators = Tensor({count}, dtype_it, GetDevice());
@@ -241,5 +240,6 @@ void Hashmap::AssertValueDtype(const Dtype& dtype_val) const {
                 dtype_val_.ToString(), dtype_val.ToString());
     }
 }
+
 }  // namespace core
 }  // namespace open3d

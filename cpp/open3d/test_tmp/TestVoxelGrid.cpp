@@ -1,9 +1,9 @@
 #include <fmt/format.h>
 
 #include "open3d/Open3D.h"
-#include "open3d/tgeometry/Image.h"
-#include "open3d/tgeometry/PointCloud.h"
-#include "open3d/tgeometry/VoxelGrid.h"
+#include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/PointCloud.h"
+#include "open3d/t/geometry/VoxelGrid.h"
 #include "open3d/utility/Console.h"
 
 using namespace open3d;
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     std::vector<Device> devices{Device("CUDA:0"), Device("CPU:0")};
 
     for (auto device : devices) {
-        tgeometry::VoxelGrid voxel_grid(3.0 / 512, 0.04, 16, 10, device);
+        t::geometry::VoxelGrid voxel_grid(3.0 / 512, 0.04, 16, 10, device);
         for (int i = 0; i < 3000; ++i) {
             /// Load image
             std::string image_path =
@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
             std::shared_ptr<geometry::Image> im_legacy =
                     io::CreateImageFromFile(image_path);
             auto depth_legacy = im_legacy->ConvertDepthToFloatImage();
-            tgeometry::Image depth =
-                    tgeometry::Image::FromLegacyImage(*depth_legacy, device);
+            t::geometry::Image depth =
+                    t::geometry::Image::FromLegacyImage(*depth_legacy, device);
             Eigen::Matrix4f extrinsic_ =
                     trajectory->parameters_[i].extrinsic_.cast<float>();
             Tensor extrinsic = FromEigen(extrinsic_).Copy(device);

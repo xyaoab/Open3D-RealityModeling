@@ -52,9 +52,7 @@ public:
     template <typename func_t>
     static void LaunchIndexFillKernel(const Indexer& indexer,
                                       func_t element_kernel) {
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
              ++workload_idx) {
             element_kernel(indexer.GetInputPtr(0, workload_idx), workload_idx);
@@ -64,9 +62,7 @@ public:
     template <typename func_t>
     static void LaunchUnaryEWKernel(const Indexer& indexer,
                                     func_t element_kernel) {
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
              ++workload_idx) {
             element_kernel(indexer.GetInputPtr(0, workload_idx),
@@ -77,9 +73,7 @@ public:
     template <typename func_t>
     static void LaunchBinaryEWKernel(const Indexer& indexer,
                                      func_t element_kernel) {
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
              ++workload_idx) {
             element_kernel(indexer.GetInputPtr(0, workload_idx),
@@ -91,9 +85,7 @@ public:
     template <typename func_t>
     static void LaunchAdvancedIndexerKernel(const AdvancedIndexer& indexer,
                                             func_t element_kernel) {
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t workload_idx = 0; workload_idx < indexer.NumWorkloads();
              ++workload_idx) {
             element_kernel(indexer.GetInputPtr(workload_idx),
@@ -128,9 +120,7 @@ public:
                 (num_workloads + num_threads - 1) / num_threads;
         std::vector<scalar_t> thread_results(num_threads, identity);
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t thread_idx = 0; thread_idx < num_threads; ++thread_idx) {
             int64_t start = thread_idx * workload_per_thread;
             int64_t end = std::min(start + workload_per_thread, num_workloads);
@@ -174,9 +164,7 @@ public:
                     "LaunchReductionKernelTwoPass instead.");
         }
 
-#ifdef _OPENMP
 #pragma omp parallel for schedule(static)
-#endif
         for (int64_t i = 0; i < indexer_shape[best_dim]; ++i) {
             Indexer sub_indexer(indexer);
             sub_indexer.ShrinkDim(best_dim, i, 1);

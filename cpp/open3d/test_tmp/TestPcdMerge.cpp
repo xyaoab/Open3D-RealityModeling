@@ -1,8 +1,8 @@
 #include <fmt/format.h>
 
 #include "open3d/Open3D.h"
-#include "open3d/tgeometry/Image.h"
-#include "open3d/tgeometry/PointCloud.h"
+#include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/PointCloud.h"
 
 using namespace open3d;
 using namespace open3d::core;
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
 
     std::vector<Device> devices{Device("CUDA:0"), Device("CPU:0")};
 
-    tgeometry::PointCloud pcd_global(Dtype::Float32, Device("CUDA:0"));
+    t::geometry::PointCloud pcd_global(Dtype::Float32, Device("CUDA:0"));
 
     for (int i = 0; i < 3000; ++i) {
         std::cout << i << "\n";
@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
         std::shared_ptr<geometry::Image> im_legacy =
                 io::CreateImageFromFile(image_path);
         auto depth_legacy = im_legacy->ConvertDepthToFloatImage();
-        tgeometry::Image depth = tgeometry::Image::FromLegacyImage(
+        t::geometry::Image depth = t::geometry::Image::FromLegacyImage(
                 *depth_legacy, Device("CUDA:0"));
 
         /// Unproject
@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         Tensor pcd_map = vertex_map.View({3, 480 * 640});
 
         std::cout << "constructing\n";
-        tgeometry::PointCloud pcd(core::TensorList::FromTensor(pcd_map.T()));
+        t::geometry::PointCloud pcd(core::TensorList::FromTensor(pcd_map.T()));
 
         /// Transform
         std::cout << "transforming\n";
@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 
         std::cout << "downsampling\n";
         /// Downsample and append
-        tgeometry::PointCloud pcd_down = pcd.VoxelDownSample(0.05);
+        t::geometry::PointCloud pcd_down = pcd.VoxelDownSample(0.05);
         pcd_global.GetPoints() += pcd_down.GetPoints();
     }
 

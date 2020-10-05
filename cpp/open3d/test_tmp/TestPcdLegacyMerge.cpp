@@ -1,8 +1,8 @@
 #include <fmt/format.h>
 
 #include "open3d/Open3D.h"
-#include "open3d/tgeometry/Image.h"
-#include "open3d/tgeometry/PointCloud.h"
+#include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/PointCloud.h"
 
 using namespace open3d;
 using namespace open3d::core;
@@ -40,8 +40,8 @@ int main(int argc, char** argv) {
         *global_pcd += *pcd_down;
         // Tensor vertex_map = im.Unproject(intrinsic);
         // Tensor pcd_map = vertex_map.View({3, 480 * 640});
-        // tgeometry::PointCloud pcd(pcd_map.T());
-        // tgeometry::PointCloud pcd_down = pcd.VoxelDownSample(0.05);
+        // t::geometry::PointCloud pcd(pcd_map.T());
+        // t::geometry::PointCloud pcd_down = pcd.VoxelDownSample(0.05);
 
         // Tensor transform = Tensor(
         //         std::vector<float>(
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
 
         if (i % 30 == 0) {
             // auto pcd_legacy = std::make_shared<geometry::PointCloud>(
-            //         tgeometry::PointCloud::ToLegacyPointCloud(global_pcd));
+            //         t::geometry::PointCloud::ToLegacyPointCloud(global_pcd));
             visualization::DrawGeometries({global_pcd});
         }
     }

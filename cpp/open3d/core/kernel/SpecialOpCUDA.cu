@@ -26,7 +26,7 @@
 
 #include "open3d/core/kernel/CUDALauncher.cuh"
 #include "open3d/core/kernel/SpecialOp.h"
-#include "open3d/tgeometry/MarchingCubesConst.h"
+#include "open3d/t/geometry/MarchingCubesConst.h"
 
 namespace open3d {
 namespace core {

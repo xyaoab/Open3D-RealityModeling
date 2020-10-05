@@ -80,6 +80,13 @@ std::shared_ptr<ResourceType> MakeShared(ResourceType* pointer,
             pointer, [&engine](ResourceType* p) { engine.destroy(p); }));
 }
 
+template <class ResourceType>
+FilamentResourceManager::BoxedResource<ResourceType> BoxResource(
+        ResourceType* pointer, filament::Engine& engine) {
+    return FilamentResourceManager::BoxedResource<ResourceType>(
+            MakeShared(pointer, engine));
+}
+
 template <class Handle, class ResourceType>
 Handle RegisterResource(filament::Engine& engine,
                         ResourceType* resource,
@@ -90,8 +97,7 @@ Handle RegisterResource(filament::Engine& engine,
     }
 
     auto new_handle = Handle::Next();
-    container[new_handle] = std::move(MakeShared(resource, engine));
-
+    container[new_handle] = std::move(BoxResource(resource, engine));
     return new_handle;
 }
 
@@ -101,7 +107,7 @@ std::weak_ptr<ResourceType> FindResource(
         ResourcesContainer<ResourceType>& container) {
     auto found = container.find(id);
     if (found != container.end()) {
-        return found->second;
+        return found->second.ptr;
     }
 
     utility::LogWarning("Resource {} not found.", id);
@@ -117,7 +123,13 @@ void DestroyResource(const REHandle_abstract& id,
         return;
     }
 
-    container.erase(found);
+    found->second.use_count -= 1;
+    if (found->second.use_count == 0) {
+        container.erase(found);
+    } else if (found->second.use_count < 0) {
+        utility::LogError("Negative use count for resource ({})!", id);
+        return;
+    }
 }
 
 // Image data that is retained by renderer thread,
@@ -235,6 +247,8 @@ const MaterialHandle FilamentResourceManager::kDefaultDepthShader =
         MaterialHandle::Next();
 const MaterialHandle FilamentResourceManager::kDefaultUnlitGradientShader =
         MaterialHandle::Next();
+const MaterialHandle FilamentResourceManager::kDefaultUnlitSolidColorShader =
+        MaterialHandle::Next();
 const MaterialInstanceHandle FilamentResourceManager::kDepthMaterial =
         MaterialInstanceHandle::Next();
 const MaterialInstanceHandle FilamentResourceManager::kNormalsMaterial =
@@ -255,6 +269,7 @@ static const std::unordered_set<REHandle_abstract> kDefaultResources = {
         FilamentResourceManager::kDefaultNormalShader,
         FilamentResourceManager::kDefaultDepthShader,
         FilamentResourceManager::kDefaultUnlitGradientShader,
+        FilamentResourceManager::kDefaultUnlitSolidColorShader,
         FilamentResourceManager::kDepthMaterial,
         FilamentResourceManager::kNormalsMaterial,
         FilamentResourceManager::kDefaultTexture,
@@ -478,6 +493,15 @@ VertexBufferHandle FilamentResourceManager::AddVertexBuffer(
                                                 vertex_buffers_);
 }
 
+void FilamentResourceManager::ReuseVertexBuffer(VertexBufferHandle vb) {
+    auto found = vertex_buffers_.find(vb);
+    if (found != vertex_buffers_.end()) {
+        found->second.use_count += 1;
+    } else {
+        utility::LogError("Reusing non-existant vertex buffer");
+    }
+}
+
 IndexBufferHandle FilamentResourceManager::CreateIndexBuffer(
         size_t indices_count, size_t index_stride) {
     using namespace filament;
@@ -654,20 +678,22 @@ void FilamentResourceManager::LoadDefaults() {
     const auto texture_path = resource_root + "/defaultTexture.png";
     auto texture_img = io::CreateImageFromFile(texture_path);
     auto texture = LoadTextureFromImage(texture_img, false);
-    textures_[kDefaultTexture] = MakeShared(texture, engine_);
+    textures_[kDefaultTexture] = BoxResource(texture, engine_);
 
     const auto colormap_path = resource_root + "/defaultGradient.png";
     auto colormap_img = io::CreateImageFromFile(colormap_path);
     auto color_map = LoadTextureFromImage(colormap_img, false);
-    textures_[kDefaultColorMap] = MakeShared(color_map, engine_);
+    textures_[kDefaultColorMap] = BoxResource(color_map, engine_);
 
     auto normal_map = LoadFilledTexture(Eigen::Vector3f(0.5, 0.5, 1.f), 1);
-    textures_[kDefaultNormalMap] = MakeShared(normal_map, engine_);
+    textures_[kDefaultNormalMap] = BoxResource(normal_map, engine_);
 
     const auto default_sampler =
             FilamentMaterialModifier::SamplerFromSamplerParameters(
                     TextureSamplerParameters::Pretty());
     const auto default_color = filament::math::float3{1.0f, 1.0f, 1.0f};
+    const auto default_color_alpha =
+            filament::math::float4{1.0f, 1.0f, 1.0f, 1.0f};
 
     const auto lit_path = resource_root + "/defaultLit.filamat";
     auto lit_mat = LoadMaterialFromFile(lit_path, engine_);
@@ -690,13 +716,14 @@ void FilamentResourceManager::LoadDefaults() {
     // lit_mat->setDefaultParameter("clearCoatRoughnessMap", texture,
     //                              default_sampler);
     lit_mat->setDefaultParameter("anisotropyMap", texture, default_sampler);
-    materials_[kDefaultLit] = MakeShared(lit_mat, engine_);
+    materials_[kDefaultLit] = BoxResource(lit_mat, engine_);
 
     const auto lit_trans_path =
             resource_root + "/defaultLitTransparency.filamat";
     auto lit_trans_mat = LoadMaterialFromFile(lit_trans_path, engine_);
-    lit_trans_mat->setDefaultParameter("baseColor", filament::RgbType::sRGB,
-                                       default_color);
+    lit_trans_mat->setDefaultParameter("baseColor",
+                                       filament::RgbaType::PREMULTIPLIED_sRGB,
+                                       default_color_alpha);
     lit_trans_mat->setDefaultParameter("baseRoughness", 0.7f);
     lit_trans_mat->setDefaultParameter("reflectance", 0.5f);
     lit_trans_mat->setDefaultParameter("baseMetallic", 0.f);
@@ -720,7 +747,7 @@ void FilamentResourceManager::LoadDefaults() {
     lit_trans_mat->setDefaultParameter("anisotropyMap", texture,
                                        default_sampler);
     materials_[kDefaultLitWithTransparency] =
-            MakeShared(lit_trans_mat, engine_);
+            BoxResource(lit_trans_mat, engine_);
 
     const auto unlit_path = resource_root + "/defaultUnlit.filamat";
     auto unlit_mat = LoadMaterialFromFile(unlit_path, engine_);
@@ -728,37 +755,38 @@ void FilamentResourceManager::LoadDefaults() {
                                    default_color);
     unlit_mat->setDefaultParameter("pointSize", 3.f);
     unlit_mat->setDefaultParameter("albedo", texture, default_sampler);
-    materials_[kDefaultUnlit] = MakeShared(unlit_mat, engine_);
+    materials_[kDefaultUnlit] = BoxResource(unlit_mat, engine_);
 
     const auto depth_path = resource_root + "/depth.filamat";
     auto depth_mat = LoadMaterialFromFile(depth_path, engine_);
     depth_mat->setDefaultParameter("pointSize", 3.f);
-    materials_[kDefaultDepthShader] = MakeShared(depth_mat, engine_);
+    materials_[kDefaultDepthShader] = BoxResource(depth_mat, engine_);
 
     const auto gradient_path = resource_root + "/unlitGradient.filamat";
     auto gradient_mat = LoadMaterialFromFile(gradient_path, engine_);
     gradient_mat->setDefaultParameter("pointSize", 3.f);
-    materials_[kDefaultUnlitGradientShader] = MakeShared(gradient_mat, engine_);
+    materials_[kDefaultUnlitGradientShader] =
+            BoxResource(gradient_mat, engine_);
 
     // NOTE: Legacy. Can be removed soon.
     const auto hdepth = CreateMaterial(ResourceLoadRequest(depth_path.data()));
     auto depth_mat_inst = materials_[hdepth];
     depth_mat_inst->setDefaultParameter("pointSize", 3.f);
     material_instances_[kDepthMaterial] =
-            MakeShared(depth_mat_inst->createInstance(), engine_);
+            BoxResource(depth_mat_inst->createInstance(), engine_);
 
     const auto normals_path = resource_root + "/normals.filamat";
     auto normals_mat = LoadMaterialFromFile(normals_path, engine_);
     normals_mat->setDefaultParameter("pointSize", 3.f);
-    materials_[kDefaultNormalShader] = MakeShared(normals_mat, engine_);
+    materials_[kDefaultNormalShader] = BoxResource(normals_mat, engine_);
 
-    // NOTE: Leacy. Can be removed soon.
+    // NOTE: Legacy. Can be removed soon.
     const auto hnormals =
             CreateMaterial(ResourceLoadRequest(normals_path.data()));
     auto normals_mat_inst = materials_[hnormals];
     normals_mat_inst->setDefaultParameter("pointSize", 3.f);
     material_instances_[kNormalsMaterial] =
-            MakeShared(normals_mat_inst->createInstance(), engine_);
+            BoxResource(normals_mat_inst->createInstance(), engine_);
 
     const auto colormap_map_path = resource_root + "/colorMap.filamat";
     const auto hcolormap_mat =
@@ -767,7 +795,13 @@ void FilamentResourceManager::LoadDefaults() {
     auto colormap_mat_inst = colormap_mat->createInstance();
     colormap_mat_inst->setParameter("colorMap", color_map, default_sampler);
     material_instances_[kColorMapMaterial] =
-            MakeShared(colormap_mat_inst, engine_);
+            BoxResource(colormap_mat_inst, engine_);
+
+    const auto solid_path = resource_root + "/unlitSolidColor.filamat";
+    auto solid_mat = LoadMaterialFromFile(solid_path, engine_);
+    solid_mat->setDefaultParameter("baseColor", filament::RgbType::sRGB,
+                                   {0.5f, 0.5f, 0.5f});
+    materials_[kDefaultUnlitSolidColorShader] = BoxResource(solid_mat, engine_);
 }
 
 }  // namespace rendering

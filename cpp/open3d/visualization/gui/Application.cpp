@@ -339,8 +339,29 @@ void Application::Quit() {
 }
 
 void Application::OnTerminate() {
+    // Note: if you need to modify this function, you should test that
+    // the following still work:
+    //  1) on macOS, quit by right-clicking on the dock icon and
+    //     selecting Quit.
+    //  2) run a Python script that creates a window and exits cleanly.
+    //  3) run a Python script that creates a window and throws a
+    //     fatal exception.
+
+    // This function should work even if called after a successful cleanup
+    // (e.g. after Run() successfully finished, either due to closing the
+    // last window or Quit() called).
+
     Quit();
+    // If we are in exit() already (e.g. an exception occurred in a
+    // Python callback and the interpreter is exiting) just clearing
+    // the shared_ptr may not be sufficient to destroy the object.
+    // We need to clean up filament to avoid a crash, but we will
+    // hang if the window still exists.
+    for (auto w : impl_->windows_to_be_destroyed_) {
+        w->DestroyWindow();
+    }
     impl_->windows_to_be_destroyed_.clear();
+    impl_->CleanupAfterRunning();
 }
 
 void Application::OnMenuItemSelected(Menu::ItemId itemId) {
@@ -361,11 +382,12 @@ void Application::OnMenuItemSelected(Menu::ItemId itemId) {
 }
 
 void Application::Run() {
-    while (RunOneTick())
+    EnvUnlocker noop;  // containing env is C++
+    while (RunOneTick(noop))
         ;
 }
 
-bool Application::RunOneTick() {
+bool Application::RunOneTick(EnvUnlocker &unlocker) {
     // Initialize if we have not started yet
     if (!impl_->is_running_) {
         // Verify that the resource path is valid. If it is not, display a
@@ -396,7 +418,7 @@ bool Application::RunOneTick() {
     }
 
     // Process the events that have queued up
-    auto status = ProcessQueuedEvents();
+    auto status = ProcessQueuedEvents(unlocker);
 
     // Cleanup if we are done
     if (status == RunStatus::DONE) {
@@ -416,8 +438,11 @@ bool Application::RunOneTick() {
     return impl_->is_running_;
 }
 
-Application::RunStatus Application::ProcessQueuedEvents() {
+Application::RunStatus Application::ProcessQueuedEvents(EnvUnlocker &unlocker) {
+    unlocker.unlock();  // don't want to be locked while we wait
     glfwWaitEventsTimeout(RUNLOOP_DELAY_SEC);
+    unlocker.relock();  // need to relock in case we call any callbacks to
+                        // functions in the containing (e.g. Python) environment
 
     // Handle tick messages.
     double now = Now();

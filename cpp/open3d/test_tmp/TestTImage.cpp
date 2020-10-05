@@ -1,6 +1,6 @@
 #include "open3d/Open3D.h"
-#include "open3d/tgeometry/Image.h"
-#include "open3d/tgeometry/PointCloud.h"
+#include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/PointCloud.h"
 
 using namespace open3d;
 using namespace open3d::core;
@@ -12,8 +12,8 @@ int main(int argc, char** argv) {
     visualization::DrawGeometries({depth_legacy});
 
     utility::LogInfo("From legacy image");
-    tgeometry::Image im =
-            tgeometry::Image::FromLegacyImage(*depth_legacy, Device("CUDA:0"));
+    t::geometry::Image im = t::geometry::Image::FromLegacyImage(
+            *depth_legacy, Device("CUDA:0"));
     auto im_legacy_ret = std::make_shared<geometry::Image>(im.ToLegacyImage());
     visualization::DrawGeometries({im_legacy_ret});
 
@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     utility::LogInfo("{}", vertex_map.ToString());
     Tensor pcd_map = vertex_map.View({3, 480 * 640});
 
-    tgeometry::PointCloud pcd(core::TensorList::FromTensor(pcd_map.T()));
+    t::geometry::PointCloud pcd(core::TensorList::FromTensor(pcd_map.T()));
 
     // core::Tensor transform =
     //         core::Tensor(std::vector<float>({1, 0, 0, 1, 0, -1, 0, 2, 0, 0,

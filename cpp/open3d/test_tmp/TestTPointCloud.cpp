@@ -1,5 +1,5 @@
 #include "open3d/Open3D.h"
-#include "open3d/tgeometry/PointCloud.h"
+#include "open3d/t/geometry/PointCloud.h"
 
 using namespace open3d;
 using namespace open3d::core;
@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
 
     auto pcd_legacy = io::CreatePointCloudFromFile(argv[1]);
 
-    auto pcd = tgeometry::PointCloud::FromLegacyPointCloud(
+    auto pcd = t::geometry::PointCloud::FromLegacyPointCloud(
             *pcd_legacy, Dtype::Float32, Device("CUDA:0"));
     timer.Start();
     pcd_legacy->VoxelDownSample(0.01);
