@@ -32,7 +32,7 @@
 #include "open3d/core/Dtype.h"
 #include "open3d/core/SizeVector.h"
 #include "open3d/core/Tensor.h"
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "tests/UnitTest.h"
 
@@ -40,7 +40,7 @@ namespace open3d {
 namespace tests {
 
 using open3d::core::Tensor;
-using open3d::core::TensorList;
+using open3d::core::TensorVector;
 using open3d::io::ReadPointCloud;
 using open3d::io::ReadPointCloudOption;
 using open3d::io::WritePointCloud;
@@ -96,7 +96,7 @@ TEST_P(ReadWriteTPC, Basic) {
         const auto &attr = attr_tensor.first;
         const auto &tensor = attr_tensor.second;
         pc1.SetPointAttr(attr,
-                         TensorList::FromTensor(
+                         TensorVector::FromTensor(
                                  {tensor.values, tensor.size, dtype, device}));
     }
 
@@ -142,7 +142,7 @@ TEST_P(ReadWriteTPC, WriteBadData) {
         const auto &attr = attr_tensor.first;
         const auto &tensor = attr_tensor.second;
         pc1.SetPointAttr(attr,
-                         TensorList::FromTensor(
+                         TensorVector::FromTensor(
                                  {tensor.values, tensor.size, dtype, device}));
     }
 

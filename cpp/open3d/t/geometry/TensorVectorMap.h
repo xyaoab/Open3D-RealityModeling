@@ -29,49 +29,51 @@
 #include <string>
 #include <unordered_map>
 
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 
 namespace open3d {
 namespace t {
 namespace geometry {
 
-/// Map of string to TensorList. Provides helper function to maintain a
-/// synchronized size (length) for the tensorlists.
+/// Map of string to TensorVector. Provides helper function to maintain a
+/// synchronized size (length) for the tensorvectors.
 ///
-/// The primary key's tensorlist's size is used as the primary size and primary
-/// device. Other tensorlist's size and device should be synchronized according
-/// to the primary.
-class TensorListMap : public std::unordered_map<std::string, core::TensorList> {
+/// The primary key's tensorvector's size is used as the primary size and
+/// primary device. Other tensorvector's size and device should be synchronized
+/// according to the primary.
+class TensorVectorMap
+    : public std::unordered_map<std::string, core::TensorVector> {
 public:
-    /// Create empty TensorListMap and set primary key.
-    TensorListMap(const std::string& primary_key)
-        : std::unordered_map<std::string, core::TensorList>(),
+    /// Create empty TensorVectorMap and set primary key.
+    TensorVectorMap(const std::string& primary_key)
+        : std::unordered_map<std::string, core::TensorVector>(),
           primary_key_(primary_key) {}
 
-    /// Create TensorListMap with pre-populated values.
-    TensorListMap(const std::string& primary_key,
-                  const std::unordered_map<std::string, core::TensorList>&
-                          map_keys_to_tensorlists)
-        : std::unordered_map<std::string, core::TensorList>(),
+    /// Create TensorVectorMap with pre-populated values.
+    TensorVectorMap(const std::string& primary_key,
+                    const std::unordered_map<std::string, core::TensorVector>&
+                            map_keys_to_tensorvectors)
+        : std::unordered_map<std::string, core::TensorVector>(),
           primary_key_(primary_key) {
-        Assign(map_keys_to_tensorlists);
+        Assign(map_keys_to_tensorvectors);
     }
 
     /// A primary key is always required. This constructor can be marked as
     /// delete in C++, but it is needed for pybind to bind as a generic python
     /// map interface.
-    TensorListMap() : TensorListMap("Undefined") {
-        utility::LogError("Please construct TensorListMap with a primary key.");
+    TensorVectorMap() : TensorVectorMap("Undefined") {
+        utility::LogError(
+                "Please construct TensorVectorMap with a primary key.");
     }
 
     /// Clear the current map and assign new keys and values. The primary key
-    /// remains unchanged. The input \p map_keys_to_tensorlists must at least
-    /// contain the primary key. Data won't be copied, tensorlists still share
+    /// remains unchanged. The input \p map_keys_to_tensorvectors must at least
+    /// contain the primary key. Data won't be copied, tensorvectors still share
     /// the same memory as the input.
     ///
-    /// \param map_keys_to_tensorlists. The keys and values to be assigned.
-    void Assign(const std::unordered_map<std::string, core::TensorList>&
-                        map_keys_to_tensorlists);
+    /// \param map_keys_to_tensorvectors. The keys and values to be assigned.
+    void Assign(const std::unordered_map<std::string, core::TensorVector>&
+                        map_keys_to_tensorvectors);
 
     /// Synchronized push back, data will be copied. Before push back,
     /// IsSizeSynchronized() must be true.
@@ -83,10 +85,10 @@ public:
             const std::unordered_map<std::string, core::Tensor>&
                     map_keys_to_tensors);
 
-    /// Returns the primary key of the tensorlistmap.
+    /// Returns the primary key of the tensorvectormap.
     std::string GetPrimaryKey() const { return primary_key_; }
 
-    /// Returns true if all tensorlists in the map have the same size.
+    /// Returns true if all tensorvectors in the map have the same size.
     bool IsSizeSynchronized() const;
 
     /// Assert IsSizeSynchronized().
@@ -98,7 +100,7 @@ public:
 
 private:
     /// Asserts that \p map_keys_to_tensors has the same keys as the
-    /// TensorListMap.
+    /// TensorVectorMap.
     ///
     /// \param map_keys_to_tensors A map of string to Tensor. Typically the map
     /// is used for SynchronizedPushBack.
@@ -107,7 +109,7 @@ private:
                     map_keys_to_tensors) const;
 
     /// Asserts that all of the tensors in \p map_keys_to_tensors have the same
-    /// device as the primary tensorlist.
+    /// device as the primary tensorvector.
     ///
     /// \param map_keys_to_tensors A map of string to Tensor. Typically the map
     /// is used for SynchronizedPushBack.
@@ -115,16 +117,16 @@ private:
             const std::unordered_map<std::string, core::Tensor>&
                     map_keys_to_tensors) const;
 
-    /// Returns the size (length) of the primary key's tensorlist.
+    /// Returns the size (length) of the primary key's tensorvector.
     int64_t GetPrimarySize() const { return at(primary_key_).GetSize(); }
 
-    /// Returns the device of the primary key's tensorlist.
+    /// Returns the device of the primary key's tensorvector.
     core::Device GetPrimaryDevice() const {
         return at(primary_key_).GetDevice();
     }
 
-    /// The primary key's tensorlist's size is used as the primary size and
-    /// primary device. Other tensorlist's size and device should be
+    /// The primary key's tensorvector's size is used as the primary size and
+    /// primary device. Other tensorvector's size and device should be
     /// synchronized according to the primary.
     std::string primary_key_;
 };

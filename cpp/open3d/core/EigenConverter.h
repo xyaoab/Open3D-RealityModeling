@@ -31,7 +31,7 @@
 #include "open3d/core/Device.h"
 #include "open3d/core/Dtype.h"
 #include "open3d/core/Tensor.h"
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 
 namespace open3d {
 namespace core {
@@ -43,7 +43,7 @@ core::Tensor EigenVector3dToTensor(const Eigen::Vector3d &value,
                                    core::Dtype dtype,
                                    const core::Device &device);
 
-core::TensorList EigenVector3dVectorToTensorList(
+core::TensorVector EigenVector3dVectorToTensorVector(
         const std::vector<Eigen::Vector3d> &values,
         core::Dtype dtype,
         const core::Device &device);

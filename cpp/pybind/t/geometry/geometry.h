@@ -50,7 +50,7 @@ public:
 
 void pybind_geometry(py::module& m);
 void pybind_geometry_class(py::module& m);
-void pybind_tensorlistmap(py::module& m);
+void pybind_tensorvectormap(py::module& m);
 void pybind_pointcloud(py::module& m);
 
 }  // namespace geometry

@@ -24,27 +24,27 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/core/TensorList.h"
-
 #include <string>
 
 #include "open3d/core/SizeVector.h"
+#include "open3d/core/TensorVector.h"
 
 namespace open3d {
 namespace core {
 
 /// Asserts that the tensor list is resizable.
-static void AssertIsResizable(const TensorList& tensorlist,
+static void AssertIsResizable(const TensorVector& tensorvector,
                               const std::string& func_name) {
-    if (!tensorlist.IsResizable()) {
+    if (!tensorvector.IsResizable()) {
         utility::LogError(
-                "TensorList::{}: TensorList is not resizable. Typically this "
-                "tensorlist is created with shared memory from a Tensor.",
+                "TensorVector::{}: TensorVector is not resizable. Typically "
+                "this "
+                "tensorvector is created with shared memory from a Tensor.",
                 func_name);
     }
 }
 
-TensorList TensorList::FromTensor(const Tensor& tensor, bool inplace) {
+TensorVector TensorVector::FromTensor(const Tensor& tensor, bool inplace) {
     SizeVector shape = tensor.GetShape();
     if (shape.size() == 0) {
         utility::LogError("Tensor should at least have one dimension.");
@@ -56,47 +56,47 @@ TensorList TensorList::FromTensor(const Tensor& tensor, bool inplace) {
     if (inplace) {
         if (!tensor.IsContiguous()) {
             utility::LogError(
-                    "Tensor must be contiguous for inplace tensorlist "
+                    "Tensor must be contiguous for inplace tensorvector "
                     "construction.");
         }
-        return TensorList(element_shape, size, size, tensor,
-                          /*is_resizable=*/false);
+        return TensorVector(element_shape, size, size, tensor,
+                            /*is_resizable=*/false);
     } else {
-        int64_t reserved_size = TensorList::ComputeReserveSize(size);
+        int64_t reserved_size = TensorVector::ComputeReserveSize(size);
         Tensor internal_tensor = Tensor::Empty(
                 shape_util::Concat({reserved_size}, element_shape),
                 tensor.GetDtype(), tensor.GetDevice());
         internal_tensor.Slice(0, 0, size) = tensor;
-        return TensorList(element_shape, size, reserved_size, internal_tensor,
-                          /*is_resizable=*/true);
+        return TensorVector(element_shape, size, reserved_size, internal_tensor,
+                            /*is_resizable=*/true);
     }
 }
 
-TensorList TensorList::Copy() const {
-    TensorList copied(*this);
+TensorVector TensorVector::Copy() const {
+    TensorVector copied(*this);
     copied.CopyFrom(*this);
     return copied;
 }
 
-void TensorList::CopyFrom(const TensorList& other) {
+void TensorVector::CopyFrom(const TensorVector& other) {
     *this = other;
     // Copy the full other.internal_tensor_, not just other.AsTensor().
     internal_tensor_ = other.internal_tensor_.Copy();
-    // After copy, the resulting tensorlist is always resizable.
+    // After copy, the resulting tensorvector is always resizable.
     is_resizable_ = true;
 }
 
-void TensorList::ShallowCopyFrom(const TensorList& other) {
+void TensorVector::ShallowCopyFrom(const TensorVector& other) {
     // Copy assignment operator is performing shallow copy.
     // After copy, this.is_resizable_ == other.is_resizable_.
     *this = other;
 }
 
-Tensor TensorList::AsTensor() const {
+Tensor TensorVector::AsTensor() const {
     return internal_tensor_.Slice(0, 0, size_);
 }
 
-void TensorList::Resize(int64_t new_size) {
+void TensorVector::Resize(int64_t new_size) {
     AssertIsResizable(*this, __FUNCTION__);
 
     // Increase internal tensor size.
@@ -105,41 +105,41 @@ void TensorList::Resize(int64_t new_size) {
     internal_tensor_.Slice(0, old_size, new_size).Fill(0);
 }
 
-void TensorList::PushBack(const Tensor& tensor) {
+void TensorVector::PushBack(const Tensor& tensor) {
     AssertIsResizable(*this, __FUNCTION__);
 
     if (element_shape_ != tensor.GetShape()) {
         utility::LogError(
-                "TensorList has element shape {}, but tensor has shape {}.",
+                "TensorVector has element shape {}, but tensor has shape {}.",
                 element_shape_, tensor.GetShape());
     }
     if (GetDtype() != tensor.GetDtype()) {
-        utility::LogError("TensorList has dtype {}, but tensor has shape {}.",
+        utility::LogError("TensorVector has dtype {}, but tensor has shape {}.",
                           GetDtype().ToString(), tensor.GetDtype().ToString());
     }
     if (GetDevice() != tensor.GetDevice()) {
-        utility::LogError("TensorList has device {}, but tensor has shape {}.",
-                          GetDevice().ToString(),
-                          tensor.GetDevice().ToString());
+        utility::LogError(
+                "TensorVector has device {}, but tensor has shape {}.",
+                GetDevice().ToString(), tensor.GetDevice().ToString());
     }
     ResizeWithExpand(size_ + 1);
     internal_tensor_[size_ - 1] = tensor;  // same as operator[](-1) = tensor;
 }
 
-void TensorList::Extend(const TensorList& other) {
+void TensorVector::Extend(const TensorVector& other) {
     AssertIsResizable(*this, __FUNCTION__);
 
     // Check consistency
     if (element_shape_ != other.GetElementShape()) {
-        utility::LogError("TensorList shapes {} and {} are inconsistent.",
+        utility::LogError("TensorVector shapes {} and {} are inconsistent.",
                           element_shape_, other.GetElementShape());
     }
     if (GetDevice() != other.GetDevice()) {
-        utility::LogError("TensorList device {} and {} are inconsistent.",
+        utility::LogError("TensorVector device {} and {} are inconsistent.",
                           GetDevice().ToString(), other.GetDevice().ToString());
     }
     if (GetDtype() != other.GetDtype()) {
-        utility::LogError("TensorList dtype {} and {} are inconsistent.",
+        utility::LogError("TensorVector dtype {} and {} are inconsistent.",
                           GetDtype().ToString(), other.GetDtype().ToString());
     }
 
@@ -147,32 +147,33 @@ void TensorList::Extend(const TensorList& other) {
     int64_t other_size = other.GetSize();
     ResizeWithExpand(size_ + other_size);
 
-    // Needs to slice other since *this and other can be the same tensorlist.
+    // Needs to slice other since *this and other can be the same tensorvector.
     // Assigning to a Tensor rvalue is an actual copy.
     internal_tensor_.Slice(0, size_ - other_size, size_) =
             other.AsTensor().Slice(0, 0, other_size);
 }
 
-TensorList TensorList::Concatenate(const TensorList& a, const TensorList& b) {
+TensorVector TensorVector::Concatenate(const TensorVector& a,
+                                       const TensorVector& b) {
     // A full copy of a is required.
-    TensorList result = a.Copy();
+    TensorVector result = a.Copy();
     result.Extend(b);
     return result;
 }
 
-Tensor TensorList::operator[](int64_t index) const {
+Tensor TensorVector::operator[](int64_t index) const {
     // WrapDim asserts index is within range.
     index = shape_util::WrapDim(index, size_);
     return internal_tensor_[index];
 }
 
-void TensorList::Clear() {
+void TensorVector::Clear() {
     AssertIsResizable(*this, __FUNCTION__);
-    *this = TensorList(element_shape_, GetDtype(), GetDevice());
+    *this = TensorVector(element_shape_, GetDtype(), GetDevice());
 }
 
 // Protected
-void TensorList::ResizeWithExpand(int64_t new_size) {
+void TensorVector::ResizeWithExpand(int64_t new_size) {
     int64_t new_reserved_size = ComputeReserveSize(new_size);
     if (new_reserved_size <= reserved_size_) {
         size_ = new_size;
@@ -188,14 +189,15 @@ void TensorList::ResizeWithExpand(int64_t new_size) {
     }
 }
 
-int64_t TensorList::ComputeReserveSize(int64_t n) {
+int64_t TensorVector::ComputeReserveSize(int64_t n) {
     if (n < 0) {
-        utility::LogError("Negative tensorlist size {} is not supported.", n);
+        utility::LogError("Negative tensorvector size {} is not supported.", n);
     }
 
     int64_t base = 1;
     if (n > (base << 61)) {
-        utility::LogError("Too large tensorlist size {} is not supported.", n);
+        utility::LogError("Too large tensorvector size {} is not supported.",
+                          n);
     }
 
     for (int i = 63; i >= 0; --i) {
@@ -217,9 +219,9 @@ int64_t TensorList::ComputeReserveSize(int64_t n) {
     return 1;
 }
 
-std::string TensorList::ToString() const {
+std::string TensorVector::ToString() const {
     return fmt::format(
-            "TensorList[size: {}, element_shape: {}, dtype: {}, device: {}]",
+            "TensorVector[size: {}, element_shape: {}, dtype: {}, device: {}]",
             size_, element_shape_.ToString(), GetDtype().ToString(),
             GetDevice().ToString());
 }

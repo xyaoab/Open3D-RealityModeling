@@ -2,7 +2,7 @@
 set(ALL_SOURCE_FILES
     PointCloud.cpp
     Image.cpp
-    TensorListMap.cpp
+    TensorVectorMap.cpp
     TriangleMesh.cpp
 )
 

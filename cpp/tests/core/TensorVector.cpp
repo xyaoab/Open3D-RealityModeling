@@ -24,26 +24,25 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/core/TensorList.h"
-
 #include <vector>
 
+#include "open3d/core/TensorVector.h"
 #include "tests/UnitTest.h"
 #include "tests/core/CoreTest.h"
 
 namespace open3d {
 namespace tests {
 
-class TensorListPermuteDevices : public PermuteDevices {};
-INSTANTIATE_TEST_SUITE_P(TensorList,
-                         TensorListPermuteDevices,
+class TensorVectorPermuteDevices : public PermuteDevices {};
+INSTANTIATE_TEST_SUITE_P(TensorVector,
+                         TensorVectorPermuteDevices,
                          testing::ValuesIn(PermuteDevices::TestCases()));
 
-TEST_P(TensorListPermuteDevices, EmptyConstructor) {
+TEST_P(TensorVectorPermuteDevices, EmptyConstructor) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
-    // TensorList allows 0-sized and scalar {} element_shape.
+    // TensorVector allows 0-sized and scalar {} element_shape.
     for (const core::SizeVector& element_shape : std::vector<core::SizeVector>{
                  {},   // Scalar {} element_shape is fine.
                  {0},  // 0-sized element_shape is fine.
@@ -53,25 +52,25 @@ TEST_P(TensorListPermuteDevices, EmptyConstructor) {
                  {1, 0},
                  {2, 3},
          }) {
-        core::TensorList tl(element_shape, dtype, device);
+        core::TensorVector tl(element_shape, dtype, device);
         EXPECT_EQ(tl.GetElementShape(), element_shape);
         EXPECT_EQ(tl.GetDtype(), dtype);
         EXPECT_EQ(tl.GetDevice(), device);
     }
 
-    // TensorList does not allow negative element_shape.
-    EXPECT_ANY_THROW(core::TensorList({0, -1}, dtype, device));
-    EXPECT_ANY_THROW(core::TensorList({-1, -1}, dtype, device));
+    // TensorVector does not allow negative element_shape.
+    EXPECT_ANY_THROW(core::TensorVector({0, -1}, dtype, device));
+    EXPECT_ANY_THROW(core::TensorVector({-1, -1}, dtype, device));
 }
 
-TEST_P(TensorListPermuteDevices, ConstructFromTensorVector) {
+TEST_P(TensorVectorPermuteDevices, ConstructFromTensorVector) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
     core::Tensor t0 = core::Tensor::Ones({2, 3}, dtype, device) * 0.;
     core::Tensor t1 = core::Tensor::Ones({2, 3}, dtype, device) * 1.;
     core::Tensor t2 = core::Tensor::Ones({2, 3}, dtype, device) * 2.;
-    core::TensorList tl(std::vector<core::Tensor>({t0, t1, t2}));
+    core::TensorVector tl(std::vector<core::Tensor>({t0, t1, t2}));
 
     // Check tensor list.
     core::SizeVector full_shape({3, 2, 3});
@@ -92,16 +91,17 @@ TEST_P(TensorListPermuteDevices, ConstructFromTensorVector) {
     core::Tensor t4 = core::Tensor::Ones({2, 3}, dtype, device);
     if (t3.GetDevice() != t4.GetDevice()) {
         // This tests only fires when CUDA is available.
-        EXPECT_ANY_THROW(core::TensorList(std::vector<core::Tensor>({t3, t4})));
+        EXPECT_ANY_THROW(
+                core::TensorVector(std::vector<core::Tensor>({t3, t4})));
     }
 
     // Shape mismatch.
     core::Tensor t5 = core::Tensor::Ones({2, 3}, core::Dtype::Float32, device);
     core::Tensor t6 = core::Tensor::Ones({2, 3}, core::Dtype::Float64, device);
-    EXPECT_ANY_THROW(core::TensorList(std::vector<core::Tensor>({t5, t6})));
+    EXPECT_ANY_THROW(core::TensorVector(std::vector<core::Tensor>({t5, t6})));
 }
 
-TEST_P(TensorListPermuteDevices, ConstructFromTensors) {
+TEST_P(TensorVectorPermuteDevices, ConstructFromTensors) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
@@ -110,10 +110,10 @@ TEST_P(TensorListPermuteDevices, ConstructFromTensors) {
     core::Tensor t2 = core::Tensor::Ones({2, 3}, dtype, device) * 2.;
     std::vector<core::Tensor> tensors({t0, t1, t2});
 
-    for (const core::TensorList& tl : std::vector<core::TensorList>({
-                 core::TensorList(tensors),
-                 core::TensorList(tensors.begin(), tensors.end()),
-                 core::TensorList({t0, t1, t2}),
+    for (const core::TensorVector& tl : std::vector<core::TensorVector>({
+                 core::TensorVector(tensors),
+                 core::TensorVector(tensors.begin(), tensors.end()),
+                 core::TensorVector({t0, t1, t2}),
          })) {
         core::SizeVector full_shape({3, 2, 3});
         EXPECT_EQ(tl.AsTensor().GetShape(), full_shape);
@@ -134,22 +134,23 @@ TEST_P(TensorListPermuteDevices, ConstructFromTensors) {
     core::Tensor t4 = core::Tensor::Ones({2, 3}, dtype, device);
     if (t3.GetDevice() != t4.GetDevice()) {
         // This tests only fires when CUDA is available.
-        EXPECT_ANY_THROW(core::TensorList(std::vector<core::Tensor>({t3, t4})));
+        EXPECT_ANY_THROW(
+                core::TensorVector(std::vector<core::Tensor>({t3, t4})));
     }
 
     // Shape mismatch.
     core::Tensor t5 = core::Tensor::Ones({2, 3}, core::Dtype::Float32, device);
     core::Tensor t6 = core::Tensor::Ones({2, 3}, core::Dtype::Float64, device);
-    EXPECT_ANY_THROW(core::TensorList(std::vector<core::Tensor>({t5, t6})));
+    EXPECT_ANY_THROW(core::TensorVector(std::vector<core::Tensor>({t5, t6})));
 }
 
-TEST_P(TensorListPermuteDevices, FromTensor) {
+TEST_P(TensorVectorPermuteDevices, FromTensor) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
     // Copyied tensor.
-    core::TensorList tl = core::TensorList::FromTensor(t);
+    core::TensorVector tl = core::TensorVector::FromTensor(t);
     EXPECT_EQ(tl.GetElementShape(), core::SizeVector({4, 5}));
     EXPECT_EQ(tl.GetSize(), 3);
     EXPECT_EQ(tl.GetReservedSize(), 8);
@@ -157,7 +158,7 @@ TEST_P(TensorListPermuteDevices, FromTensor) {
     EXPECT_FALSE(tl.AsTensor().IsSame(t));
 
     // Inplace tensor.
-    core::TensorList tl_inplace = core::TensorList::FromTensor(t, true);
+    core::TensorVector tl_inplace = core::TensorVector::FromTensor(t, true);
     EXPECT_EQ(tl_inplace.GetElementShape(), core::SizeVector({4, 5}));
     EXPECT_EQ(tl_inplace.GetSize(), 3);
     EXPECT_EQ(tl_inplace.GetReservedSize(), 3);
@@ -165,36 +166,36 @@ TEST_P(TensorListPermuteDevices, FromTensor) {
     EXPECT_TRUE(tl_inplace.AsTensor().IsSame(t));
 }
 
-TEST_P(TensorListPermuteDevices, CopyConstructor) {
+TEST_P(TensorVectorPermuteDevices, CopyConstructor) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
-    core::TensorList tl = core::TensorList::FromTensor(t, false);
-    core::TensorList tl_copy(tl);
+    core::TensorVector tl = core::TensorVector::FromTensor(t, false);
+    core::TensorVector tl_copy(tl);
     EXPECT_TRUE(tl.AsTensor().IsSame(tl_copy.AsTensor()));
 }
 
-TEST_P(TensorListPermuteDevices, MoveConstructor) {
+TEST_P(TensorVectorPermuteDevices, MoveConstructor) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
     auto create_tl = [&t]() {
-        return core::TensorList::FromTensor(t, /*inplace=*/true);
+        return core::TensorVector::FromTensor(t, /*inplace=*/true);
     };
-    core::TensorList tl(create_tl());
+    core::TensorVector tl(create_tl());
     EXPECT_TRUE(tl.AsTensor().IsSame(t));
 }
 
-TEST_P(TensorListPermuteDevices, CopyAssignmentOperator) {
+TEST_P(TensorVectorPermuteDevices, CopyAssignmentOperator) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
     // Initially tl_a and tl_b does not share the same underlying memory.
-    core::TensorList tl_a = core::TensorList::FromTensor(t);
-    core::TensorList tl_b = core::TensorList::FromTensor(t);
+    core::TensorVector tl_a = core::TensorVector::FromTensor(t);
+    core::TensorVector tl_b = core::TensorVector::FromTensor(t);
     EXPECT_TRUE(tl_a.AsTensor().AllClose(tl_b.AsTensor()));
     EXPECT_FALSE(tl_a.AsTensor().IsSame(tl_b.AsTensor()));
 
@@ -204,35 +205,36 @@ TEST_P(TensorListPermuteDevices, CopyAssignmentOperator) {
     EXPECT_TRUE(tl_a.AsTensor().IsSame(tl_b.AsTensor()));
 
     // The is_resizable_ property will be overwritten.
-    core::TensorList tl_a_inplace = core::TensorList::FromTensor(t, true);
+    core::TensorVector tl_a_inplace = core::TensorVector::FromTensor(t, true);
     EXPECT_FALSE(tl_a_inplace.IsResizable());
     tl_a_inplace = tl_b;
     EXPECT_TRUE(tl_a_inplace.IsResizable());
 }
 
-TEST_P(TensorListPermuteDevices, MoveAssignmentOperator) {
+TEST_P(TensorVectorPermuteDevices, MoveAssignmentOperator) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t_a = core::Tensor::Ones({3, 4, 5}, dtype, device);
     core::Tensor t_b = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
-    core::TensorList tl_a = core::TensorList::FromTensor(t_a, /*inplace=*/true);
+    core::TensorVector tl_a =
+            core::TensorVector::FromTensor(t_a, /*inplace=*/true);
     auto create_tl_b = [&t_b]() {
-        return core::TensorList::FromTensor(t_b, /*inplace=*/true);
+        return core::TensorVector::FromTensor(t_b, /*inplace=*/true);
     };
     EXPECT_FALSE(tl_a.AsTensor().IsSame(t_b));
     tl_a = create_tl_b();
     EXPECT_TRUE(tl_a.AsTensor().IsSame(t_b));
 }
 
-TEST_P(TensorListPermuteDevices, CopyFrom) {
+TEST_P(TensorVectorPermuteDevices, CopyFrom) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t_a = core::Tensor::Ones({10, 4, 5}, dtype, device);
     core::Tensor t_b = core::Tensor::Ones({0, 2, 3}, dtype, device);
 
-    core::TensorList tl_a = core::TensorList::FromTensor(t_a);
-    core::TensorList tl_b = core::TensorList::FromTensor(t_b);
+    core::TensorVector tl_a = core::TensorVector::FromTensor(t_a);
+    core::TensorVector tl_b = core::TensorVector::FromTensor(t_b);
     EXPECT_NE(tl_a.GetElementShape(), tl_b.GetElementShape());
     EXPECT_NE(tl_a.GetSize(), tl_b.GetSize());
     EXPECT_NE(tl_a.GetReservedSize(), tl_b.GetReservedSize());
@@ -245,20 +247,20 @@ TEST_P(TensorListPermuteDevices, CopyFrom) {
     EXPECT_FALSE(tl_b.AsTensor().IsSame(tl_a.AsTensor()));
 
     // The is_resizable_ property will be overwritten.
-    core::TensorList tl_a_inplace = core::TensorList::FromTensor(t_a, true);
+    core::TensorVector tl_a_inplace = core::TensorVector::FromTensor(t_a, true);
     EXPECT_FALSE(tl_a_inplace.IsResizable());
     tl_a_inplace.CopyFrom(tl_b);
     EXPECT_TRUE(tl_a_inplace.IsResizable());
 }
 
-TEST_P(TensorListPermuteDevices, ShallowCopyFrom) {
+TEST_P(TensorVectorPermuteDevices, ShallowCopyFrom) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t_a = core::Tensor::Ones({10, 4, 5}, dtype, device);
     core::Tensor t_b = core::Tensor::Ones({0, 2, 3}, dtype, device);
 
-    core::TensorList tl_a = core::TensorList::FromTensor(t_a);
-    core::TensorList tl_b = core::TensorList::FromTensor(t_b);
+    core::TensorVector tl_a = core::TensorVector::FromTensor(t_a);
+    core::TensorVector tl_b = core::TensorVector::FromTensor(t_b);
     EXPECT_NE(tl_a.GetElementShape(), tl_b.GetElementShape());
     EXPECT_NE(tl_a.GetSize(), tl_b.GetSize());
     EXPECT_NE(tl_a.GetReservedSize(), tl_b.GetReservedSize());
@@ -271,22 +273,22 @@ TEST_P(TensorListPermuteDevices, ShallowCopyFrom) {
     EXPECT_TRUE(tl_b.AsTensor().IsSame(tl_a.AsTensor()));
 
     // The is_resizable_ property will be overwritten.
-    core::TensorList tl_a_inplace = core::TensorList::FromTensor(t_a, true);
+    core::TensorVector tl_a_inplace = core::TensorVector::FromTensor(t_a, true);
     EXPECT_FALSE(tl_a_inplace.IsResizable());
     tl_a_inplace.ShallowCopyFrom(tl_b);
     EXPECT_TRUE(tl_a_inplace.IsResizable());
 }
 
-TEST_P(TensorListPermuteDevices, CopyBecomesResizable) {
+TEST_P(TensorVectorPermuteDevices, CopyBecomesResizable) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t_a = core::Tensor::Ones({10, 4, 5}, dtype, device);
     core::Tensor t_b = core::Tensor::Ones({0, 2, 3}, dtype, device);
     core::Tensor t = core::Tensor::Ones({4, 5}, dtype, device);
 
-    core::TensorList tl_a = core::TensorList::FromTensor(t_a, true);
-    core::TensorList tl_b = core::TensorList::FromTensor(t_b, true);
-    core::TensorList tl_b_backup = tl_b;
+    core::TensorVector tl_a = core::TensorVector::FromTensor(t_a, true);
+    core::TensorVector tl_b = core::TensorVector::FromTensor(t_b, true);
+    core::TensorVector tl_b_backup = tl_b;
     EXPECT_FALSE(tl_a.IsResizable());
     EXPECT_FALSE(tl_b.IsResizable());
     EXPECT_FALSE(tl_b_backup.IsResizable());
@@ -298,12 +300,12 @@ TEST_P(TensorListPermuteDevices, CopyBecomesResizable) {
     EXPECT_EQ(tl_b_backup.GetSize(), 0);
 }
 
-TEST_P(TensorListPermuteDevices, Resize) {
+TEST_P(TensorVectorPermuteDevices, Resize) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
     core::Tensor t = core::Tensor::Ones({3, 4, 5}, dtype, device);
 
-    core::TensorList tl = core::TensorList::FromTensor(t);
+    core::TensorVector tl = core::TensorVector::FromTensor(t);
     EXPECT_EQ(tl.GetSize(), 3);
     EXPECT_EQ(tl.GetReservedSize(), 8);
     EXPECT_TRUE(tl.AsTensor().AllClose(t));
@@ -321,17 +323,17 @@ TEST_P(TensorListPermuteDevices, Resize) {
     EXPECT_TRUE(tl.AsTensor().AllClose(
             core::Tensor::Ones({2, 4, 5}, dtype, device)));
 
-    tl = core::TensorList::FromTensor(t, /*inplace=*/true);
+    tl = core::TensorVector::FromTensor(t, /*inplace=*/true);
     EXPECT_EQ(tl.GetSize(), 3);
     EXPECT_EQ(tl.GetReservedSize(), 3);
     EXPECT_ANY_THROW(tl.Resize(5));
 
-    // Inplace TensorList does not suport resize.
-    core::TensorList tl_inplace = core::TensorList::FromTensor(t, true);
+    // Inplace TensorVector does not suport resize.
+    core::TensorVector tl_inplace = core::TensorVector::FromTensor(t, true);
     EXPECT_ANY_THROW(tl_inplace.Resize(2));
 }
 
-TEST_P(TensorListPermuteDevices, PushBack) {
+TEST_P(TensorVectorPermuteDevices, PushBack) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
@@ -340,7 +342,7 @@ TEST_P(TensorListPermuteDevices, PushBack) {
     core::Tensor t2 = core::Tensor::Ones({2, 3}, dtype, device) * 2;
 
     // Start from emtpy tensor list
-    core::TensorList tl({2, 3}, core::Dtype::Float32, device);
+    core::TensorVector tl({2, 3}, core::Dtype::Float32, device);
     EXPECT_EQ(tl.GetSize(), 0);
     EXPECT_EQ(tl.GetReservedSize(), 1);
 
@@ -362,20 +364,20 @@ TEST_P(TensorListPermuteDevices, PushBack) {
     EXPECT_TRUE(tl[2].AllClose(t2));
     EXPECT_FALSE(tl[2].IsSame(t2));
 
-    // Inplace TensorList does not suport push back.
-    core::TensorList tl_inplace = core::TensorList::FromTensor(
+    // Inplace TensorVector does not suport push back.
+    core::TensorVector tl_inplace = core::TensorVector::FromTensor(
             core::Tensor::Ones({3, 2, 3}, dtype, device), true);
     EXPECT_ANY_THROW(tl_inplace.PushBack(t0));
 }
 
-TEST_P(TensorListPermuteDevices, Extend) {
+TEST_P(TensorVectorPermuteDevices, Extend) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
     core::Tensor t0 = core::Tensor::Zeros({1, 2, 3}, dtype, device);
     core::Tensor t1 = core::Tensor::Ones({3, 2, 3}, dtype, device);
-    core::TensorList tl0 = core::TensorList::FromTensor(t0);
-    core::TensorList tl1 = core::TensorList::FromTensor(t1);
+    core::TensorVector tl0 = core::TensorVector::FromTensor(t0);
+    core::TensorVector tl1 = core::TensorVector::FromTensor(t1);
 
     tl1.Extend(tl1);
     EXPECT_EQ(tl1.GetSize(), 6);
@@ -385,31 +387,31 @@ TEST_P(TensorListPermuteDevices, Extend) {
     EXPECT_EQ(tl1.GetSize(), 7);
     EXPECT_TRUE(tl1[6].AllClose(core::Tensor::Zeros({2, 3}, dtype, device)));
 
-    // Inplace TensorList cannot be extended.
-    core::TensorList tl0_inplace = core::TensorList::FromTensor(t0, true);
+    // Inplace TensorVector cannot be extended.
+    core::TensorVector tl0_inplace = core::TensorVector::FromTensor(t0, true);
     EXPECT_ANY_THROW(tl0_inplace.Extend(tl0));
 
-    // Inplace TensorList can be the extension part.
+    // Inplace TensorVector can be the extension part.
     tl1.Extend(tl0_inplace);
     EXPECT_TRUE(tl1[7].AllClose(core::Tensor::Zeros({2, 3}, dtype, device)));
 }
 
-TEST_P(TensorListPermuteDevices, Concatenate) {
+TEST_P(TensorVectorPermuteDevices, Concatenate) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
     core::Tensor t0 = core::Tensor::Zeros({1, 2, 3}, dtype, device);
     core::Tensor t1 = core::Tensor::Ones({3, 2, 3}, dtype, device);
-    core::TensorList tl0 = core::TensorList::FromTensor(t0);
-    core::TensorList tl1 = core::TensorList::FromTensor(t1);
+    core::TensorVector tl0 = core::TensorVector::FromTensor(t0);
+    core::TensorVector tl1 = core::TensorVector::FromTensor(t1);
 
-    core::TensorList tl2 = tl0 + tl1;
+    core::TensorVector tl2 = tl0 + tl1;
     EXPECT_EQ(tl2.GetSize(), 4);
     EXPECT_EQ(tl2.GetReservedSize(), 8);
     EXPECT_TRUE(tl2.AsTensor().Slice(0, 0, 1).AllClose(t0));
     EXPECT_TRUE(tl2.AsTensor().Slice(0, 1, 4).AllClose(t1));
 
-    core::TensorList tl3 = tl1 + tl0;
+    core::TensorVector tl3 = tl1 + tl0;
     EXPECT_EQ(tl3.GetSize(), 4);
     EXPECT_EQ(tl1.GetReservedSize(), 8);
     EXPECT_EQ(tl3.GetReservedSize(), 8);
@@ -419,14 +421,14 @@ TEST_P(TensorListPermuteDevices, Concatenate) {
     EXPECT_FALSE(tl3.AsTensor().Slice(0, 3, 4).IsSame(tl0.AsTensor()));  // Copy
 }
 
-TEST_P(TensorListPermuteDevices, SquareBracketsOperator) {
+TEST_P(TensorVectorPermuteDevices, SquareBracketsOperator) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
     core::Tensor t0 = core::Tensor::Ones({2, 3}, dtype, device) * 0;
     core::Tensor t1 = core::Tensor::Ones({2, 3}, dtype, device) * 1;
     core::Tensor t2 = core::Tensor::Ones({2, 3}, dtype, device) * 2;
-    core::TensorList tl({t0, t1, t2});
+    core::TensorVector tl({t0, t1, t2});
 
     EXPECT_EQ(tl.GetSize(), 3);
     EXPECT_TRUE(tl[0].AllClose(t0));
@@ -452,17 +454,17 @@ TEST_P(TensorListPermuteDevices, SquareBracketsOperator) {
     EXPECT_FALSE(tl[2].IsSame(t0));
 }
 
-TEST_P(TensorListPermuteDevices, Clear) {
+TEST_P(TensorVectorPermuteDevices, Clear) {
     core::Device device = GetParam();
     core::Dtype dtype = core::Dtype::Float32;
 
     core::Tensor t = core::Tensor::Ones({10, 4, 5}, dtype, device);
-    core::TensorList tl = core::TensorList::FromTensor(t);
+    core::TensorVector tl = core::TensorVector::FromTensor(t);
     tl.Clear();
     EXPECT_EQ(tl.GetSize(), 0);
     EXPECT_EQ(tl.GetReservedSize(), 1);
 
-    core::TensorList tl_inplace = core::TensorList::FromTensor(t, true);
+    core::TensorVector tl_inplace = core::TensorVector::FromTensor(t, true);
     EXPECT_ANY_THROW(tl_inplace.Clear());
 }
 

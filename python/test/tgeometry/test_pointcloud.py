@@ -43,12 +43,12 @@ def test_constructor_and_accessors(device):
     pcd = o3d.t.geometry.PointCloud(dtype, device)
     assert "points" in pcd.point
     assert "colors" not in pcd.point
-    assert isinstance(pcd.point, o3d.t.geometry.TensorListMap)
-    assert isinstance(pcd.point["points"], o3c.TensorList)
+    assert isinstance(pcd.point, o3d.t.geometry.TensorVectorMap)
+    assert isinstance(pcd.point["points"], o3c.TensorVector)
 
     # Assignment.
-    pcd.point["points"] = o3c.TensorList(o3c.SizeVector([3]), dtype, device)
-    pcd.point["colors"] = o3c.TensorList(o3c.SizeVector([3]), dtype, device)
+    pcd.point["points"] = o3c.TensorVector(o3c.SizeVector([3]), dtype, device)
+    pcd.point["colors"] = o3c.TensorVector(o3c.SizeVector([3]), dtype, device)
     assert len(pcd.point["points"]) == 0
     assert len(pcd.point["colors"]) == 0
 
@@ -104,12 +104,12 @@ def test_to_legacy_pointcloud(device):
     dtype = o3c.Dtype.Float32
 
     pcd = o3d.t.geometry.PointCloud(dtype, device)
-    pcd.point["points"] = o3c.TensorList.from_tensor(
+    pcd.point["points"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [0, 1, 2],
             [3, 4, 5],
         ], dtype, device))
-    pcd.point["colors"] = o3c.TensorList.from_tensor(
+    pcd.point["colors"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [6, 7, 8],
             [9, 10, 11],
@@ -134,7 +134,7 @@ def test_member_functions(device):
 
     # get_min_bound, get_max_bound, get_center.
     pcd = o3d.t.geometry.PointCloud(dtype, device)
-    pcd.point["points"] = o3c.TensorList.from_tensor(
+    pcd.point["points"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [1, 10, 20],
             [30, 2, 40],
@@ -152,7 +152,7 @@ def test_member_functions(device):
     pcd = o3d.t.geometry.PointCloud(dtype, device)
     transloation = o3c.Tensor([10, 20, 30], dtype, device)
 
-    pcd.point["points"] = o3c.TensorList.from_tensor(
+    pcd.point["points"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [0, 1, 2],
             [6, 7, 8],
@@ -164,7 +164,7 @@ def test_member_functions(device):
             [16, 27, 38],
         ], dtype, device))
 
-    pcd.point["points"] = o3c.TensorList.from_tensor(
+    pcd.point["points"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [0, 1, 2],
             [6, 7, 8],
@@ -178,7 +178,7 @@ def test_member_functions(device):
 
     # scale
     pcd = o3d.t.geometry.PointCloud(dtype, device)
-    pcd.point["points"] = o3c.TensorList.from_tensor(
+    pcd.point["points"] = o3c.TensorVector.from_tensor(
         o3c.Tensor([
             [0, 0, 0],
             [1, 1, 1],

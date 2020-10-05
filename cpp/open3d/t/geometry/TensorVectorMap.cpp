@@ -24,36 +24,36 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/t/geometry/TensorListMap.h"
-
 #include <fmt/format.h>
 
 #include <sstream>
 #include <string>
 #include <unordered_map>
 
+#include "open3d/t/geometry/TensorVectorMap.h"
 #include "open3d/utility/Console.h"
 
 namespace open3d {
 namespace t {
 namespace geometry {
 
-void TensorListMap::Assign(
-        const std::unordered_map<std::string, core::TensorList>&
-                map_keys_to_tensorlists) {
-    if (!map_keys_to_tensorlists.count(primary_key_)) {
+void TensorVectorMap::Assign(
+        const std::unordered_map<std::string, core::TensorVector>&
+                map_keys_to_tensorvectors) {
+    if (!map_keys_to_tensorvectors.count(primary_key_)) {
         utility::LogError(
-                "The input tensorlist map does not contain the primary key {}.",
+                "The input tensorvector map does not contain the primary key "
+                "{}.",
                 primary_key_);
     }
     this->clear();
     const core::Device& primary_device =
-            map_keys_to_tensorlists.at(primary_key_).GetDevice();
-    for (auto& kv : map_keys_to_tensorlists) {
+            map_keys_to_tensorvectors.at(primary_key_).GetDevice();
+    for (auto& kv : map_keys_to_tensorvectors) {
         if (primary_device != kv.second.GetDevice()) {
             utility::LogError(
-                    "Primary tensorlist has device {}, however, another "
-                    "tensorlist has device {}.",
+                    "Primary tensorvector has device {}, however, another "
+                    "tensorvector has device {}.",
                     primary_device.ToString(),
                     kv.second.GetDevice().ToString());
         }
@@ -61,7 +61,7 @@ void TensorListMap::Assign(
     }
 }
 
-bool TensorListMap::IsSizeSynchronized() const {
+bool TensorVectorMap::IsSizeSynchronized() const {
     for (auto& kv : *this) {
         if (kv.second.GetSize() != GetPrimarySize()) {
             return false;
@@ -70,23 +70,24 @@ bool TensorListMap::IsSizeSynchronized() const {
     return true;
 }
 
-void TensorListMap::AssertSizeSynchronized() const {
+void TensorVectorMap::AssertSizeSynchronized() const {
     if (!IsSizeSynchronized()) {
         std::stringstream ss;
-        ss << fmt::format("Primary TensorList \"{}\" has size {}, however: \n",
-                          primary_key_, GetPrimarySize());
+        ss << fmt::format(
+                "Primary TensorVector \"{}\" has size {}, however: \n",
+                primary_key_, GetPrimarySize());
         for (auto& kv : *this) {
             if (kv.first != primary_key_ &&
                 kv.second.GetSize() != GetPrimarySize()) {
-                fmt::format("    > TensorList \"{}\" has size {}.\n", kv.first,
-                            kv.second.GetSize());
+                fmt::format("    > TensorVector \"{}\" has size {}.\n",
+                            kv.first, kv.second.GetSize());
             }
         }
         utility::LogError("{}", ss.str());
     }
 }
 
-void TensorListMap::SynchronizedPushBack(
+void TensorVectorMap::SynchronizedPushBack(
         const std::unordered_map<std::string, core::Tensor>&
                 map_keys_to_tensors) {
     AssertSizeSynchronized();
@@ -97,7 +98,7 @@ void TensorListMap::SynchronizedPushBack(
     }
 }
 
-void TensorListMap::AssertTensorMapSameKeys(
+void TensorVectorMap::AssertTensorMapSameKeys(
         const std::unordered_map<std::string, core::Tensor>&
                 map_keys_to_tensors) const {
     bool is_same = true;
@@ -114,11 +115,11 @@ void TensorListMap::AssertTensorMapSameKeys(
     if (!is_same) {
         utility::LogError(
                 "The input map does not have the same keys as the primary "
-                "tensorlist.");
+                "tensorvector.");
     }
 }
 
-void TensorListMap::AssertTensorMapSameDevice(
+void TensorVectorMap::AssertTensorMapSameDevice(
         const std::unordered_map<std::string, core::Tensor>&
                 map_keys_to_tensors) const {
     const core::Device& primary_device = GetPrimaryDevice();
@@ -126,7 +127,7 @@ void TensorListMap::AssertTensorMapSameDevice(
         if (kv.second.GetDevice() != primary_device) {
             utility::LogError(
                     "Tensor in the input map does not have the same device as "
-                    "the primary tensorlist: {} != {}.",
+                    "the primary tensorvector: {} != {}.",
                     kv.second.GetDevice().ToString(),
                     primary_device.ToString());
         }

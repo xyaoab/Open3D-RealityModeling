@@ -32,7 +32,7 @@
 #include "open3d/core/MemoryManager.h"
 #include "open3d/core/SizeVector.h"
 #include "open3d/core/Tensor.h"
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 #include "open3d/core/kernel/Kernel.h"
 #include "open3d/utility/Helper.h"
 #include "tests/UnitTest.h"
@@ -268,7 +268,7 @@ TEST_P(TensorObjectPermuteDevices, ConstructFromObjectTensorVector) {
     core::Tensor t1 = core::Tensor::Empty({2, 3}, dtype, device);
     core::Tensor t2 = core::Tensor::Empty({2, 3}, dtype, device);
 
-    core::TensorList tl(std::vector<core::Tensor>({t0, t1, t2}));
+    core::TensorVector tl(std::vector<core::Tensor>({t0, t1, t2}));
 
     // Check tensor list.
     core::SizeVector full_shape({3, 2, 3});
@@ -285,14 +285,14 @@ TEST_P(TensorObjectPermuteDevices, ConstructFromObjectTensorVector) {
     EXPECT_FALSE(tl[2].IsSame(t2));
 }
 
-TEST_P(TensorObjectPermuteDevices, TensorListFromObjectTensor) {
+TEST_P(TensorObjectPermuteDevices, TensorVectorFromObjectTensor) {
     core::Device device = GetParam();
     core::Dtype dtype(core::Dtype::DtypeCode::Object, byte_size, class_name);
 
     core::Tensor t = core::Tensor::Empty({3, 4, 5}, dtype, device);
 
     // Copied tensor.
-    core::TensorList tl = core::TensorList::FromTensor(t);
+    core::TensorVector tl = core::TensorVector::FromTensor(t);
     EXPECT_EQ(tl.GetElementShape(), core::SizeVector({4, 5}));
     EXPECT_EQ(tl.GetSize(), 3);
     EXPECT_EQ(tl.GetReservedSize(), 8);
@@ -300,7 +300,7 @@ TEST_P(TensorObjectPermuteDevices, TensorListFromObjectTensor) {
     EXPECT_FALSE(tl.AsTensor().IsSame(t));
 
     // Inplace tensor.
-    core::TensorList tl_inplace = core::TensorList::FromTensor(t, true);
+    core::TensorVector tl_inplace = core::TensorVector::FromTensor(t, true);
     EXPECT_EQ(tl_inplace.GetElementShape(), core::SizeVector({4, 5}));
     EXPECT_EQ(tl_inplace.GetSize(), 3);
     EXPECT_EQ(tl_inplace.GetReservedSize(), 3);

@@ -45,15 +45,15 @@ void pybind_pointcloud(py::module& m) {
     pointcloud
             .def(py::init<core::Dtype, const core::Device&>(), "dtype"_a,
                  "device"_a)
-            .def(py::init<const core::TensorList&>(), "points"_a)
+            .def(py::init<const core::TensorVector&>(), "points"_a)
             .def(py::init<const std::unordered_map<std::string,
-                                                   core::TensorList>&>(),
-                 "map_keys_to_tensorlists"_a);
+                                                   core::TensorVector>&>(),
+                 "map_keys_to_tensorvectors"_a);
 
     // Point's attributes: points, colors, normals, etc.
-    // def_property_readonly is sufficient, since the returned TensorListMap can
-    // be editable in Python. We don't want the TensorListMp to be replaced
-    // by another TensorListMap in Python.
+    // def_property_readonly is sufficient, since the returned TensorVectorMap
+    // can be editable in Python. We don't want the TensorVectorMp to be
+    // replaced by another TensorVectorMap in Python.
     pointcloud.def_property_readonly("point", &PointCloud::GetPointAttrPybind);
     pointcloud.def("synchronized_push_back", &PointCloud::SynchronizedPushBack,
                    "map_keys_to_tensors"_a);

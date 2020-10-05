@@ -36,23 +36,23 @@ from open3d_test import list_devices
 
 
 @pytest.mark.parametrize("device", list_devices())
-def test_tensorlist_create(device):
+def test_tensorvector_create(device):
     dtype = o3c.Dtype.Float32
 
-    # Construct uninitialized tensorlist.
-    tl = o3c.TensorList(o3c.SizeVector([3, 4]), dtype, device)
+    # Construct uninitialized tensorvector.
+    tl = o3c.TensorVector(o3c.SizeVector([3, 4]), dtype, device)
     assert tl.size == 0
     assert tl.element_shape == o3c.SizeVector([3, 4])
 
-    tl = o3c.TensorList(o3c.SizeVector([3, 4]), dtype, device=device)
+    tl = o3c.TensorVector(o3c.SizeVector([3, 4]), dtype, device=device)
     assert tl.size == 0
     assert tl.element_shape == o3c.SizeVector([3, 4])
 
-    tl = o3c.TensorList(o3c.SizeVector([3, 4]), dtype=dtype, device=device)
+    tl = o3c.TensorVector(o3c.SizeVector([3, 4]), dtype=dtype, device=device)
     assert tl.size == 0
     assert tl.element_shape == o3c.SizeVector([3, 4])
 
-    tl = o3c.TensorList(element_shape=o3c.SizeVector([3, 4]),
+    tl = o3c.TensorVector(element_shape=o3c.SizeVector([3, 4]),
                         dtype=dtype,
                         device=device)
     assert tl.size == 0
@@ -62,7 +62,7 @@ def test_tensorlist_create(device):
     t0 = o3c.Tensor.ones((2, 3), dtype, device) * 0
     t1 = o3c.Tensor.ones((2, 3), dtype, device) * 1
     t2 = o3c.Tensor.ones((2, 3), dtype, device) * 2
-    tl = o3c.TensorList([t0, t1, t2])
+    tl = o3c.TensorVector([t0, t1, t2])
     assert tl[0].allclose(t0)
     assert tl[1].allclose(t1)
     assert tl[2].allclose(t2)
@@ -74,7 +74,7 @@ def test_tensorlist_create(device):
 
     # Create from a internal tensor.
     t = o3c.Tensor.ones((4, 2, 3), dtype, device)
-    tl = o3c.TensorList.from_tensor(o3c.Tensor.ones((4, 2, 3), dtype, device))
+    tl = o3c.TensorVector.from_tensor(o3c.Tensor.ones((4, 2, 3), dtype, device))
     assert tl.element_shape == o3c.SizeVector([2, 3])
     assert tl.size == 4
     assert tl.dtype == dtype
@@ -84,7 +84,7 @@ def test_tensorlist_create(device):
 
     # Create from a internal tensor, in-place.
     t = o3c.Tensor.ones((4, 2, 3), dtype, device)
-    tl = o3c.TensorList.from_tensor(t, inplace=True)
+    tl = o3c.TensorVector.from_tensor(t, inplace=True)
     assert tl.element_shape == o3c.SizeVector([2, 3])
     assert tl.size == 4
     assert tl.dtype == dtype
@@ -94,14 +94,14 @@ def test_tensorlist_create(device):
 
 
 @pytest.mark.parametrize("device", list_devices())
-def test_tensorlist_operation(device):
+def test_tensorvector_operation(device):
     dtype = o3c.Dtype.Float32
     t0 = o3c.Tensor.ones((2, 3), dtype, device) * 0
     t1 = o3c.Tensor.ones((2, 3), dtype, device) * 1
     t2 = o3c.Tensor.ones((2, 3), dtype, device) * 2
 
     # push_back
-    tl = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     assert tl.size == 0
     tl.push_back(t0)
     assert tl.size == 1
@@ -113,9 +113,9 @@ def test_tensorlist_operation(device):
     assert tl.size == 1
 
     # extend
-    tl = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl.push_back(t0)
-    tl_other = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl_other = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl_other.push_back(t1)
     tl_other.push_back(t2)
     tl.extend(tl_other)
@@ -125,9 +125,9 @@ def test_tensorlist_operation(device):
     assert tl[2].allclose(t2)
 
     # +=
-    tl = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl.push_back(t0)
-    tl_other = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl_other = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl_other.push_back(t1)
     tl_other.push_back(t2)
     tl += tl_other
@@ -137,19 +137,19 @@ def test_tensorlist_operation(device):
     assert tl[2].allclose(t2)
 
     # concat
-    tl = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl.push_back(t0)
-    tl_other = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl_other = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl_other.push_back(t1)
-    tl_combined = o3c.TensorList.concat(tl, tl_other)
+    tl_combined = o3c.TensorVector.concat(tl, tl_other)
     assert tl_combined.size == 2
     assert tl_combined[0].allclose(t0)
     assert tl_combined[1].allclose(t1)
 
     # +
-    tl = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl.push_back(t0)
-    tl_other = o3c.TensorList(o3c.SizeVector([2, 3]), dtype, device)
+    tl_other = o3c.TensorVector(o3c.SizeVector([2, 3]), dtype, device)
     tl_other.push_back(t1)
     tl_combined = tl + tl_other
     assert tl_combined.size == 2

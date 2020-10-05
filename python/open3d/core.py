@@ -29,13 +29,13 @@ import numpy as np
 
 if o3d.__DEVICE_API__ == 'cuda':
     from open3d.cuda.pybind.core import (Dtype, DtypeCode, Device, cuda, nns,
-                                         NoneType, TensorList, SizeVector,
+                                         NoneType, TensorVector, SizeVector,
                                          matmul as pybind_matmul, lstsq as
                                          pybind_lstsq, solve as pybind_solve,
                                          inv as pybind_inv, svd as pybind_svd)
 else:
     from open3d.cpu.pybind.core import (Dtype, DtypeCode, Device, cuda, nns,
-                                        NoneType, TensorList, SizeVector, matmul
+                                        NoneType, TensorVector, SizeVector, matmul
                                         as pybind_matmul, lstsq as pybind_lstsq,
                                         solve as pybind_solve, inv as
                                         pybind_inv, svd as pybind_svd)

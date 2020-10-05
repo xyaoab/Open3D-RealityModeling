@@ -28,7 +28,7 @@
 
 #include "open3d/core/Dtype.h"
 #include "open3d/core/Tensor.h"
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 #include "open3d/io/FileFormatIO.h"
 #include "open3d/io/TPointCloudIO.h"
 #include "open3d/utility/Console.h"
@@ -56,7 +56,7 @@ bool ReadPointCloudFromXYZI(const std::string &filename,
         reporter.SetTotal(file.GetFileSize());
 
         pointcloud.Clear();
-        core::TensorList points({3}, core::Dtype::Float64),
+        core::TensorVector points({3}, core::Dtype::Float64),
                 intensities({1}, core::Dtype::Float64);
         int i = 0;
         double x, y, z, I;

@@ -24,35 +24,34 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
-#include "open3d/t/geometry/TensorListMap.h"
-
 #include <vector>
 
+#include "open3d/t/geometry/TensorVectorMap.h"
 #include "tests/UnitTest.h"
 #include "tests/core/CoreTest.h"
 
 namespace open3d {
 namespace tests {
 
-TEST(TensorListMap, Constructor_GetPrimaryKey) {
-    t::geometry::TensorListMap tm("points");
+TEST(TensorVectorMap, Constructor_GetPrimaryKey) {
+    t::geometry::TensorVectorMap tm("points");
     EXPECT_EQ(tm.GetPrimaryKey(), "points");
 }
 
-TEST(TensorListMap, Assign) {
+TEST(TensorVectorMap, Assign) {
     core::Dtype dtype = core::Dtype::Float32;
     core::Device device = core::Device("CPU:0");
 
-    t::geometry::TensorListMap tm("points");
-    tm["points"] = core::TensorList({3}, dtype, device);
-    tm["dummy"] = core::TensorList({3}, dtype, device);
+    t::geometry::TensorVectorMap tm("points");
+    tm["points"] = core::TensorVector({3}, dtype, device);
+    tm["dummy"] = core::TensorVector({3}, dtype, device);
     EXPECT_TRUE(tm.Contains("points"));
     EXPECT_TRUE(tm.Contains("dummy"));
 
-    std::unordered_map<std::string, core::TensorList> replacement{
-            {"points", core::TensorList::FromTensor(
+    std::unordered_map<std::string, core::TensorVector> replacement{
+            {"points", core::TensorVector::FromTensor(
                                core::Tensor::Ones({5, 3}, dtype, device))},
-            {"colors", core::TensorList::FromTensor(
+            {"colors", core::TensorVector::FromTensor(
                                core::Tensor::Ones({5, 3}, dtype, device))},
     };
     tm.Assign(replacement);
@@ -67,15 +66,15 @@ TEST(TensorListMap, Assign) {
             tm["colors"].AsTensor().IsSame(replacement["colors"].AsTensor()));
 }
 
-TEST(TensorListMap, SynchronizedPushBack) {
+TEST(TensorVectorMap, SynchronizedPushBack) {
     core::Dtype dtype = core::Dtype::Float32;
     core::Device device = core::Device("CPU:0");
 
-    t::geometry::TensorListMap tm(
+    t::geometry::TensorVectorMap tm(
             "points",
-            {{"points", core::TensorList::FromTensor(
+            {{"points", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({5, 3}, dtype, device))},
-             {"colors", core::TensorList::FromTensor(
+             {"colors", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({5, 3}, dtype, device))}});
     EXPECT_EQ(tm["points"].GetSize(), 5);
     EXPECT_EQ(tm["colors"].GetSize(), 5);
@@ -110,15 +109,15 @@ TEST(TensorListMap, SynchronizedPushBack) {
              {"colors", a_color}}));
 }
 
-TEST(TensorListMap, IsSizeSynchronized) {
+TEST(TensorVectorMap, IsSizeSynchronized) {
     core::Dtype dtype = core::Dtype::Float32;
     core::Device device = core::Device("CPU:0");
 
-    t::geometry::TensorListMap tm(
+    t::geometry::TensorVectorMap tm(
             "points",
-            {{"points", core::TensorList::FromTensor(
+            {{"points", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({5, 3}, dtype, device))},
-             {"colors", core::TensorList::FromTensor(
+             {"colors", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({4, 3}, dtype, device))}});
     EXPECT_FALSE(tm.IsSizeSynchronized());
 
@@ -126,15 +125,15 @@ TEST(TensorListMap, IsSizeSynchronized) {
     EXPECT_TRUE(tm.IsSizeSynchronized());
 }
 
-TEST(TensorListMap, AssertSizeSynchronized) {
+TEST(TensorVectorMap, AssertSizeSynchronized) {
     core::Dtype dtype = core::Dtype::Float32;
     core::Device device = core::Device("CPU:0");
 
-    t::geometry::TensorListMap tm(
+    t::geometry::TensorVectorMap tm(
             "points",
-            {{"points", core::TensorList::FromTensor(
+            {{"points", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({5, 3}, dtype, device))},
-             {"colors", core::TensorList::FromTensor(
+             {"colors", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({4, 3}, dtype, device))}});
     EXPECT_ANY_THROW(tm.AssertSizeSynchronized());
 
@@ -142,15 +141,15 @@ TEST(TensorListMap, AssertSizeSynchronized) {
     EXPECT_NO_THROW(tm.AssertSizeSynchronized());
 }
 
-TEST(TensorListMap, Contains) {
+TEST(TensorVectorMap, Contains) {
     core::Dtype dtype = core::Dtype::Float32;
     core::Device device = core::Device("CPU:0");
 
-    t::geometry::TensorListMap tm(
+    t::geometry::TensorVectorMap tm(
             "points",
-            {{"points", core::TensorList::FromTensor(
+            {{"points", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({5, 3}, dtype, device))},
-             {"colors", core::TensorList::FromTensor(
+             {"colors", core::TensorVector::FromTensor(
                                 core::Tensor::Ones({4, 3}, dtype, device))}});
     EXPECT_TRUE(tm.Contains("points"));
     EXPECT_TRUE(tm.Contains("colors"));

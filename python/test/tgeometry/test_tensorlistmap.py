@@ -36,20 +36,20 @@ from open3d_test import list_devices
 
 
 @pytest.mark.parametrize("device", list_devices())
-def test_tensorlistmap(device):
+def test_tensorvectormap(device):
     dtype = o3c.Dtype.Float32
 
     # Constructor.
-    tlm = o3d.t.geometry.TensorListMap("points")
+    tlm = o3d.t.geometry.TensorVectorMap("points")
 
     # Get primary key().
     assert tlm.get_primary_key() == "points"
 
     # Map member access, assignment and "contains" check. This should be the
-    # preferrred way to construct a TensorListMap with values in python.
-    points = o3c.TensorList(o3c.SizeVector([3]), dtype, device)
-    colors = o3c.TensorList(o3c.SizeVector([3]), dtype, device)
-    tlm = o3d.t.geometry.TensorListMap("points")
+    # preferrred way to construct a TensorVectorMap with values in python.
+    points = o3c.TensorVector(o3c.SizeVector([3]), dtype, device)
+    colors = o3c.TensorVector(o3c.SizeVector([3]), dtype, device)
+    tlm = o3d.t.geometry.TensorVectorMap("points")
     assert "points" not in tlm
     tlm["points"] = points
     assert "points" in tlm
@@ -58,7 +58,7 @@ def test_tensorlistmap(device):
     assert "colors" in tlm
 
     # Constructor with tl values.
-    tlm = o3d.t.geometry.TensorListMap("points", {
+    tlm = o3d.t.geometry.TensorVectorMap("points", {
         "points": points,
         "colors": colors
     })

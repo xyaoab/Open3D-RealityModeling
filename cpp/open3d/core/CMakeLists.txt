@@ -53,7 +53,7 @@ set(CORE_SRC
     MemoryManagerCPU.cpp
     Tensor.cpp
     TensorKey.cpp
-    TensorList.cpp
+    TensorVector.cpp
 )
 
 set(CORE_CUDA_SRC

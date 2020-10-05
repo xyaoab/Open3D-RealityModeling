@@ -27,7 +27,7 @@
 #include "open3d/t/geometry/Image.h"
 
 #include "core/CoreTest.h"
-#include "open3d/core/TensorList.h"
+#include "open3d/core/TensorVector.h"
 #include "tests/UnitTest.h"
 
 namespace open3d {

@@ -41,8 +41,8 @@
 namespace open3d {
 namespace core {
 
-/// A tensorlist is a list of Tensors of the same shape, similar to
-/// std::vector<Tensor>. Internally, a tensorlist stores the Tensors in one
+/// A tensorvector is a list of Tensors of the same shape, similar to
+/// std::vector<Tensor>. Internally, a tensorvector stores the Tensors in one
 /// bigger internal tensor, where the begin dimension of the internal tensor is
 /// extendable.
 ///
@@ -55,20 +55,20 @@ namespace core {
 ///   - element_shape        : (8, 8, 8)
 ///   - reserved_size        : M, where M >= N
 ///   - internal_tensor.shape: (M, 8, 8, 8)
-class TensorList {
+class TensorVector {
 public:
     /// Useful to support operator[] in a map.
-    TensorList() : TensorList(SizeVector({}), Dtype::Float32) {}
+    TensorVector() : TensorVector(SizeVector({}), Dtype::Float32) {}
 
-    /// Constructs an empty tensorlist.
+    /// Constructs an empty tensorvector.
     ///
     /// \param element_shape Shape of the contained tensors, e.g. {3,}. 0-sized
     /// and scalar element_shape are allowed.
     /// \param dtype Data type of the contained tensors. e.g. Dtype::Float32.
     /// \param device Device of the contained tensors. e.g. Device("CPU:0").
-    TensorList(const SizeVector& element_shape,
-               Dtype dtype,
-               const Device& device = Device("CPU:0"))
+    TensorVector(const SizeVector& element_shape,
+                 Dtype dtype,
+                 const Device& device = Device("CPU:0"))
         : element_shape_(element_shape),
           size_(0),
           reserved_size_(ComputeReserveSize(0)),
@@ -76,33 +76,33 @@ public:
                            dtype,
                            device) {}
 
-    /// Constructs a tensorlist from a vector of Tensors. The tensors must have
-    /// the same shape, dtype and device. Values will be copied.
+    /// Constructs a tensorvector from a vector of Tensors. The tensors must
+    /// have the same shape, dtype and device. Values will be copied.
     ///
     /// \param tensors A vector of tensors. The tensors must have common shape,
     /// dtype and device.
-    TensorList(const std::vector<Tensor>& tensors)
-        : TensorList(tensors.begin(), tensors.end()) {}
+    TensorVector(const std::vector<Tensor>& tensors)
+        : TensorVector(tensors.begin(), tensors.end()) {}
 
-    /// Constructs a tensorlist from a list of Tensors. The tensors must have
+    /// Constructs a tensorvector from a list of Tensors. The tensors must have
     /// the same shape, dtype and device. Values will be copied.
     ///
     /// \param tensors A list of tensors. The tensors must have common shape,
     /// dtype and device.
-    TensorList(const std::initializer_list<Tensor>& tensors)
-        : TensorList(tensors.begin(), tensors.end()) {}
+    TensorVector(const std::initializer_list<Tensor>& tensors)
+        : TensorVector(tensors.begin(), tensors.end()) {}
 
-    /// Constructs a tensorlist from Tensor iterator. The tensors must have
+    /// Constructs a tensorvector from Tensor iterator. The tensors must have
     /// the same shape, dtype and device. Values will be copied.
     ///
     /// \param begin Begin iterator.
     /// \param end End iterator.
     template <class InputIterator>
-    TensorList(InputIterator begin, InputIterator end) {
+    TensorVector(InputIterator begin, InputIterator end) {
         int64_t size = std::distance(begin, end);
         if (size == 0) {
             utility::LogError(
-                    "Empty input tensors cannot initialize a tensorlist.");
+                    "Empty input tensors cannot initialize a tensorvector.");
         }
 
         // Set size_ and reserved_size_.
@@ -149,96 +149,97 @@ public:
         }
     }
 
-    /// Factory function to create tensorlist from a Tensor.
+    /// Factory function to create tensorvector from a Tensor.
     ///
     /// \param tensor The input tensor. The tensor must have at least one
     /// dimension (tensor.NumDims() >= 1). The first dimension of the tensor
-    /// will be used as the "size" dimension of the tensorlist, while the
+    /// will be used as the "size" dimension of the tensorvector, while the
     /// remaining dimensions will be used as the element shape of the tensor
     /// list. For example, if the input tensor has shape (2, 3, 4), the
-    /// resulting tensorlist will have size 2 and element shape (3, 4).
+    /// resulting tensorvector will have size 2 and element shape (3, 4).
     ///
-    /// \param inplace If `inplace == true`, the tensorlist shares the same
+    /// \param inplace If `inplace == true`, the tensorvector shares the same
     /// memory with the input tensor. The input tensor must be contiguous. The
-    /// resulting tensorlist cannot be extended. If `inplace == false`, the
-    /// tensor values will be copied when creating the tensorlist.
-    static TensorList FromTensor(const Tensor& tensor, bool inplace = false);
+    /// resulting tensorvector cannot be extended. If `inplace == false`, the
+    /// tensor values will be copied when creating the tensorvector.
+    static TensorVector FromTensor(const Tensor& tensor, bool inplace = false);
 
-    /// Copy constructor for tensorlist. The internal tensor will share the same
-    /// memory as the input. Also see: the copy constructor for Tensor.
-    TensorList(const TensorList& other) = default;
+    /// Copy constructor for tensorvector. The internal tensor will share the
+    /// same memory as the input. Also see: the copy constructor for Tensor.
+    TensorVector(const TensorVector& other) = default;
 
-    /// Move constructor for tensorlist. The internal tensor will share the same
-    /// memory as the input. Also see: the move constructor for Tensor.
-    TensorList(TensorList&& other) = default;
+    /// Move constructor for tensorvector. The internal tensor will share the
+    /// same memory as the input. Also see: the move constructor for Tensor.
+    TensorVector(TensorVector&& other) = default;
 
     /// Copy assignment operator. The internal tensor will share the same memory
     /// as the input.
-    TensorList& operator=(const TensorList& other) & = default;
+    TensorVector& operator=(const TensorVector& other) & = default;
 
     /// Move assignment operator. The internal tensor will share the same memory
     /// as the input.
-    TensorList& operator=(TensorList&& other) & = default;
+    TensorVector& operator=(TensorVector&& other) & = default;
 
-    /// Performs actual copy from another tensorlist. The internal tensor will
+    /// Performs actual copy from another tensorvector. The internal tensor will
     /// be explicitly copied. All attributes will be copied and replaced. The
     /// returned tensor will always be resizable.
-    void CopyFrom(const TensorList& other);
+    void CopyFrom(const TensorVector& other);
 
-    /// Performs "shallow" copy from another tensorlist. The internal tensor
+    /// Performs "shallow" copy from another tensorvector. The internal tensor
     /// memory will be shared.
-    void ShallowCopyFrom(const TensorList& other);
+    void ShallowCopyFrom(const TensorVector& other);
 
-    /// Duplicate the current tensorlist. Values will be copied. The returned
+    /// Duplicate the current tensorvector. Values will be copied. The returned
     /// tensor will always be resizable.
-    TensorList Copy() const;
+    TensorVector Copy() const;
 
     /// Return the reference of the contained valid tensors with shared memory.
     Tensor AsTensor() const;
 
-    /// Resize tensorlist.
+    /// Resize tensorvector.
     /// If the size increases, the increased part will be initialized with 0.
     /// If the size decreases, the reserved_size_ remain unchanged. This
-    /// operation is only valid for resizable tensorlist.
+    /// operation is only valid for resizable tensorvector.
     void Resize(int64_t new_size);
 
-    /// Push back a tensor to the tensorlist. The values will be copied. This
-    /// operation is only valid for resizable tensorlist.
+    /// Push back a tensor to the tensorvector. The values will be copied. This
+    /// operation is only valid for resizable tensorvector.
     ///
-    /// \param tensor The tensor to to be copied to the end of the tensorlist.
+    /// \param tensor The tensor to to be copied to the end of the tensorvector.
     /// The tensor must be of the same shape, dtype and device as the tensot
     /// list.
     void PushBack(const Tensor& tensor);
 
-    /// Extend the current tensorlist with another tensorlist appended to the
-    /// end. The data is copied. The two tensorlists must have the same
+    /// Extend the current tensorvector with another tensorvector appended to
+    /// the end. The data is copied. The two tensorvectors must have the same
     /// element_shape, dtype, and device. This operation is only valid for
-    /// resizable tensorlist.
-    void Extend(const TensorList& other);
+    /// resizable tensorvector.
+    void Extend(const TensorVector& other);
 
-    /// Concatenate two tensorlists.
-    /// Return a new tensorlists with data copied.
-    /// Two tensorlists must have the same element_shape, type, and device.
-    static TensorList Concatenate(const TensorList& a, const TensorList& b);
+    /// Concatenate two tensorvectors.
+    /// Return a new tensorvectors with data copied.
+    /// Two tensorvectors must have the same element_shape, type, and device.
+    static TensorVector Concatenate(const TensorVector& a,
+                                    const TensorVector& b);
 
-    /// Concatenate two tensorlists.
-    TensorList operator+(const TensorList& other) const {
+    /// Concatenate two tensorvectors.
+    TensorVector operator+(const TensorVector& other) const {
         return Concatenate(*this, other);
     }
 
-    /// Inplace concatenate with another tensorlist. This operation is only
-    /// valid for resizable tensorlist.
-    TensorList& operator+=(const TensorList& other) {
+    /// Inplace concatenate with another tensorvector. This operation is only
+    /// valid for resizable tensorvector.
+    TensorVector& operator+=(const TensorVector& other) {
         Extend(other);
         return *this;
     }
 
     /// Extract the i-th Tensor along the begin axis, returning a new view.
-    /// For advanced indexing like Slice, use tensorlist.AsTensor().Slice().
+    /// For advanced indexing like Slice, use tensorvector.AsTensor().Slice().
     Tensor operator[](int64_t index) const;
 
-    /// Clear the tensorlist by disgarding the internal tensor and resetting the
-    /// size to 0. This operation is only valid for resizable tensorlist.
+    /// Clear the tensorvector by disgarding the internal tensor and resetting
+    /// the size to 0. This operation is only valid for resizable tensorvector.
     void Clear();
 
     std::string ToString() const;
@@ -248,7 +249,8 @@ public:
     void AssertElementShape(const SizeVector& expected_element_shape) const {
         if (expected_element_shape != element_shape_) {
             utility::LogError(
-                    "TensorList has element shape {}, but is expected to have "
+                    "TensorVector has element shape {}, but is expected to "
+                    "have "
                     "element shape {}.",
                     element_shape_, expected_element_shape);
         }
@@ -257,7 +259,7 @@ public:
     void AssertDevice(const Device& expected_device) const {
         if (GetDevice() != expected_device) {
             utility::LogError(
-                    "TensorList has device {}, but is expected to be {}.",
+                    "TensorVector has device {}, but is expected to be {}.",
                     GetDevice().ToString(), expected_device.ToString());
         }
     }
@@ -276,11 +278,11 @@ public:
 
 protected:
     /// Fully specified constructor.
-    TensorList(const SizeVector element_shape,
-               int64_t size,
-               int64_t reserved_size,
-               const Tensor& internal_tensor,
-               bool is_resizable)
+    TensorVector(const SizeVector element_shape,
+                 int64_t size,
+                 int64_t reserved_size,
+                 const Tensor& internal_tensor,
+                 bool is_resizable)
         : element_shape_(element_shape),
           size_(size),
           reserved_size_(reserved_size),
@@ -302,15 +304,15 @@ protected:
     static int64_t ComputeReserveSize(int64_t size);
 
 protected:
-    /// The shape for each element tensor in the tensorlist.
+    /// The shape for each element tensor in the tensorvector.
     SizeVector element_shape_;
 
-    /// Number of active (valid) elements in tensorlist.
+    /// Number of active (valid) elements in tensorvector.
     /// The internal_tensor_ has shape (reserved_size_, *shape_), but only the
     /// front (size_, *shape_) is active.
     int64_t size_ = 0;
 
-    /// Maximum number of elements in tensorlist.
+    /// Maximum number of elements in tensorvector.
     ///
     /// The internal_tensor_'s shape is (reserved_size_, *element_shape_). In
     /// general, reserved_size_ >= (1 << (ceil(log2(size_)) + 1)) as
@@ -324,8 +326,8 @@ protected:
     /// The internal tensor for data storage.
     Tensor internal_tensor_;
 
-    /// Whether the tensorlist is resizable. Typically, if the tensorlist is
-    /// created with pre-allocated shared buffer, the tensorlist is not
+    /// Whether the tensorvector is resizable. Typically, if the tensorvector is
+    /// created with pre-allocated shared buffer, the tensorvector is not
     /// resizable.
     bool is_resizable_ = true;
 };
