@@ -67,18 +67,18 @@ if __name__ == "__main__":
 
     trajectory_list = load_trajectory_file(args.poses_path)
 
-    total_translation_error = 0.0
+    gt_poses_list, poses_list = [], []
     for idx, (gt_pose, pose) in enumerate(zip(gt_trajectory_list, trajectory_list)):
-        gt_pose_inv = np.linalg.inv(gt_pose)
-        error = gt_pose_inv * pose
-        print(f"Ground truth pose: \n{gt_pose}")
-        print(f"Trajectory pose: \n{pose}")
-        print(f"Error at {idx}: \n{error}")
-        translation = error[0:3, 3]
-        total_translation_error += np.dot(translation, translation)
+        gt_pose = gt_pose[0:3, 0:4]
+        pose = pose[0:3, 0:4]
+        gt_poses_list.append(gt_pose.flatten())
+        poses_list.append(pose.flatten())
 
-    ate_rmse = np.sqrt(total_translation_error / len(trajectory_list))
-
-    print(f"Absolute Trajectory error: {ate_rmse}\n")
-
+    gt_poses_list = np.vstack(gt_poses_list)
+    poses_list = np.vstack(poses_list)
+    print(gt_poses_list.shape)
+    print(poses_list.shape)
+    save_path = pathlib.Path(args.poses_path).parent
+    np.savetxt(save_path / "gt_poses_kitti.txt", gt_poses_list)
+    np.savetxt(save_path / "poses_kitti.txt", poses_list)
 
