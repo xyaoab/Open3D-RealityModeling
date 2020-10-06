@@ -3,6 +3,7 @@
 #include <Cuda/Visualization/Visualizer/VisualizerWithCudaModule.h>
 #include <Open3D/Open3D.h>
 #include <Open3D/Visualization/Visualizer/Visualizer.h>
+
 #include "../ReconstructionSystem/DatasetConfig.h"
 
 using namespace open3d;
@@ -14,16 +15,7 @@ using namespace open3d::visualization;
 
 cuda::ScalableTSDFVolumeCuda ReadTSDFVolume(const std::string &filename,
                                             DatasetConfig &config) {
-    float voxel_length = config.tsdf_cubic_size_ / 512.0;
-
-    cuda::TransformCuda trans = cuda::TransformCuda::Identity();
-    cuda::ScalableTSDFVolumeCuda tsdf_volume(
-            8, voxel_length, (float)config.tsdf_truncation_, trans);
-
-    Timer timer;
-    timer.Start();
-
-    io::ReadScalableTSDFVolumeFromBIN(filename, tsdf_volume);
+    auto tsdf_volume = io::ReadScalableTSDFVolumeFromBIN(filename);
     return tsdf_volume;
 }
 
