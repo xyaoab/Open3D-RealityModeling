@@ -6,6 +6,7 @@
 #include <cuda_runtime.h>
 
 #include <Cuda/Container/HashTableCudaHost.hpp>
+#include <iostream>
 
 #include "ScalableTSDFVolumeCuda.h"
 
@@ -124,8 +125,6 @@ void ScalableTSDFVolumeCuda::Reset() {
                          sizeof(uchar) * NNN * value_capacity_));
     CheckCuda(cudaMemset(device_->color_memory_pool_, 0,
                          sizeof(Vector3b) * NNN * value_capacity_));
-
-
 }
 
 void ScalableTSDFVolumeCuda::Release() {
@@ -168,6 +167,43 @@ std::vector<Vector3i> ScalableTSDFVolumeCuda::DownloadKeys() {
 
     auto keys = hash_table_.DownloadKeys();
     return std::move(keys);
+}
+
+Eigen::Vector3d ScalableTSDFVolumeCuda::GetMinBound() {
+    std::vector<Vector3i> keys = DownloadKeys();
+    int max_int = std::numeric_limits<int>::max();
+    Vector3i min_bound(max_int, max_int, max_int);
+
+    for (auto &key : keys) {
+        for (int d = 0; d < 3; ++d) {
+            min_bound(d) = std::min(key(d), min_bound(d));
+        }
+    }
+
+    Vector3f min_boundf((min_bound(0) * N_ + 0.5f) * voxel_length_,
+                        (min_bound(1) * N_ + 0.5f) * voxel_length_,
+                        (min_bound(2) * N_ + 0.5f) * voxel_length_);
+    Vector3f min_boundw = transform_volume_to_world_ * min_boundf;
+
+    return Eigen::Vector3d(min_boundw(0), min_boundw(1), min_boundw(2));
+}
+
+Eigen::Vector3d ScalableTSDFVolumeCuda::GetMaxBound() {
+    std::vector<Vector3i> keys = DownloadKeys();
+    int min_int = std::numeric_limits<int>::min();
+    Vector3i max_bound(min_int, min_int, min_int);
+
+    for (auto &key : keys) {
+        for (int d = 0; d < 3; ++d) {
+            max_bound(d) = std::max(key(d), max_bound(d));
+        }
+    }
+    Vector3f max_boundf((max_bound(0) * N_ + N_ + 0.5f) * voxel_length_,
+                        (max_bound(1) * N_ + N_ + 0.5f) * voxel_length_,
+                        (max_bound(2) * N_ + N_ + 0.5f) * voxel_length_);
+    Vector3f max_boundw = transform_volume_to_world_ * max_boundf;
+
+    return Eigen::Vector3d(max_boundw(0), max_boundw(1), max_boundw(2));
 }
 
 std::pair<std::vector<Vector3i>, std::vector<ScalableTSDFVolumeCpuData>>
@@ -313,17 +349,20 @@ void ScalableTSDFVolumeCuda::GetAllSubvolumes() {
     ScalableTSDFVolumeCudaKernelCaller::GetAllSubvolumes(*this);
 }
 
-int ScalableTSDFVolumeCuda::GetVisibleSubvolumesCount(int frame_id, int frame_threshold) const {
+int ScalableTSDFVolumeCuda::GetVisibleSubvolumesCount(
+        int frame_id, int frame_threshold) const {
     assert(device_ != nullptr);
 
     int *total_visible;
     CheckCuda(cudaMalloc(&total_visible, sizeof(int)));
     CheckCuda(cudaMemset(total_visible, 0, sizeof(int)));
 
-    ScalableTSDFVolumeCudaKernelCaller::GetVisibleSubvolumesCount(*this, total_visible, frame_id, frame_threshold);
+    ScalableTSDFVolumeCudaKernelCaller::GetVisibleSubvolumesCount(
+            *this, total_visible, frame_id, frame_threshold);
 
     int visible_count;
-    CheckCuda(cudaMemcpy(&visible_count, total_visible, sizeof(int), cudaMemcpyDeviceToHost));
+    CheckCuda(cudaMemcpy(&visible_count, total_visible, sizeof(int),
+                         cudaMemcpyDeviceToHost));
     utility::LogDebug("Visible count: {}", visible_count);
     return visible_count;
 }
@@ -366,7 +405,7 @@ void ScalableTSDFVolumeCuda::Integrate(
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world, frame_id);
     utility::LogDebug("Active subvolumes in volume: {}",
-                     active_subvolume_entry_array_.size());
+                      active_subvolume_entry_array_.size());
 
     ImageCuda<uchar, 1> mask_image;
     if (r_mask_image.width_ > 0 && r_mask_image.height_ > 0 &&

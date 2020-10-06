@@ -310,6 +310,9 @@ public:
                        std::vector<ScalableTSDFVolumeCpuData> &volume);
 
 public:
+    Eigen::Vector3d GetMinBound();
+    Eigen::Vector3d GetMaxBound();
+
     /** Hash_table based integration is non-trivial,
      *  it requires 3 passes: pre-allocation, get volumes, and integration
      *  NOTE: we cannot merge stage 1 and 2:
