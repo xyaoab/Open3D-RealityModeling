@@ -3,14 +3,15 @@
 //
 
 #include "ScalableTSDFVolumeCudaIO.h"
+
 #include "ZlibIO.h"
 
 namespace open3d {
 namespace io {
 
 bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
-                          cuda::ScalableTSDFVolumeCuda &volume,
-                          bool use_zlib) {
+                                  cuda::ScalableTSDFVolumeCuda &volume,
+                                  bool use_zlib) {
     auto key_value = volume.DownloadVolumes();
 
     auto keys = key_value.first;
@@ -20,7 +21,7 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
     FILE *fid = fopen(filename.c_str(), "wb");
     if (fid == NULL) {
         utility::LogWarning("Write BIN failed: unable to open file: %s\n",
-                              filename.c_str());
+                            filename.c_str());
         return false;
     }
 
@@ -30,8 +31,33 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
         utility::LogWarning("Write BIN failed: unable to write num volumes\n");
         return false;
     }
-    if (fwrite(&volume_size, sizeof(int), 1, fid) < 1) {
+    if (fwrite(&volume.N_, sizeof(int), 1, fid) < 1) {
         utility::LogWarning("Write BIN failed: unable to write volume size\n");
+        return false;
+    }
+    if (fwrite(&volume.bucket_count_, sizeof(int), 1, fid) < 1) {
+        utility::LogWarning("Write BIN failed: unable to write bucket count\n");
+        return false;
+    }
+    if (fwrite(&volume.value_capacity_, sizeof(int), 1, fid) < 1) {
+        utility::LogWarning(
+                "Write BIN failed: unable to read write capacity\n");
+        return false;
+    }
+
+    float voxel_length, sdf_trunc;
+    if (fwrite(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
+        utility::LogWarning("Write BIN failed: unable to write voxel length\n");
+        return false;
+    }
+    if (fwrite(&volume.sdf_trunc_, sizeof(float), 1, fid) < 1) {
+        utility::LogWarning("Write BIN failed: unable to write sdf_trunc\n");
+        return false;
+    }
+
+    Eigen::Matrix4d transform = volume.transform_volume_to_world_.ToEigen();
+    if (fwrite(transform.data(), sizeof(double), 16, fid) < 1) {
+        utility::LogWarning("Write BIN failed: unable to write transform\n");
         return false;
     }
 
@@ -43,8 +69,9 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
     /** subvolumes **/
     std::vector<uchar> compressed_buf;
     if (use_zlib) {
-        compressed_buf.resize( /* provide some redundancy */
-            volume.N_ * volume.N_ * volume.N_ * sizeof(float) * 2);
+        compressed_buf.resize(/* provide some redundancy */
+                              volume.N_ * volume.N_ * volume.N_ *
+                              sizeof(float) * 2);
     }
 
     utility::LogInfo("Writing {} subvolumes.\n", keys.size());
@@ -54,9 +81,15 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
         auto &color = subvolume.color_;
 
         if (!use_zlib) {
-            if (!Write(tsdf, fid, "TSDF")) { return false; }
-            if (!Write(weight, fid, "weight")) { return false; }
-            if (!Write(color, fid, "color")) { return false; }
+            if (!Write(tsdf, fid, "TSDF")) {
+                return false;
+            }
+            if (!Write(weight, fid, "weight")) {
+                return false;
+            }
+            if (!Write(color, fid, "color")) {
+                return false;
+            }
         } else {
             if (!CompressAndWrite(compressed_buf, tsdf, fid, "TSDF")) {
                 return false;
@@ -74,28 +107,56 @@ bool WriteScalableTSDFVolumeToBIN(const std::string &filename,
     return true;
 }
 
-bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
-                           cuda::ScalableTSDFVolumeCuda &volume,
-                           bool use_zlib,
-                           int batch_size) {
+cuda::ScalableTSDFVolumeCuda ReadScalableTSDFVolumeFromBIN(
+        const std::string &filename, bool use_zlib, int batch_size) {
     FILE *fid = fopen(filename.c_str(), "rb");
     if (fid == NULL) {
         utility::LogWarning("Read BIN failed: unable to open file: %s\n",
-                              filename.c_str());
-        return false;
+                            filename.c_str());
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
     }
 
     /** metadata **/
-    int num_volumes, volume_size;
+    int num_volumes, volume_size, bucket_count, value_capacity;
     if (fread(&num_volumes, sizeof(int), 1, fid) < 1) {
         utility::LogWarning("Read BIN failed: unable to read num volumes\n");
-        return false;
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
     }
     if (fread(&volume_size, sizeof(int), 1, fid) < 1) {
         utility::LogWarning("Read BIN failed: unable to read volume size\n");
-        return false;
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
     }
-    assert(volume_size == volume.N_);
+    if (fread(&bucket_count, sizeof(int), 1, fid) < 1) {
+        utility::LogWarning("Read BIN failed: unable to read bucket count\n");
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
+    }
+    if (fread(&value_capacity, sizeof(int), 1, fid) < 1) {
+        utility::LogWarning("Read BIN failed: unable to read value capacity\n");
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
+    }
+
+    float voxel_length, sdf_trunc;
+    if (fread(&voxel_length, sizeof(float), 1, fid) < 1) {
+        utility::LogWarning("Read BIN failed: unable to read voxel length\n");
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
+    }
+    if (fread(&sdf_trunc, sizeof(float), 1, fid) < 1) {
+        utility::LogWarning("Read BIN failed: unable to read sdf_trunc\n");
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
+    }
+
+    Eigen::Matrix4d transform;
+    if (fread(transform.data(), sizeof(double), 16, fid) < 1) {
+        utility::LogWarning("Read BIN failed: unable to read transform\n");
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
+    }
+
+    cuda::TransformCuda transform_volume_to_world;
+    transform_volume_to_world.FromEigen(transform);
+
+    auto volume = cuda::ScalableTSDFVolumeCuda(
+            volume_size, voxel_length, sdf_trunc, transform_volume_to_world,
+            bucket_count, value_capacity);
 
     int N = volume.N_;
     int NNN = N * N * N;
@@ -103,7 +164,7 @@ bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
     /** keys **/
     std::vector<cuda::Vector3i> keys(num_volumes);
     if (!Read(keys, fid, "keys")) {
-        return false;
+        throw std::runtime_error("ScalableTSDFVolume Read from bin error");
     }
 
     /** values **/
@@ -124,8 +185,8 @@ bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
     }
     int num_batches = (num_volumes + batch_size - 1) / batch_size;
 
-    std::vector<uchar> compressed_buf
-        (volume.N_ * volume.N_ * volume.N_ * sizeof(float) * 2);
+    std::vector<uchar> compressed_buf(volume.N_ * volume.N_ * volume.N_ *
+                                      sizeof(float) * 2);
     for (int batch = 0; batch < num_batches; ++batch) {
         std::vector<cuda::Vector3i> batch_keys;
         std::vector<cuda::ScalableTSDFVolumeCpuData> batch_subvolumes;
@@ -135,30 +196,44 @@ bool ReadScalableTSDFVolumeFromBIN(const std::string &filename,
 
         for (int i = begin; i < end; ++i) {
             if (!use_zlib) {
-                if (!Read(tsdf_buf, fid, "TSDF")) { return false; }
-                if (!Read(weight_buf, fid, "weight")) { return false; }
-                if (!Read(color_buf, fid, "color")) { return false; }
+                if (!Read(tsdf_buf, fid, "TSDF")) {
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
+                }
+                if (!Read(weight_buf, fid, "weight")) {
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
+                }
+                if (!Read(color_buf, fid, "color")) {
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
+                }
             } else {
                 if (!ReadAndUncompress(compressed_buf, tsdf_buf, fid, "TSDF")) {
-                    return false;
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
                 }
-                if (!ReadAndUncompress(compressed_buf, weight_buf, fid, "weight")) {
-                    return false;
+                if (!ReadAndUncompress(compressed_buf, weight_buf, fid,
+                                       "weight")) {
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
                 }
-                if (!ReadAndUncompress(compressed_buf, color_buf, fid, "uchar")) {
-                    return false;
+                if (!ReadAndUncompress(compressed_buf, color_buf, fid,
+                                       "uchar")) {
+                    throw std::runtime_error(
+                            "ScalableTSDFVolume Read from bin error");
                 }
             }
             batch_keys.emplace_back(keys[i]);
             batch_subvolumes.emplace_back(cuda::ScalableTSDFVolumeCpuData(
-                tsdf_buf, weight_buf, color_buf));
+                    tsdf_buf, weight_buf, color_buf));
         }
 
         volume.UploadVolumes(batch_keys, batch_subvolumes);
     }
     fclose(fid);
 
-    return true;
+    return volume;
 }
-} // io
-} // open3d
+}  // namespace io
+}  // namespace open3d
