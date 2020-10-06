@@ -63,8 +63,10 @@ void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
             cuda::VertexWithNormalAndColor, 16,
             tsdf_volume.active_subvolume_entry_array_.size());
     mesher.MarchingCubes(tsdf_volume);
+    auto aabb = std::make_shared<AxisAlignedBoundingBox>(
+            tsdf_volume.GetMinBound(), tsdf_volume.GetMaxBound());
     auto mesh = mesher.mesh().Download();
-    visualization::DrawGeometries({mesh});
+    visualization::DrawGeometries({mesh, aabb});
     //
     //    PointCloud pcl;
     //    pcl.points_ = mesh->vertices_;
@@ -94,8 +96,12 @@ void ReadFragment(int fragment_id, DatasetConfig &config) {
     std::string filename = config.GetBinFileForFragment(fragment_id);
     cuda::ScalableTSDFVolumeCuda tsdf_volume =
             io::ReadScalableTSDFVolumeFromBIN("target-high.bin", true);
+    std::cout << tsdf_volume.GetMinBound() << "\n";
+    std::cout << tsdf_volume.GetMaxBound() << "\n";
     timer.Stop();
     utility::LogInfo("Read takes {} ms\n", timer.GetDuration());
+    auto aabb = std::make_shared<AxisAlignedBoundingBox>(
+            tsdf_volume.GetMinBound(), tsdf_volume.GetMaxBound());
 
     tsdf_volume.GetAllSubvolumes();
     cuda::ScalableMeshVolumeCuda mesher(
@@ -103,7 +109,9 @@ void ReadFragment(int fragment_id, DatasetConfig &config) {
             tsdf_volume.active_subvolume_entry_array_.size());
     mesher.MarchingCubes(tsdf_volume);
     auto mesh = mesher.mesh().Download();
-    visualization::DrawGeometries({mesh});
+    std::cout << mesh->GetMinBound() << "\n";
+    std::cout << mesh->GetMaxBound() << "\n";
+    visualization::DrawGeometries({mesh, aabb});
 }
 
 int main(int argc, char **argv) {
