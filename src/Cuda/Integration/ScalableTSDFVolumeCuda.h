@@ -432,7 +432,7 @@ void GetVisibleSubvolumesCountKernel(ScalableTSDFVolumeCudaDevice device,
 
 __GLOBAL__
 void RayCastingKernel(ScalableTSDFVolumeCudaDevice device,
-                      p ImageCudaDevice<float, 3> vertex,
+                      ImageCudaDevice<float, 3> vertex,
                       ImageCudaDevice<float, 3> normal,
                       ImageCudaDevice<uchar, 3> color,
                       PinholeCameraIntrinsicCuda camera,
