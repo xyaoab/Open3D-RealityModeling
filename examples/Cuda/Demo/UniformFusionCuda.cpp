@@ -1,157 +1,100 @@
-// ----------------------------------------------------------------------------
-// -                        Open3D: www.open3d.org                            -
-// ----------------------------------------------------------------------------
-// The MIT License (MIT)
 //
-// Copyright (c) 2018 www.open3d.org
+// Created by wei on 3/31/19.
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
-// IN THE SOFTWARE.
-// ----------------------------------------------------------------------------
 
-#include <iostream>
-#include <memory>
-
-#include <Open3D/Open3D.h>
 #include <Cuda/Open3DCuda.h>
-#include <Cuda/IO/ClassIO/UniformTSDFVolumeCudaIO.h>
+#include <Open3D/Open3D.h>
 
-#include "Utils.h"
+#include "../ReconstructionSystem/DatasetConfig.h"
 
 using namespace open3d;
-using namespace open3d::utility;
-using namespace open3d::io;
-using namespace open3d::camera;
+using namespace open3d::registration;
 using namespace open3d::geometry;
-using namespace open3d::visualization;
+using namespace open3d::io;
+using namespace open3d::utility;
 
-std::shared_ptr<Image> ConvertImageFromFloatImage(const Image &image) {
-    auto uimage = std::make_shared<geometry::Image>();
-    if (image.IsEmpty()) {
-        return uimage;
-    }
+void IntegrateAndWriteFragment(int fragment_id, DatasetConfig &config) {
+    PoseGraph pose_graph;
+    ReadPoseGraph(config.GetPoseGraphFileForFragment(fragment_id, true),
+                  pose_graph);
 
-    uimage->Prepare(image.width_, image.height_, image.num_of_channels_,
-                         1);
-
-    int num_pixels = image.height_ * image.width_;
-    for (int i = 0; i < num_pixels; i++) {
-        uint8_t *p = (uint8_t *)(uimage->data_.data() +
-                                 i * uimage->num_of_channels_);
-
-        float *pf = (float *)(image.data_.data() +
-                              i * image.num_of_channels_ *
-                                      image.bytes_per_channel_);
-
-        for (int k = 0; k < image.num_of_channels_; ++k) {
-            p[k] = uint8_t(std::abs(pf[k]));
-        }
-    }
-
-    return uimage;
-}
-
-int main(int argc, char *argv[]) {
-    SetVerbosityLevel(VerbosityLevel::Debug);
-
-    std::string base_path = "/home/wei/Workspace/data/stanford/copyroom/";
-    auto camera_trajectory = CreatePinholeCameraTrajectoryFromFile(
-            base_path + "/trajectory.log");
-    auto rgbd_filenames =
-            ReadDataAssociation(base_path + "/data_association.txt");
-
-    FPSTimer timer("Process RGBD stream",
-                   (int)camera_trajectory->parameters_.size());
-
-    cuda::PinholeCameraIntrinsicCuda intrinsics(
-            PinholeCameraIntrinsicParameters::PrimeSenseDefault);
-
-    float voxel_length = 0.008f;
     int voxel_resolution = 256;
+    float voxel_length = config.tsdf_cubic_size_ / voxel_resolution;
+
+    cuda::PinholeCameraIntrinsicCuda intrinsic(config.intrinsic_);
+    cuda::TransformCuda trans = cuda::TransformCuda::Identity();
+
     float offset = -voxel_length * voxel_resolution / 2;
     cuda::TransformCuda extrinsics = cuda::TransformCuda::Identity();
     extrinsics.SetTranslation(cuda::Vector3f(offset, offset, offset));
-    std::cout << extrinsics.ToEigen() << "\n";
+
     cuda::UniformTSDFVolumeCuda tsdf_volume(voxel_resolution, voxel_length,
                                             3 * voxel_length, extrinsics);
-    cuda::UniformMeshVolumeCuda mesher(cuda::VertexWithNormalAndColor,
-                                       voxel_resolution, 4000000, 8000000);
 
-    Image depth, color;
-    cuda::RGBDImageCuda rgbd(640, 480, 4.0f, 1000.0f);
+    cuda::RGBDImageCuda rgbd((float)config.max_depth_,
+                             (float)config.depth_factor_);
 
-    VisualizerWithCudaModule visualizer;
-    if (!visualizer.CreateVisualizerWindow("UniformFusion", 640, 480, 0, 0)) {
-        LogWarning("Failed creating OpenGL window.\n");
-        return 0;
-    }
-    visualizer.BuildUtilities();
-    visualizer.UpdateWindowTitle();
+    const int begin = fragment_id * config.n_frames_per_fragment_;
+    const int end = std::min((fragment_id + 1) * config.n_frames_per_fragment_,
+                             (int)config.color_files_.size());
 
-    std::shared_ptr<TriangleMesh> mesh = std::make_shared<TriangleMesh>();
-    visualizer.AddGeometry(mesh);
+    Timer timer;
+    timer.Start();
+    for (int i = begin; i < end; ++i) {
+        LogDebug("Integrating frame {} ...\n", i);
 
-    for (int i = 0; i < 1200; ++i) {
-        LogDebug("Processing frame {} ...\n", i);
-        std::cout << base_path + rgbd_filenames[i].first << "\n";
-        std::cout << base_path + rgbd_filenames[i].second << "\n";
-        ReadImage(base_path + rgbd_filenames[i].first, depth);
-        ReadImage(base_path + rgbd_filenames[i].second, color);
+        Image depth, color;
+        ReadImage(config.depth_files_[i], depth);
+        ReadImage(config.color_files_[i], color);
         rgbd.Upload(depth, color);
 
         /* Use ground truth trajectory */
-        Eigen::Matrix4d extrinsic =
-                camera_trajectory->parameters_[i].extrinsic_.inverse();
+        Eigen::Matrix4d pose = pose_graph.nodes_[i - begin].pose_;
+        trans.FromEigen(pose);
 
-        extrinsics.FromEigen(extrinsic);
-        tsdf_volume.Integrate(rgbd, intrinsics, extrinsics);
-
-        mesher.MarchingCubes(tsdf_volume);
-
-        *mesh = *mesher.mesh().Download();
-        std::cout << mesh->vertices_.size() << "\n";
-        visualizer.PollEvents();
-        visualizer.UpdateGeometry();
-        visualizer.GetViewControl().ConvertFromPinholeCameraParameters(
-                camera_trajectory->parameters_[i]);
+        tsdf_volume.Integrate(rgbd, intrinsic, trans);
     }
+    timer.Stop();
+    utility::LogInfo("Integration takes {} ms\n", timer.GetDuration());
 
+    cuda::UniformMeshVolumeCuda mesher(cuda::VertexWithNormalAndColor,
+                                       voxel_resolution, 4000000, 8000000);
+    WriteUniformTSDFVolumeToBIN("tmp.bin", tsdf_volume, true);
     mesher.MarchingCubes(tsdf_volume);
-    *mesh = *mesher.mesh().Download();
-    io::WriteTriangleMesh("copyroom.ply", *mesh);
-    io::WriteUniformTSDFVolumeToBIN("copyroom_uniform.bin", tsdf_volume);
+    auto mesh = mesher.mesh().Download();
+    visualization::DrawGeometries({mesh});
+}
 
-//    io::ReadUniformTSDFVolumeFromBIN("copyroom_uniform_saved.bin", tsdf_volume);
-//    mesher.MarchingCubes(tsdf_volume);
-//
-//    *mesh = mesher.mesh();
-//    visualization::DrawGeometriesWithCudaModule({mesh});
-//
-//    io::WriteTriangleMesh("res.ply", *mesh->Download());
+void ReadFragment(int fragment_id, DatasetConfig &config) {
+    PoseGraph pose_graph;
+    ReadPoseGraph(config.GetPoseGraphFileForFragment(fragment_id, true),
+                  pose_graph);
 
-//    cuda::ImageCuda<float, 3> im_ray_casting(640, 480);
-//    Eigen::Matrix4d extrinsic =
-//            camera_trajectory->parameters_[0].extrinsic_.inverse();
-//    extrinsics.FromEigen(extrinsic);
-//
-//    tsdf_volume.RayCasting(im_ray_casting, intrinsics, extrinsics);
-//    io::WriteImage("test.png", *ConvertImageFromFloatImage(
-//                                       *im_ray_casting.DownloadImage()));
+    Timer timer;
+    timer.Start();
+    auto tsdf_volume = io::ReadUniformTSDFVolumeFromBIN("tmp.bin", true);
+    timer.Stop();
+    utility::LogInfo("Read takes {} ms\n", timer.GetDuration());
 
-    return 0;
+    cuda::UniformMeshVolumeCuda mesher(cuda::VertexWithNormalAndColor,
+                                       tsdf_volume.N_, 4000000, 8000000);
+    mesher.MarchingCubes(tsdf_volume);
+    auto mesh = mesher.mesh().Download();
+    visualization::DrawGeometries({mesh});
+}
+
+int main(int argc, char **argv) {
+    DatasetConfig config;
+    std::string config_path =
+            argc > 1 ? argv[1]
+                     : kDefaultDatasetConfigDir + "/stanford/lounge.json";
+    bool is_success = io::ReadIJsonConvertible(config_path, config);
+    if (!is_success) return 1;
+    config.GetFragmentFiles();
+
+    for (int i = 0; i < 1; ++i) {  // config.fragment_files_.size(); ++i) {
+        utility::LogInfo("{}\n", i);
+        IntegrateAndWriteFragment(i, config);
+        ReadFragment(i, config);
+    }
 }

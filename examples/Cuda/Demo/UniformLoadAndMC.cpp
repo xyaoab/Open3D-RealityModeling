@@ -24,12 +24,12 @@
 // IN THE SOFTWARE.
 // ----------------------------------------------------------------------------
 
+#include <Cuda/IO/ClassIO/UniformTSDFVolumeCudaIO.h>
+#include <Cuda/Open3DCuda.h>
+#include <Open3D/Open3D.h>
+
 #include <iostream>
 #include <memory>
-
-#include <Open3D/Open3D.h>
-#include <Cuda/Open3DCuda.h>
-#include <Cuda/IO/ClassIO/UniformTSDFVolumeCudaIO.h>
 
 #include "Utils.h"
 
@@ -39,7 +39,6 @@ using namespace open3d::io;
 using namespace open3d::camera;
 using namespace open3d::geometry;
 using namespace open3d::visualization;
-
 
 int main(int argc, char *argv[]) {
     SetVerbosityLevel(VerbosityLevel::Debug);
@@ -57,9 +56,9 @@ int main(int argc, char *argv[]) {
     cuda::UniformMeshVolumeCuda mesher(cuda::VertexWithNormalAndColor,
                                        voxel_resolution, 40000000, 80000000);
 
-    io::ReadUniformTSDFVolumeFromBIN(input_bin, tsdf_volume);
+    auto tsdf_loaded = io::ReadUniformTSDFVolumeFromBIN(input_bin);
 
-    mesher.MarchingCubes(tsdf_volume);
+    mesher.MarchingCubes(tsdf_loaded);
     auto mesh = mesher.mesh().Download();
     mesh->ComputeVertexNormals();
     io::WriteTriangleMesh("test.obj", *mesh);
