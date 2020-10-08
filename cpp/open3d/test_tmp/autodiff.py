@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Function
-
+from torch_sparse import spspmm
 
 def autograd():
 
@@ -128,8 +128,6 @@ def autograd_list_custom():
 
 
 if __name__ == '__main__':
-    #autograd()
     autograd_chunk()
     autograd_list_builtin()
     autograd_list_custom()
-    # autograd_list()
