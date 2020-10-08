@@ -157,18 +157,31 @@ UniformTSDFVolumeCuda::DownloadVolume() {
 void UniformTSDFVolumeCuda::Integrate(
         RGBDImageCuda &rgbd,
         PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+        TransformCuda &transform_camera_to_world,
+        const ImageCuda<uchar, 1>& mask) {
     assert(device_ != nullptr);
+
+    ImageCuda<uchar, 1> mask_image;
+    if(mask.width_ <= 0 || mask.height_ <= 0 || mask.device_ == nullptr)
+    {
+        mask_image.Create(rgbd.depth_.width_, rgbd.depth_.height_, 1);
+    }
+    else
+    {
+        mask_image = mask;
+    }
     UniformTSDFVolumeCudaKernelCaller::Integrate(*this, rgbd, camera,
-                                                 transform_camera_to_world);
+                                                 transform_camera_to_world, mask_image);
 }
 
 void UniformTSDFVolumeCuda::RayCasting(
-        ImageCuda<float, 3> &image,
+        ImageCuda<float, 3> &vertex,
+        ImageCuda<float, 3> &normal,
+        ImageCuda<uchar, 3> &color,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     assert(device_ != nullptr);
-    UniformTSDFVolumeCudaKernelCaller::RayCasting(*this, image, camera,
+    UniformTSDFVolumeCudaKernelCaller::RayCasting(*this, vertex, normal, color, camera,
                                                   transform_camera_to_world);
 }
 }  // namespace cuda

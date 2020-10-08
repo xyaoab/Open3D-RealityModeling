@@ -327,11 +327,12 @@ void ScalableTSDFVolumeCuda::TouchSubvolumes(
         ImageCuda<float, 1> &depth,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world,
-        int frame_id) {
+        int frame_id,
+        ImageCuda<uchar, 1> &mask_image) {
     assert(device_ != nullptr);
 
     ScalableTSDFVolumeCudaKernelCaller::TouchSubvolumes(
-            *this, depth, camera, transform_camera_to_world, frame_id);
+            *this, depth, camera, transform_camera_to_world, frame_id, mask_image);
 }
 
 void ScalableTSDFVolumeCuda::GetSubvolumesInFrustum(
@@ -399,21 +400,22 @@ void ScalableTSDFVolumeCuda::Integrate(
     assert(device_ != nullptr);
 
     hash_table_.ResetLocks();
+    ImageCuda<uchar, 1> mask_image;
+    if (r_mask_image.width_ <= 0 || r_mask_image.height_ <= 0 ||
+        r_mask_image.device_ == nullptr) {
+        mask_image.Create(rgbd.depth_.width_, rgbd.depth_.height_, 1);
+    } else {
+        mask_image = r_mask_image;
+    }
+
     active_subvolume_entry_array_.set_iterator(0);
-    TouchSubvolumes(rgbd.depth_, camera, transform_camera_to_world, frame_id);
+    TouchSubvolumes(rgbd.depth_, camera, transform_camera_to_world, frame_id, mask_image);
 
     ResetActiveSubvolumeIndices();
     GetSubvolumesInFrustum(camera, transform_camera_to_world, frame_id);
     utility::LogDebug("Active subvolumes in volume: {}",
                       active_subvolume_entry_array_.size());
 
-    ImageCuda<uchar, 1> mask_image;
-    if (r_mask_image.width_ > 0 && r_mask_image.height_ > 0 &&
-        r_mask_image.device_ != nullptr) {
-        mask_image = r_mask_image;
-    } else {
-        mask_image.Create(rgbd.depth_.width_, rgbd.depth_.height_, 1);
-    }
     IntegrateSubvolumes(rgbd, mask_image, camera, transform_camera_to_world);
 }
 
