@@ -3,6 +3,7 @@
 //
 
 #include "UniformTSDFVolumeCudaIO.h"
+
 #include "ZlibIO.h"
 
 namespace open3d {
@@ -21,7 +22,7 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
     FILE *fid = fopen(filename.c_str(), "wb");
     if (fid == NULL) {
         utility::LogWarning("Write BIN failed: unable to open file: %s\n",
-                              filename.c_str());
+                            filename.c_str());
         return false;
     }
 
@@ -32,8 +33,7 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
         return false;
     }
     if (fwrite(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
-        utility::LogWarning(
-                "Write BIN failed: unable to write voxel size\n");
+        utility::LogWarning("Write BIN failed: unable to write voxel size\n");
         return false;
     }
     auto grid_to_world = volume.transform_volume_to_world_.ToEigen();
@@ -83,47 +83,45 @@ bool WriteUniformTSDFVolumeToBIN(const std::string &filename,
     return true;
 }
 
-bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
-                                  cuda::UniformTSDFVolumeCuda &volume,
-                                  bool use_zlib) {
+cuda::UniformTSDFVolumeCuda ReadUniformTSDFVolumeFromBIN(
+        const std::string &filename, bool use_zlib) {
     utility::LogInfo("Reading volume...\n");
 
     FILE *fid = fopen(filename.c_str(), "rb");
     if (fid == NULL) {
-        utility::LogWarning("Read BIN failed: unable to open file: %s\n",
-                              filename.c_str());
-        return false;
+        utility::LogError("Read BIN failed: unable to open file: %s\n",
+                          filename.c_str());
     }
 
     /** metadata **/
     int volume_resolution;
     if (fread(&volume_resolution, sizeof(int), 1, fid) < 1) {
-        utility::LogWarning("Read BIN failed: unable to read num volumes\n");
-        return false;
+        utility::LogError("Read BIN failed: unable to read num volumes\n");
     }
-    assert(volume_resolution == volume.N_);
-    int N = volume.N_;
+    int N = volume_resolution;
     int NNN = N * N * N;
 
-    if (fread(&volume.voxel_length_, sizeof(float), 1, fid) < 1) {
-        utility::LogWarning(
-                "Read BIN failed: unable to read voxel size\n");
-        return false;
+    float voxel_length;
+    if (fread(&voxel_length, sizeof(float), 1, fid) < 1) {
+        utility::LogError("Read BIN failed: unable to read voxel size\n");
     }
     Eigen::Matrix4d volume_to_world;
     float vij;
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (fread(&vij, sizeof(float), 1, fid) < 1) {
-                utility::LogWarning(
+                utility::LogError(
                         "Read BIN failed: unable to read transform[{}, {}]\n",
                         i, j);
-                return false;
             }
             volume_to_world(i, j) = vij;
         }
     }
-    volume.transform_volume_to_world_.FromEigen(volume_to_world);
+    cuda::TransformCuda trans;
+    trans.FromEigen(volume_to_world);
+
+    cuda::UniformTSDFVolumeCuda tsdf_volume(volume_resolution, voxel_length,
+                                            3 * voxel_length, trans);
 
     /** values **/
     std::vector<float> tsdf_buf(NNN);
@@ -133,30 +131,30 @@ bool ReadUniformTSDFVolumeFromBIN(const std::string &filename,
 
     if (!use_zlib) {
         if (!Read(tsdf_buf, fid, "TSDF")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read TSDF\n");
         }
         if (!Read(weight_buf, fid, "weight")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read weight\n");
         }
         if (!Read(color_buf, fid, "color")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read color\n");
         }
     } else {
         if (!ReadAndUncompress(compressed_buf, tsdf_buf, fid, "TSDF")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read TSDF\n");
         }
         if (!ReadAndUncompress(compressed_buf, weight_buf, fid, "weight")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read weight\n");
         }
         if (!ReadAndUncompress(compressed_buf, color_buf, fid, "uchar")) {
-            return false;
+            utility::LogError("Read BIN failed: unable to read color\n");
         }
     }
 
-    volume.UploadVolume(tsdf_buf, weight_buf, color_buf);
+    tsdf_volume.UploadVolume(tsdf_buf, weight_buf, color_buf);
 
     fclose(fid);
-    return true;
+    return tsdf_volume;
 }
 }  // namespace io
 }  // namespace open3d
