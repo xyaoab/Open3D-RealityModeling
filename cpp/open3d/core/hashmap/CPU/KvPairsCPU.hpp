@@ -34,6 +34,7 @@
 #include "open3d/core/CUDAUtils.h"
 #include "open3d/core/MemoryManager.h"
 #include "open3d/core/hashmap/CUDA/Macros.h"
+#include "open3d/core/hashmap/KvPairs.h"
 #include "open3d/core/hashmap/Traits.h"
 
 namespace open3d {
@@ -41,7 +42,7 @@ namespace core {
 
 /// Dynamic memory allocation and free are expensive on kernels.
 /// We pre-allocate a chunk of memory and manually manage them on kernels.
-class CUDAKvPairsContext {
+class CPUKvPairsContext {
 public:
     uint8_t *keys_;     /* [N] * sizeof(Key) */
     uint8_t *values_;   /* [N] * sizeof(Value) */
@@ -72,37 +73,29 @@ public:
     //  1                   1 <-                 1                    0 <- |
     //  0 <- heap_counter   0                    0                    0
 
-    __device__ addr_t Allocate() {
-        int index = atomicAdd(heap_counter_, 1);
-        return heap_[index];
-    }
+    addr_t Allocate() { return heap_[(*heap_counter_)++]; }
 
-    __device__ void Free(addr_t ptr) {
-        int index = atomicSub(heap_counter_, 1);
-        heap_[index - 1] = ptr;
-    }
+    void Free(addr_t ptr) { heap_[(*heap_counter_)--] = ptr; }
 
-    __device__ iterator_t extract_iterator(addr_t ptr) {
+    iterator_t extract_iterator(addr_t ptr) {
         return iterator_t(keys_ + ptr * dsize_key_,
                           values_ + ptr * dsize_value_);
     }
 };
 
-__global__ void ResetKvPairsKernel(CUDAKvPairsContext ctx) {
-    const int i = blockIdx.x * blockDim.x + threadIdx.x;
-    if (i < ctx.capacity_) {
+void ResetKvPairsLoop(CPUKvPairsContext ctx) {
+    for (int i = 0; i < ctx.capacity_; ++i) {
         ctx.heap_[i] = i;
     }
 }
 
-class KvPairs {
+class CPUKvPairs : public KvPairs {
 public:
-    CUDAKvPairsContext context_;
-    Device device_;
-
-public:
-    KvPairs(int capacity, int dsize_key, int dsize_value, const Device &device)
-        : device_(device) {
+    CPUKvPairs(size_t capacity,
+               size_t dsize_key,
+               size_t dsize_value,
+               const Device &device)
+        : KvPairs(capacity, dsize_key, dsize_value, device) {
         context_.capacity_ = capacity;
         context_.dsize_key_ = dsize_key;
         context_.dsize_value_ = dsize_value;
@@ -116,39 +109,31 @@ public:
         context_.values_ = static_cast<uint8_t *>(
                 MemoryManager::Malloc(capacity * dsize_value, device_));
 
-        const int blocks = (capacity + kThreadsPerBlock - 1) / kThreadsPerBlock;
-        ResetKvPairsKernel<<<blocks, kThreadsPerBlock>>>(context_);
-        OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
-        OPEN3D_CUDA_CHECK(cudaGetLastError());
-
-        int heap_counter = 0;
-        OPEN3D_CUDA_CHECK(
-                cudaMemset(context_.values_, 0, capacity * dsize_value));
-        MemoryManager::Memcpy(context_.heap_counter_, device_, &heap_counter,
-                              Device("CPU:0"), sizeof(int));
+        ResetHeap();
     }
 
-    ~KvPairs() {
+    ~CPUKvPairs() override {
         MemoryManager::Free(context_.heap_counter_, device_);
         MemoryManager::Free(context_.heap_, device_);
         MemoryManager::Free(context_.keys_, device_);
         MemoryManager::Free(context_.values_, device_);
     }
 
-    std::vector<int> DownloadHeap() {
-        std::vector<int> ret;
-        ret.resize(context_.capacity_);
-        MemoryManager::Memcpy(ret.data(), Device("CPU:0"), context_.heap_,
-                              device_, sizeof(int) * context_.capacity_);
-        return ret;
+    void ResetHeap() override {
+        ResetKvPairsLoop(context_);
+        *context_.heap_counter_ = 0;
+        std::memset(context_.values_, 0, capacity_ * dsize_val_);
     }
 
-    int heap_counter() {
-        int heap_counter;
-        MemoryManager::Memcpy(&heap_counter, Device("CPU:0"),
-                              context_.heap_counter_, device_, sizeof(int));
-        return heap_counter;
-    }
+    void *GetKeyBufferPtr() override { return context_.keys_; }
+    void *GetValueBufferPtr() override { return context_.values_; }
+
+    int heap_counter() override { return *context_.heap_counter_; }
+
+    CPUKvPairsContext &GetContext() { return context_; }
+
+protected:
+    CPUKvPairsContext context_;
 };
 }  // namespace core
 }  // namespace open3d

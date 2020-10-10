@@ -26,45 +26,43 @@
 
 #pragma once
 
-#include <functional>
+#include <assert.h>
 
-#include "open3d/visualization/gui/Widget.h"
+#include <memory>
+#include <vector>
+
+#include "open3d/core/CUDAUtils.h"
+#include "open3d/core/MemoryManager.h"
+#include "open3d/core/hashmap/CUDA/Macros.h"
+#include "open3d/core/hashmap/Traits.h"
 
 namespace open3d {
-namespace visualization {
-namespace gui {
+namespace core {
 
-class NumberEdit : public Widget {
-    using Super = Widget;
-
+class KvPairs {
 public:
-    enum Type { INT, DOUBLE };
-    explicit NumberEdit(Type type);
-    ~NumberEdit();
+    KvPairs(size_t capacity,
+            size_t dsize_key,
+            size_t dsize_value,
+            const Device& device)
+        : capacity_(capacity),
+          dsize_key_(dsize_key),
+          dsize_val_(dsize_value),
+          device_(device) {}
+    virtual ~KvPairs() {}
 
-    int GetIntValue() const;
-    double GetDoubleValue() const;
-    void SetValue(double val);
+    virtual void ResetHeap() = 0;
+    virtual void* GetKeyBufferPtr() = 0;
+    virtual void* GetValueBufferPtr() = 0;
 
-    double GetMinimumValue() const;
-    double GetMaximumValue() const;
-    void SetLimits(double min_value, double max_value);
+    virtual int heap_counter() = 0;
 
-    int GetDecimalPrecision();
-    void SetDecimalPrecision(int num_digits);
+protected:
+    size_t capacity_;
+    size_t dsize_key_;
+    size_t dsize_val_;
 
-    void SetPreferredWidth(int width);
-
-    void SetOnValueChanged(std::function<void(double)> on_changed);
-
-    Size CalcPreferredSize(const Theme& theme) const override;
-    Widget::DrawResult Draw(const DrawContext& context) override;
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    Device device_;
 };
-
-}  // namespace gui
-}  // namespace visualization
+}  // namespace core
 }  // namespace open3d
