@@ -39,13 +39,13 @@ namespace core {
 template <typename Hash, typename KeyEq>
 class CPUHashmap : public DeviceHashmap<Hash, KeyEq> {
 public:
-    ~CPUHashmap();
-
     CPUHashmap(size_t init_buckets,
                size_t init_capacity,
                size_t dsize_key,
                size_t dsize_value,
                const Device& device);
+
+    ~CPUHashmap();
 
     void Rehash(size_t buckets) override;
 
@@ -170,6 +170,7 @@ void CPUHashmap<Hash, KeyEq>::Find(const void* input_keys,
                                    bool* output_masks,
                                    size_t count) {
     auto kv_pairs_ctx = kv_pairs_->GetContext();
+#pragma omp parallel for
     for (size_t i = 0; i < count; ++i) {
         uint8_t* key = const_cast<uint8_t*>(
                 static_cast<const uint8_t*>(input_keys) + this->dsize_key_ * i);
@@ -179,7 +180,7 @@ void CPUHashmap<Hash, KeyEq>::Find(const void* input_keys,
             output_iterators[i] = iterator_t();
             output_masks[i] = false;
         } else {
-            output_iterators[i] = kv_pairs_ctx.extract_iterator(iter->second);
+            output_iterators[i] = kv_pairs_ctx->extract_iterator(iter->second);
             output_masks[i] = true;
         }
     }
@@ -198,7 +199,7 @@ void CPUHashmap<Hash, KeyEq>::Erase(const void* input_keys,
         if (iter == impl_->end()) {
             output_masks[i] = false;
         } else {
-            kv_pairs_ctx.Free(iter->second);
+            kv_pairs_ctx->Free(iter->second);
             impl_->unsafe_erase(iter);
             output_masks[i] = true;
         }
@@ -213,7 +214,7 @@ size_t CPUHashmap<Hash, KeyEq>::GetIterators(iterator_t* output_iterators) {
     size_t count = impl_->size();
     size_t i = 0;
     for (auto iter = impl_->begin(); iter != impl_->end(); ++iter, ++i) {
-        output_iterators[i] = kv_pairs_ctx.extract_iterator(iter->second);
+        output_iterators[i] = kv_pairs_ctx->extract_iterator(iter->second);
     }
 
     return count;
@@ -255,6 +256,7 @@ void CPUHashmap<Hash, KeyEq>::UnpackIterators(const iterator_t* input_iterators,
                                               void* output_keys,
                                               void* output_values,
                                               size_t iterator_count) {
+#pragma omp parallel for
     for (size_t i = 0; i < iterator_count; ++i) {
         UnpackIteratorsStep(input_iterators, input_masks, output_keys,
                             output_values, this->device_, this->dsize_key_,
@@ -284,6 +286,7 @@ void CPUHashmap<Hash, KeyEq>::AssignIterators(iterator_t* input_iterators,
                                               const bool* input_masks,
                                               const void* input_values,
                                               size_t iterator_count) {
+#pragma omp parallel for
     for (size_t i = 0; i < iterator_count; ++i) {
         AssignIteratorsStep(input_iterators, input_masks, input_values,
                             this->device_, this->dsize_value_, i);
@@ -367,15 +370,8 @@ void CPUHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
         const uint8_t* src_key =
                 static_cast<const uint8_t*>(input_keys) + this->dsize_key_ * i;
 
-        // Manually copy before insert.
-        int heap_idx;
-#pragma omp atomic capture
-        {
-            heap_idx = *(kv_pairs_ctx.heap_counter_);
-            *(kv_pairs_ctx.heap_counter_) += 1;
-        }
-        addr_t dst_kv_addr = kv_pairs_ctx.heap_[heap_idx];
-        iterator_t dst_kv_iter = kv_pairs_ctx.extract_iterator(dst_kv_addr);
+        addr_t dst_kv_addr = kv_pairs_ctx->Allocate();
+        iterator_t dst_kv_iter = kv_pairs_ctx->extract_iterator(dst_kv_addr);
 
         uint8_t* dst_key = static_cast<uint8_t*>(dst_kv_iter.first);
         uint8_t* dst_value = static_cast<uint8_t*>(dst_kv_iter.second);
@@ -401,14 +397,7 @@ void CPUHashmap<Hash, KeyEq>::InsertImpl(const void* input_keys,
 #pragma omp parallel for
     for (size_t i = 0; i < count; ++i) {
         if (!output_masks[i]) {
-            int heap_idx;
-#pragma omp atomic capture
-            {
-                heap_idx = *(kv_pairs_ctx.heap_counter_);
-                *(kv_pairs_ctx.heap_counter_) -= 1;
-            }
-            kv_pairs_ctx.heap_[heap_idx - 1] = output_addrs[i];
-
+            kv_pairs_ctx->Free(output_addrs[i]);
             output_iterators[i] = iterator_t();
         }
     }
