@@ -361,7 +361,7 @@ __device__ __forceinline__ void CUDAHashmapImplContext<Hash, KeyEq>::FreeSlab(
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* output_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   int heap_counter_prev,
                                   int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -377,14 +377,14 @@ __global__ void InsertKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                        static_cast<const uint8_t*>(input_keys) +
                                tid * hash_ctx.dsize_key_,
                        hash_ctx.dsize_key_);
-        output_iterator_addrs[tid] = iterator_addr;
+        output_blob_indices[tid] = iterator_addr;
     }
 }
 
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* input_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   bool* output_masks,
                                   int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -408,7 +408,7 @@ __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
         lane_active = true;
         key = static_cast<const uint8_t*>(input_keys) +
               tid * hash_ctx.dsize_key_;
-        iterator_addr = input_iterator_addrs[tid];
+        iterator_addr = output_blob_indices[tid];
         bucket_id = hash_ctx.ComputeBucket(key);
     }
 
@@ -424,14 +424,14 @@ __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass2(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_values,
-                                  addr_t* input_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   iterator_t* output_iterators,
                                   bool* output_masks,
                                   int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
 
     if (tid < count) {
-        addr_t iterator_addr = input_iterator_addrs[tid];
+        addr_t iterator_addr = output_blob_indices[tid];
 
         if (output_masks[tid]) {
             iterator_t iterator =
@@ -463,6 +463,7 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                            const void* input_keys,
                            iterator_t* output_iterators,
                            bool* output_masks,
+                           addr_t* output_blob_indices,
                            int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
@@ -493,6 +494,7 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     result = hash_ctx.Find(lane_active, lane_id, bucket_id, key);
 
     if (tid < count) {
+        output_blob_indices[tid] = result.first;
         output_iterators[tid] =
                 hash_ctx.kv_mgr_ctx_.extract_iterator(result.first);
         output_masks[tid] = result.second;
@@ -502,7 +504,7 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                  const void* input_keys,
-                                 addr_t* output_iterator_addrs,
+                                 addr_t* output_blob_indices,
                                  bool* masks,
                                  int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -530,25 +532,26 @@ __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
     auto result = hash_ctx.Erase(lane_active, lane_id, bucket_id, key);
 
     if (tid < count) {
-        output_iterator_addrs[tid] = result.first;
+        output_blob_indices[tid] = result.first;
         masks[tid] = result.second;
     }
 }
 
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
-                                 addr_t* input_iterator_addrs,
+                                 addr_t* output_blob_indices,
                                  bool* output_masks,
                                  int64_t count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     if (tid < count && output_masks[tid]) {
-        hash_ctx.kv_mgr_ctx_.Free(input_iterator_addrs[tid]);
+        hash_ctx.kv_mgr_ctx_.Free(output_blob_indices[tid]);
     }
 }
 
 template <typename Hash, typename KeyEq>
 __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                    iterator_t* output_iterators,
+                                   addr_t* output_blob_indices,
                                    uint32_t* output_iterator_count) {
     uint32_t tid = threadIdx.x + blockIdx.x * blockDim.x;
     uint32_t lane_id = threadIdx.x & 0x1F;
@@ -569,6 +572,7 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
         iterator_t iterator =
                 hash_ctx.kv_mgr_ctx_.extract_iterator(src_unit_data);
         uint32_t index = atomicAdd(output_iterator_count, 1);
+        output_blob_indices[index] = src_unit_data;
         output_iterators[index] = iterator;
     }
 
@@ -584,6 +588,7 @@ __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
             iterator_t iterator =
                     hash_ctx.kv_mgr_ctx_.extract_iterator(src_unit_data);
             uint32_t index = atomicAdd(output_iterator_count, 1);
+            output_blob_indices[index] = src_unit_data;
             output_iterators[index] = iterator;
         }
         next = __shfl_sync(kSyncLanesMask, src_unit_data, kNextSlabPtrLaneId,

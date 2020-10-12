@@ -104,21 +104,21 @@ public:
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* output_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   int heap_counter_prev,
                                   int64_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_keys,
-                                  addr_t* input_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   bool* output_masks,
                                   int64_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void InsertKernelPass2(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                   const void* input_values,
-                                  addr_t* input_iterator_addrs,
+                                  addr_t* output_blob_indices,
                                   iterator_t* output_iterators,
                                   bool* output_masks,
                                   int64_t count);
@@ -128,24 +128,26 @@ __global__ void FindKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                            const void* input_keys,
                            iterator_t* output_iterators,
                            bool* output_masks,
+                           addr_t* output_blob_indices,
                            int64_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass0(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                  const void* input_keys,
-                                 addr_t* output_iterator_addrs,
+                                 addr_t* output_blob_indices,
                                  bool* output_masks,
                                  int64_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void EraseKernelPass1(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
-                                 addr_t* input_iterator_addrs,
+                                 addr_t* output_blob_indices,
                                  bool* output_masks,
                                  int64_t count);
 
 template <typename Hash, typename KeyEq>
 __global__ void GetIteratorsKernel(CUDAHashmapImplContext<Hash, KeyEq> hash_ctx,
                                    iterator_t* output_iterators,
+                                   addr_t* output_blob_indices,
                                    uint32_t* output_iterator_count);
 
 template <typename Hash, typename KeyEq>

@@ -58,6 +58,7 @@ public:
                 const void* input_values,
                 iterator_t* output_iterators,
                 bool* output_masks,
+                addr_t* output_blob_indices,
                 int64_t count);
 
     /// Parallel insert arrays of keys and values in Tensors.
@@ -65,7 +66,8 @@ public:
     void Insert(const Tensor& input_keys,
                 const Tensor& input_values,
                 Tensor& output_iterators,
-                Tensor& output_masks);
+                Tensor& output_masks,
+                Tensor& output_blob_indices);
 
     /// Parallel activate arrays of keys without copying values.
     /// Specifically useful for large value elements (e.g., a tensor), where we
@@ -73,6 +75,7 @@ public:
     void Activate(const void* input_keys,
                   iterator_t* output_iterators,
                   bool* output_masks,
+                  addr_t* output_blob_indices,
                   int64_t count);
 
     /// Parallel activate arrays of keys in Tensor.
@@ -80,7 +83,8 @@ public:
     /// can do in-place management after activation.
     void Activate(const Tensor& input_keys,
                   Tensor& output_iterators,
-                  Tensor& output_masks);
+                  Tensor& output_masks,
+                  Tensor& output_blob_indices);
 
     /// Parallel find an array of keys.
     /// Output iterators and masks CANNOT be nullptrs as we have to interpret
@@ -88,13 +92,15 @@ public:
     void Find(const void* input_keys,
               iterator_t* output_iterators,
               bool* output_masks,
+              addr_t* output_blob_indices,
               int64_t count);
 
     /// Parallel find an array of keys in Tensor.
     /// Output iterators is an object Tensor, masks is a bool Tensor.
     void Find(const Tensor& input_keys,
               Tensor& output_iterators,
-              Tensor& output_masks);
+              Tensor& output_masks,
+              Tensor& output_blob_indices);
 
     /// Parallel erase an array of keys.
     /// Output masks can be a nullptr if return results are not to be
@@ -106,7 +112,9 @@ public:
     void Erase(const Tensor& input_keys, Tensor& output_masks);
 
     /// Parallel collect all iterators in the hash table
-    int64_t GetIterators(iterator_t* output_iterators);
+    int64_t GetIterators(iterator_t* output_iterators,
+                         addr_t* output_blob_indices);
+    int64_t GetIterators(Tensor& output_iterators, Tensor& output_blob_indices);
 
     /// Parallel unpack iterators to contiguous arrays of keys and/or
     /// values. Output keys and values can be nullptrs if they are not

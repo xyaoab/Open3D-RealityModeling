@@ -116,6 +116,7 @@ public:
                         const void* input_values,
                         iterator_t* output_iterators,
                         bool* output_masks,
+                        addr_t* output_blob_indices,
                         int64_t count) = 0;
 
     /// Parallel activate contiguous arrays of keys without copying values.
@@ -124,12 +125,14 @@ public:
     virtual void Activate(const void* input_keys,
                           iterator_t* output_iterators,
                           bool* output_masks,
+                          addr_t* output_blob_indices,
                           int64_t count) = 0;
 
     /// Parallel find a contiguous array of keys.
     virtual void Find(const void* input_keys,
                       iterator_t* output_iterators,
                       bool* output_masks,
+                      addr_t* output_blob_indices,
                       int64_t count) = 0;
 
     /// Parallel erase a contiguous array of keys.
@@ -138,7 +141,8 @@ public:
                        int64_t count) = 0;
 
     /// Parallel collect all iterators in the hash table
-    virtual int64_t GetIterators(iterator_t* output_iterators) = 0;
+    virtual int64_t GetIterators(iterator_t* output_iterators,
+                                 addr_t* output_blob_indices) = 0;
 
     /// Parallel unpack iterators to contiguous arrays of keys and/or values.
     virtual void UnpackIterators(const iterator_t* input_iterators,

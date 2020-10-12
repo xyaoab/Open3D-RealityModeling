@@ -77,14 +77,17 @@ void VoxelGrid::Integrate(const Image &depth,
 
     void *iterators = MemoryManager::Malloc(sizeof(iterator_t) * N, device_);
     void *masks = MemoryManager::Malloc(sizeof(bool) * N, device_);
+    void *blob_indices = MemoryManager::Malloc(sizeof(addr_t) * N, device_);
 
     hashmap_->Activate(static_cast<void *>(coords.GetBlob()->GetDataPtr()),
                        static_cast<iterator_t *>(iterators),
-                       static_cast<bool *>(masks), N);
+                       static_cast<bool *>(masks),
+                       static_cast<addr_t *>(blob_indices), N);
 
     hashmap_->Find(static_cast<void *>(coords.GetBlob()->GetDataPtr()),
                    static_cast<iterator_t *>(iterators),
-                   static_cast<bool *>(masks), N);
+                   static_cast<bool *>(masks),
+                   static_cast<addr_t *>(blob_indices), N);
 
     utility::LogInfo("Active entries = {}", N);
 
@@ -104,9 +107,8 @@ void VoxelGrid::Integrate(const Image &depth,
 
     // Then manipulate iterators to integrate!
     MemoryManager::Free(iterators, coords.GetDevice());
-    utility::LogInfo("[VoxelGrid] iterators freed");
     MemoryManager::Free(masks, coords.GetDevice());
-    utility::LogInfo("[VoxelGrid] masks freed");
+    MemoryManager::Free(blob_indices, coords.GetDevice());
 
     utility::LogInfo("Hashmap size = {}", hashmap_->Size());
 }
@@ -115,8 +117,10 @@ std::pair<SparseTensorList, Tensor> VoxelGrid::ExtractNearestNeighbors() {
     int64_t n = hashmap_->Size();
     void *block_iterators =
             MemoryManager::Malloc(sizeof(iterator_t) * n, device_);
+    void *blob_indices = MemoryManager::Malloc(sizeof(addr_t) * n, device_);
 
-    hashmap_->GetIterators(static_cast<iterator_t *>(block_iterators));
+    hashmap_->GetIterators(static_cast<iterator_t *>(block_iterators),
+                           static_cast<addr_t *>(blob_indices));
 
     Tensor keys({n, 3}, Dtype::Int64, device_);
     hashmap_->UnpackIterators(static_cast<iterator_t *>(block_iterators),
@@ -126,6 +130,7 @@ std::pair<SparseTensorList, Tensor> VoxelGrid::ExtractNearestNeighbors() {
     void *nb_iterators =
             MemoryManager::Malloc(sizeof(iterator_t) * n * 27, device_);
     Tensor masks_nb({27, n}, Dtype::Bool, device_);
+    Tensor blob_indices_nb({27, n}, Dtype::Int32, device_);
     for (int nb = 0; nb < 27; ++nb) {
         int dz = nb / 9;
         int dy = (nb % 9) / 3;
@@ -137,7 +142,8 @@ std::pair<SparseTensorList, Tensor> VoxelGrid::ExtractNearestNeighbors() {
 
     hashmap_->Find(keys_nb.GetDataPtr(),
                    static_cast<iterator_t *>(nb_iterators),
-                   static_cast<bool *>(masks_nb.GetDataPtr()), n * 27);
+                   static_cast<bool *>(masks_nb.GetDataPtr()),
+                   static_cast<addr_t *>(blob_indices_nb.GetDataPtr()), n * 27);
 
     for (int nb = 0; nb < 27; ++nb) {
         int dz = nb / 9;
@@ -162,6 +168,9 @@ std::pair<SparseTensorList, Tensor> VoxelGrid::ExtractNearestNeighbors() {
     kernel::SpecialOpEW({masks_nb}, {sparse_tsdf_tl, sparse_nb_tsdf_tl}, dummy,
                         sparse_tsdf_tl, kernel::SpecialOpCode::Check);
 
+    MemoryManager::Free(block_iterators, device_);
+    MemoryManager::Free(blob_indices, device_);
+    MemoryManager::Free(nb_iterators, device_);
     return std::make_pair(sparse_nb_tsdf_tl, masks_nb);
 }
 
@@ -174,7 +183,9 @@ PointCloud VoxelGrid::ExtractSurfacePoints() {
     void *nb_iterators =
             MemoryManager::Malloc(sizeof(iterator_t) * n * 27, device_);
 
-    hashmap_->GetIterators(static_cast<iterator_t *>(block_iterators));
+    Tensor blob_indices({n}, Dtype::Int32, device_);
+    hashmap_->GetIterators(static_cast<iterator_t *>(block_iterators),
+                           static_cast<addr_t *>(blob_indices.GetDataPtr()));
 
     Tensor keys({n, 3}, Dtype::Int64, device_);
     hashmap_->UnpackIterators(static_cast<iterator_t *>(block_iterators),
@@ -190,13 +201,15 @@ PointCloud VoxelGrid::ExtractSurfacePoints() {
             device_);
 
     Tensor masks({n}, Dtype::Bool, device_);
-    surface_hashmap->Activate(keys.GetDataPtr(),
-                              static_cast<iterator_t *>(surf_iterators),
-                              static_cast<bool *>(masks.GetDataPtr()), n);
+    surface_hashmap->Activate(
+            keys.GetDataPtr(), static_cast<iterator_t *>(surf_iterators),
+            static_cast<bool *>(masks.GetDataPtr()),
+            static_cast<addr_t *>(blob_indices.GetDataPtr()), n);
 
     // Each block corresponds to 27 neighbors (at most)
     Tensor keys_nb({27, n, 3}, Dtype::Int64, device_);
     Tensor masks_nb({27, n}, Dtype::Bool, device_);
+    Tensor blob_indices_nb({27, n}, Dtype::Int32, device_);
     for (int nb = 0; nb < 27; ++nb) {
         int dz = nb / 9;
         int dy = (nb % 9) / 3;
@@ -207,7 +220,8 @@ PointCloud VoxelGrid::ExtractSurfacePoints() {
     }
     hashmap_->Find(keys_nb.GetDataPtr(),
                    static_cast<iterator_t *>(nb_iterators),
-                   static_cast<bool *>(masks_nb.GetDataPtr()), n * 27);
+                   static_cast<bool *>(masks_nb.GetDataPtr()),
+                   static_cast<addr_t *>(blob_indices_nb.GetDataPtr()), n * 27);
 
     for (int nb = 0; nb < 27; ++nb) {
         int dz = nb / 9;
@@ -261,7 +275,9 @@ PointCloud VoxelGrid::MarchingCubes() {
 
     // Fetch active keys
     Tensor keys({n, 3}, Dtype::Int64, device_);
-    hashmap_->GetIterators(static_cast<iterator_t *>(tsdf_iterators));
+    Tensor blob_indices({n}, Dtype::Int32, device_);
+    hashmap_->GetIterators(static_cast<iterator_t *>(tsdf_iterators),
+                           static_cast<addr_t *>(blob_indices.GetDataPtr()));
     hashmap_->UnpackIterators(static_cast<iterator_t *>(tsdf_iterators),
                               nullptr, keys.GetDataPtr(), nullptr, n);
 
@@ -276,11 +292,13 @@ PointCloud VoxelGrid::MarchingCubes() {
             device_);
     surf_hashmap->Activate(keys.GetDataPtr(),
                            static_cast<iterator_t *>(surf_iterators),
-                           static_cast<bool *>(masks.GetDataPtr()), n);
+                           static_cast<bool *>(masks.GetDataPtr()),
+                           static_cast<addr_t *>(blob_indices.GetDataPtr()), n);
 
     // Get neighbors per tsdf / surf block
     Tensor keys_nb({27, n, 3}, Dtype::Int64, device_);
     Tensor masks_nb({27, n}, Dtype::Bool, device_);
+    Tensor blob_indices_nb({27, n}, Dtype::Int32, device_);
     for (int nb = 0; nb < 27; ++nb) {
         int dz = nb / 9;
         int dy = (nb % 9) / 3;
@@ -292,10 +310,12 @@ PointCloud VoxelGrid::MarchingCubes() {
 
     hashmap_->Find(keys_nb.GetDataPtr(),
                    static_cast<iterator_t *>(tsdf_nb_iterators),
-                   static_cast<bool *>(masks_nb.GetDataPtr()), n * 27);
-    surf_hashmap->Find(keys_nb.GetDataPtr(),
-                       static_cast<iterator_t *>(surf_nb_iterators),
-                       static_cast<bool *>(masks_nb.GetDataPtr()), n * 27);
+                   static_cast<bool *>(masks_nb.GetDataPtr()),
+                   static_cast<addr_t *>(blob_indices_nb.GetDataPtr()), n * 27);
+    surf_hashmap->Find(
+            keys_nb.GetDataPtr(), static_cast<iterator_t *>(surf_nb_iterators),
+            static_cast<bool *>(masks_nb.GetDataPtr()),
+            static_cast<addr_t *>(blob_indices_nb.GetDataPtr()), n * 27);
 
     SizeVector shape = SizeVector{resolution_, resolution_, resolution_};
 

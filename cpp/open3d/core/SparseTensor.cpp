@@ -98,8 +98,8 @@ SparseTensor::SparseTensor(const Tensor& coords,
     dummy_blob_ = std::make_shared<Blob>(4, device_);
 
     if (insert) {
-        Tensor iterators, masks;
-        hashmap_->Insert(coords, elems, iterators, masks);
+        Tensor iterators, masks, blob_indices;
+        hashmap_->Insert(coords, elems, iterators, masks, blob_indices);
     }
 }
 
@@ -108,20 +108,20 @@ SparseTensor::~SparseTensor() {}
 /// Wrappers to hashmap
 std::pair<Tensor, Tensor> SparseTensor::InsertEntries(const Tensor& coords,
                                                       const Tensor& elems) {
-    Tensor iterators, masks;
-    hashmap_->Insert(coords, elems, iterators, masks);
+    Tensor iterators, masks, blob_indices;
+    hashmap_->Insert(coords, elems, iterators, masks, blob_indices);
     return std::make_pair(iterators, masks);
 }
 
 std::pair<Tensor, Tensor> SparseTensor::ActivateEntries(const Tensor& coords) {
-    Tensor iterators, masks;
-    hashmap_->Activate(coords, iterators, masks);
+    Tensor iterators, masks, blob_indices;
+    hashmap_->Activate(coords, iterators, masks, blob_indices);
     return std::make_pair(iterators, masks);
 }
 
 std::pair<Tensor, Tensor> SparseTensor::FindEntries(const Tensor& coords) {
-    Tensor iterators, masks;
-    hashmap_->Find(coords, iterators, masks);
+    Tensor iterators, masks, blob_indices;
+    hashmap_->Find(coords, iterators, masks, blob_indices);
     return std::make_pair(iterators, masks);
 }
 

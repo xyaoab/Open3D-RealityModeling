@@ -98,11 +98,13 @@ TensorHashmap::TensorHashmap(const Tensor &coords,
                                                coords.GetDevice());
         auto masks =
                 MemoryManager::Malloc(sizeof(bool) * N, coords.GetDevice());
-
+        auto blob_indices =
+                MemoryManager::Malloc(sizeof(addr_t) * N, coords.GetDevice());
         hashmap_->Insert(static_cast<void *>(coords.GetBlob()->GetDataPtr()),
                          static_cast<void *>(values.GetBlob()->GetDataPtr()),
                          static_cast<iterator_t *>(iterators),
-                         static_cast<bool *>(masks), N);
+                         static_cast<bool *>(masks),
+                         static_cast<addr_t *>(blob_indices), N);
         MemoryManager::Free(iterators, coords.GetDevice());
         MemoryManager::Free(masks, coords.GetDevice());
     }
@@ -148,11 +150,15 @@ std::pair<Tensor, Tensor> TensorHashmap::Insert(const Tensor &coords,
     Tensor output_coord_tensor(SizeVector({N, key_dim_}), key_dtype_,
                                coords.GetDevice());
     Tensor output_mask_tensor(SizeVector({N}), Dtype::Bool, coords.GetDevice());
+    Tensor output_blob_indices(SizeVector({N}), Dtype::Int32,
+                               coords.GetDevice());
     hashmap_->Insert(
             static_cast<uint8_t *>(coords.GetBlob()->GetDataPtr()),
             static_cast<uint8_t *>(values.GetBlob()->GetDataPtr()),
             static_cast<iterator_t *>(iterators),
-            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()), N);
+            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()),
+            static_cast<addr_t *>(output_blob_indices.GetBlob()->GetDataPtr()),
+            N);
     hashmap_->UnpackIterators(
             static_cast<iterator_t *>(iterators),
             static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()),
@@ -192,11 +198,14 @@ std::pair<Tensor, Tensor> TensorHashmap::Find(const Tensor &coords) {
     Tensor output_value_tensor(SizeVector({N, val_dim_}), val_dtype_,
                                coords.GetDevice());
     Tensor output_mask_tensor(SizeVector({N}), Dtype::Bool, coords.GetDevice());
-
+    Tensor output_blob_indices(SizeVector({N}), Dtype::Int32,
+                               coords.GetDevice());
     hashmap_->Find(
             static_cast<uint8_t *>(coords.GetBlob()->GetDataPtr()),
             static_cast<iterator_t *>(iterators),
-            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()), N);
+            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()),
+            static_cast<addr_t *>(output_blob_indices.GetBlob()->GetDataPtr()),
+            N);
 
     hashmap_->UnpackIterators(
             static_cast<iterator_t *>(iterators),
@@ -248,11 +257,14 @@ Tensor TensorHashmap::Assign(const Tensor &coords, const Tensor &values) {
 
     Tensor output_mask_tensor(SizeVector({N}), Dtype::UInt8,
                               coords.GetDevice());
-
+    Tensor output_blob_indices(SizeVector({N}), Dtype::Int32,
+                               coords.GetDevice());
     hashmap_->Find(
             static_cast<uint8_t *>(coords.GetBlob()->GetDataPtr()),
             static_cast<iterator_t *>(iterators),
-            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()), N);
+            static_cast<bool *>(output_mask_tensor.GetBlob()->GetDataPtr()),
+            static_cast<addr_t *>(output_blob_indices.GetBlob()->GetDataPtr()),
+            N);
 
     hashmap_->AssignIterators(
             static_cast<iterator_t *>(iterators),

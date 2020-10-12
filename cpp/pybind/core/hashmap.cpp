@@ -48,27 +48,33 @@ void pybind_core_hashmap(py::module& m) {
 
     hashmap.def("insert",
                 [](Hashmap& h, const Tensor& keys, const Tensor& values) {
-                    Tensor iterators, masks;
-                    h.Insert(keys, values, iterators, masks);
-                    return py::make_tuple(iterators, masks);
+                    Tensor iterators, masks, blob_indices;
+                    h.Insert(keys, values, iterators, masks, blob_indices);
+                    return py::make_tuple(iterators, masks, blob_indices);
                 });
 
     hashmap.def("activate", [](Hashmap& h, const Tensor& keys) {
-        Tensor iterators, masks;
-        h.Activate(keys, iterators, masks);
-        return py::make_tuple(iterators, masks);
+        Tensor iterators, masks, blob_indices;
+        h.Activate(keys, iterators, masks, blob_indices);
+        return py::make_tuple(iterators, masks, blob_indices);
     });
 
     hashmap.def("find", [](Hashmap& h, const Tensor& keys) {
-        Tensor iterators, masks;
-        h.Find(keys, iterators, masks);
-        return py::make_tuple(iterators, masks);
+        Tensor iterators, masks, blob_indices;
+        h.Find(keys, iterators, masks, blob_indices);
+        return py::make_tuple(iterators, masks, blob_indices);
     });
 
     hashmap.def("erase", [](Hashmap& h, const Tensor& keys) {
         Tensor masks;
         h.Erase(keys, masks);
         return masks;
+    });
+
+    hashmap.def("all_iterators", [](Hashmap& h) {
+        Tensor iterators, blob_indices;
+        h.GetIterators(iterators, blob_indices);
+        return py::make_tuple(iterators, blob_indices);
     });
 
     hashmap.def("unpack_iterators", [](Hashmap& h, const Tensor& iterators,

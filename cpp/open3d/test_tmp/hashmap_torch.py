@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils import dlpack
 import open3d as o3d
+from tqdm import tqdm
 
 if __name__ == '__main__':
     # Construct hashmap
@@ -27,16 +28,19 @@ if __name__ == '__main__':
     values = o3d.core.Tensor(
         [[1.0], [2.0], [3.0], [2.0], [4.0], [1.0], [5.0], [2.0]],
         dtype=o3d.core.Dtype.Float32).cuda()
-    iterators, masks = hashmap.insert(coords, values)
-    masks_tensor = dlpack.from_dlpack(
-        masks.to(o3d.core.Dtype.UInt8).to_dlpack()).bool()
+    iterators, masks, blob_indices = hashmap.insert(coords, values)
+
+    index_tensor = dlpack.from_dlpack(blob_indices[masks].to(
+        o3d.core.Dtype.Int32).to_dlpack()).long()
 
     # Apply some naive differentiable computation here
-    optimizer.zero_grad()
-    loss = value_tensor.abs().sum()
-    loss.backward()
-    optimizer.step()
+    print('before:', value_tensor)
 
-    print(value_tensor)
+    for i in tqdm(range(1000)):
+        optimizer.zero_grad()
+        loss = (value_tensor[index_tensor].abs()).sum()
+        loss.backward()
+        optimizer.step()
+
+    print('after:', value_tensor)
     print(value_blob)
-

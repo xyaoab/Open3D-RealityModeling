@@ -50,7 +50,7 @@ def test_insertion(device):
     values = o3d.core.Tensor([1, 3, 5, 7, 9, 9],
                              dtype=o3d.core.Dtype.Int64,
                              device=device)
-    iterators, masks = hashmap.insert(keys, values)
+    iterators, masks, _ = hashmap.insert(keys, values)
     assert masks.to(o3d.core.Dtype.Int64).sum() == 5
 
     keys, values = hashmap.unpack_iterators(iterators, masks)
@@ -82,7 +82,7 @@ def test_activate(device):
     keys = o3d.core.Tensor([100, 300, 500, 700, 900, 900],
                            dtype=o3d.core.Dtype.Int64,
                            device=device)
-    iterators, masks = hashmap.activate(keys)
+    iterators, masks, _ = hashmap.activate(keys)
     assert masks.to(o3d.core.Dtype.Int64).sum() == 5
 
     keys, _ = hashmap.unpack_iterators(iterators, masks)
@@ -115,7 +115,7 @@ def test_find(device):
     keys = o3d.core.Tensor([100, 200, 500],
                            dtype=o3d.core.Dtype.Int64,
                            device=device)
-    iterators, masks = hashmap.find(keys)
+    iterators, masks, _ = hashmap.find(keys)
     keys, values = hashmap.unpack_iterators(iterators, masks)
 
     assert masks[0].item() == True
