@@ -32,6 +32,7 @@
 #include "open3d/core/TensorList.h"
 #include "open3d/core/kernel/SpecialOp.h"
 #include "open3d/utility/Console.h"
+#include "open3d/utility/Timer.h"
 
 namespace open3d {
 namespace t {
@@ -61,15 +62,23 @@ void VoxelGrid::Integrate(const Image &depth,
                           const Tensor &intrinsic,
                           const Tensor &extrinsic) {
     /// Unproject
+
+    utility::Timer timer;
+    timer.Start();
     Tensor vertex_map = depth.Unproject(intrinsic);
     Tensor pcd_map = vertex_map.View({3, 480 * 640});
+    timer.Stop();
+    utility::LogInfo("Unproject takes {}", timer.GetDuration());
 
     /// Inverse is currently not available...
     Tensor pose = extrinsic.Inverse();
     PointCloud pcd(TensorList::FromTensor(pcd_map.T()));
     pcd.Transform(pose);
 
+    timer.Start();
     PointCloud pcd_down = pcd.VoxelDownSample(voxel_size_ * resolution_);
+    timer.Stop();
+    utility::LogInfo("Downsample takes {}", timer.GetDuration());
 
     Tensor coords = pcd_down.GetPoints().AsTensor().To(Dtype::Int64);
     SizeVector coords_shape = coords.GetShape();
@@ -79,15 +88,21 @@ void VoxelGrid::Integrate(const Image &depth,
     void *masks = MemoryManager::Malloc(sizeof(bool) * N, device_);
     void *blob_indices = MemoryManager::Malloc(sizeof(addr_t) * N, device_);
 
+    timer.Start();
     hashmap_->Activate(static_cast<void *>(coords.GetBlob()->GetDataPtr()),
                        static_cast<iterator_t *>(iterators),
                        static_cast<bool *>(masks),
                        static_cast<addr_t *>(blob_indices), N);
+    timer.Stop();
+    utility::LogInfo("Activate takes {}", timer.GetDuration());
 
+    timer.Start();
     hashmap_->Find(static_cast<void *>(coords.GetBlob()->GetDataPtr()),
                    static_cast<iterator_t *>(iterators),
                    static_cast<bool *>(masks),
                    static_cast<addr_t *>(blob_indices), N);
+    timer.Stop();
+    utility::LogInfo("Find takes {}", timer.GetDuration());
 
     utility::LogInfo("Active entries = {}", N);
 
@@ -99,10 +114,13 @@ void VoxelGrid::Integrate(const Image &depth,
     Tensor sdf_trunc(std::vector<float>{sdf_trunc_}, {1}, Dtype::Float32);
 
     Tensor output_dummy;
+    timer.Start();
     kernel::SpecialOpEW({depth.AsTensor().Permute({2, 0, 1}).Contiguous(),
                          intrinsic, extrinsic, voxel_size, sdf_trunc},
                         {}, output_dummy, sparse_tl,
                         kernel::SpecialOpCode::Integrate);
+    timer.Stop();
+    utility::LogInfo("Kernel takes {}", timer.GetDuration());
     utility::LogInfo("[VoxelGrid] Kernel launch finished");
 
     // Then manipulate iterators to integrate!
@@ -353,8 +371,7 @@ PointCloud VoxelGrid::MarchingCubes() {
     kernel::SpecialOpEW({voxel_size, triangle_count, masks_nb},
                         {sparse_surf_tl}, triangles, sparse_nb_surf_tl,
                         kernel::SpecialOpCode::MarchingCubesPass2);
-
-    MemoryManager::Free(tsdf_iterators, device_);
+    p MemoryManager::Free(tsdf_iterators, device_);
     MemoryManager::Free(tsdf_nb_iterators, device_);
 
     MemoryManager::Free(surf_iterators, device_);
