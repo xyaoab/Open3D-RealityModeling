@@ -329,7 +329,8 @@ public:
     void TouchSubvolumes(ImageCuda<float, 1> &depth,
                          PinholeCameraIntrinsicCuda &camera,
                          TransformCuda &transform_camera_to_world,
-                         int frame_id);
+                         int frame_id,
+                         ImageCuda<uchar, 1> &mask);
     void GetSubvolumesInFrustum(PinholeCameraIntrinsicCuda &camera,
                                 TransformCuda &transform_camera_to_world,
                                 int frame_id);
@@ -368,7 +369,8 @@ public:
                                 ImageCuda<float, 1> &depth,
                                 PinholeCameraIntrinsicCuda &camera,
                                 TransformCuda &transform_camera_to_world,
-                                int frame_id);
+                                int frame_id,
+                                ImageCuda<uchar, 1> &mask);
 
     static void IntegrateSubvolumes(ScalableTSDFVolumeCuda &volume,
                                     RGBDImageCuda &rgbd,
@@ -417,7 +419,8 @@ void TouchSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,
                            ImageCudaDevice<float, 1> depth,
                            PinholeCameraIntrinsicCuda camera,
                            TransformCuda transform_camera_to_world,
-                           int frame_id);
+                           int frame_id,
+                           ImageCudaDevice<uchar, 1> mask);
 
 __GLOBAL__
 void IntegrateSubvolumesKernel(ScalableTSDFVolumeCudaDevice device,

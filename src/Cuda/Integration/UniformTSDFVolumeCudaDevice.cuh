@@ -198,7 +198,8 @@ __device__ void UniformTSDFVolumeCudaDevice::Integrate(
         const Vector3i &X,
         RGBDImageCudaDevice &rgbd,
         PinholeCameraIntrinsicCuda &camera,
-        TransformCuda &transform_camera_to_world) {
+        TransformCuda &transform_camera_to_world,
+        ImageCudaDevice<uchar, 1> &mask) {
     /** Projective data association **/
     Vector3f Xw = voxelf_to_world(X.template cast<float>());
     Vector3f Xc = transform_camera_to_world.Inverse() * Xw;
@@ -206,7 +207,9 @@ __device__ void UniformTSDFVolumeCudaDevice::Integrate(
 
     /** TSDF **/
     if (!camera.IsPixelValid(p)) return;
+
     float d = rgbd.depth_.interp_at(p(0), p(1))(0);
+    uchar is_inside = mask.at(int(p(0)), int(p(1)))(0);
 
     float tsdf = d - Xc(2);
     if (tsdf <= -sdf_trunc_) return;
@@ -217,6 +220,8 @@ __device__ void UniformTSDFVolumeCudaDevice::Integrate(
     float &tsdf_sum = this->tsdf(X);
     uchar &weight_sum = this->weight(X);
     Vector3b &color_sum = this->color(X);
+    uint16_t &fg_sum  = this->fg(X);
+    uint16_t &bg_sum = this->bg(X);
 
     float w0 = 1 / (weight_sum + 1.0f);
     float w1 = 1 - w0;
@@ -226,10 +231,23 @@ __device__ void UniformTSDFVolumeCudaDevice::Integrate(
                          color(1) * w0 + color_sum(1) * w1,
                          color(2) * w0 + color_sum(2) * w1);
     weight_sum = uchar(fminf(weight_sum + 1.0f, 255));
+
+
+    if(is_inside >= 1)
+    {
+        fg_sum = uint16_t(min(fg_sum + 1, 65535));
+    }
+    else
+    {
+        bg_sum = uint16_t(min(bg_sum + 1, 65535));
+    }
 }
 
-__device__ Vector3f UniformTSDFVolumeCudaDevice::RayCasting(
+__device__ bool UniformTSDFVolumeCudaDevice::RayCasting(
         const Vector2i &p,
+        Vector3f& vertex,
+        Vector3f& normal,
+        Vector3b& color,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world) {
     Vector3f ret = Vector3f(0);
@@ -254,26 +272,34 @@ __device__ Vector3f UniformTSDFVolumeCudaDevice::RayCasting(
         Vector3f Xv_t = camera_origin_v + t_curr * ray_v;
         Vector3f X_t = volume_to_voxelf(Xv_t);
 
-        if (!InVolumef(X_t)) return ret;
+        if (!InVolumef(X_t)) return false;
 
         float tsdf_curr = this->tsdf(X_t.template cast<int>());
 
         float step_size = voxel_length_;
-        //                tsdf_curr == 0 ? sdf_trunc_ : fmaxf(tsdf_curr,
-        //                voxel_length_);
 
         if (tsdf_prev > 0 && tsdf_curr < 0) { /** Zero crossing **/
             float t_intersect = (t_curr * tsdf_prev - t_prev * tsdf_curr) /
                                 (tsdf_prev - tsdf_curr);
 
             Vector3f Xv_surface_t = camera_origin_v + t_intersect * ray_v;
-            Vector3f X_surface_t = volume_to_voxelf(Xv_surface_t);
-            Vector3f normal_v_t = GradientAt(X_surface_t).normalized();
 
-            return ColorAt(X_surface_t).cast<float>();
-            //            return transform_camera_to_world.Inverse()
-            //                    .Rotate(transform_volume_to_world_.Rotate(normal_v_t))
-            //                    .normalized();
+            vertex = (transform_camera_to_world.Inverse() *
+                      (transform_volume_to_world_ * Xv_surface_t));
+
+            Vector3f X_surface_t = volume_to_voxelf(Xv_surface_t);
+            normal = GradientAt(X_surface_t).normalized();
+            color  = ColorAt(X_surface_t);
+
+            uint16_t fg = FgAt(X_surface_t);
+            uint16_t bg = BgAt(X_surface_t);
+            if(fg == 65535 || bg == 65535)
+                return false;
+            float prob = float(fg) / float(fg + bg);
+
+            if(prob > 0.49f)
+                return true;
+            return false;
         }
 
         tsdf_prev = tsdf_curr;
@@ -281,7 +307,7 @@ __device__ Vector3f UniformTSDFVolumeCudaDevice::RayCasting(
         t_curr += step_size;
     }
 
-    return ret;
+    return false;
 }
 }  // namespace cuda
 }  // namespace open3d

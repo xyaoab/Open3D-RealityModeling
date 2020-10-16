@@ -632,6 +632,7 @@ __device__ void ScalableTSDFVolumeCudaDevice::TouchSubvolume(
         int frame_id) {
 
     if(!camera.IsPixelValid(Vector2f(p(0), p(1)))) return;
+
     float d = depth.interp_at(p(0), p(1))(0);
     if (d < 0.1f || d > 3.5f) return;
 
@@ -737,7 +738,6 @@ __device__ void ScalableTSDFVolumeCudaDevice::Integrate(
         fg_sum = uint16_t(min(fg_sum + 1, 65535));
     else
     {
-        /* printf("p(0), p(1): (%d, %d), is_inside: %d\n", int(p(0)), int(p(1)), is_inside); */
         bg_sum = uint16_t(min(bg_sum + 1, 65535));
     }
 }
@@ -801,8 +801,8 @@ __device__ bool ScalableTSDFVolumeCudaDevice::RayCasting(
 
             uint16_t fg = FgAt(X_surface_t); uint16_t bg = BgAt(X_surface_t);
             float prob = float(fg) / float(fg + bg);
-            /* printf("X_surface_t: (%f, %f, %f) ", X_surface_t(0), X_surface_t(1), X_surface_t(3)); */
-            /* printf("fg: %d, bg: %d prob: %f\n", fg, bg, prob); */
+            if(fg == 65535 || bg == 65535)
+                return false;
             if(prob >= 0.5f)
                 return true;
 

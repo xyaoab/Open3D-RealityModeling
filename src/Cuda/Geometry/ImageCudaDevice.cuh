@@ -69,8 +69,8 @@ template<typename Scalar, size_t Channel>
 __device__
 VectorCuda<Scalar, Channel> ImageCudaDevice<Scalar, Channel>::interp_at(float x, float y) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
-    assert(x >= 0 && x < width_ - 1);
-    assert(y >= 0 && y < height_ - 1);
+    assert(x >= 0 && x < width_);
+    assert(y >= 0 && y < height_);
 #endif
     int x0 = (int) floor(x), y0 = (int) floor(y);
     float a = x - x0, b = y - y0;
@@ -218,8 +218,8 @@ __device__
 ImageCudaDevice<Scalar, Channel>::Grad
 ImageCudaDevice<Scalar, Channel>::Sobel(int x, int y) {
 #ifdef CUDA_DEBUG_ENABLE_ASSERTION
-    assert(x >= 1 && x < width_ - 1);
-    assert(y >= 1 && y < height_ - 1);
+    /* assert(x >= 1 && x < width_ - 1); */
+    /* assert(y >= 1 && y < height_ - 1); */
 #endif
 
     int xm1 = max(x - 1, 0), ym1 = max(y - 1, 0);

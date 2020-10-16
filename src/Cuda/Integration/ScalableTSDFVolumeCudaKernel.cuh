@@ -52,11 +52,13 @@ __global__ void TouchSubvolumesKernel(ScalableTSDFVolumeCudaDevice server,
                                       ImageCudaDevice<float, 1> depth,
                                       PinholeCameraIntrinsicCuda camera,
                                       TransformCuda transform_camera_to_world,
-                                      int frame_id) {
+                                      int frame_id,
+                                      ImageCudaDevice<uchar, 1> mask) {
     const int x = threadIdx.x + blockIdx.x * blockDim.x;
     const int y = threadIdx.y + blockIdx.y * blockDim.y;
 
     if (x >= depth.width_ || y >= depth.height_) return;
+    if (mask.at(x, y, 0) <= 0) return;
 
     const Vector2i p = Vector2i(x, y);
     server.TouchSubvolume(p, depth, camera, transform_camera_to_world,
@@ -68,13 +70,14 @@ __host__ void ScalableTSDFVolumeCudaKernelCaller::TouchSubvolumes(
         ImageCuda<float, 1> &depth,
         PinholeCameraIntrinsicCuda &camera,
         TransformCuda &transform_camera_to_world,
-        int frame_id) {
+        int frame_id,
+        ImageCuda<uchar, 1> &mask) {
     const dim3 blocks(DIV_CEILING(depth.width_, THREAD_2D_UNIT),
                       DIV_CEILING(depth.height_, THREAD_2D_UNIT));
     const dim3 threads(THREAD_2D_UNIT, THREAD_2D_UNIT);
     TouchSubvolumesKernel<<<blocks, threads>>>(
-            *volume.device_, *depth.device_, camera, transform_camera_to_world,
-            frame_id);
+            *volume.device_, *depth.device_, camera, transform_camera_to_world, frame_id, *mask.device_);
+
     CheckCuda(cudaDeviceSynchronize());
     CheckCuda(cudaGetLastError());
 }

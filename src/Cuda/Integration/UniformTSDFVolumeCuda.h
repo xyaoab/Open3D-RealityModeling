@@ -109,9 +109,13 @@ public:
     __DEVICE__ void Integrate(const Vector3i &X,
                               RGBDImageCudaDevice &rgbd,
                               PinholeCameraIntrinsicCuda &camera,
-                              TransformCuda &transform_camera_to_world);
+                              TransformCuda &transform_camera_to_world,
+                              ImageCudaDevice<uchar, 1>& mask);
 
-    __DEVICE__ Vector3f RayCasting(const Vector2i &p,
+    __DEVICE__ bool RayCasting(const Vector2i &p,
+                                   Vector3f& v,
+                                   Vector3f& n,
+                                   Vector3b& c,
                                    PinholeCameraIntrinsicCuda &camera,
                                    TransformCuda &transform_camera_to_world);
 
@@ -156,8 +160,11 @@ public:
 public:
     void Integrate(RGBDImageCuda &rgbd,
                    PinholeCameraIntrinsicCuda &camera,
-                   TransformCuda &transform_camera_to_world);
-    void RayCasting(ImageCuda<float, 3> &image,
+                   TransformCuda &transform_camera_to_world,
+                   const ImageCuda<uchar, 1>& mask = ImageCuda<uchar, 1>());
+    void RayCasting(ImageCuda<float, 3> &vertex,
+                    ImageCuda<float, 3> &normal,
+                    ImageCuda<uchar, 3> &color,
                     PinholeCameraIntrinsicCuda &camera,
                     TransformCuda &transform_camera_to_world);
 };
@@ -169,10 +176,13 @@ public:
     static void Integrate(UniformTSDFVolumeCuda &volume,
                           RGBDImageCuda &rgbd,
                           PinholeCameraIntrinsicCuda &camera,
-                          TransformCuda &transform_camera_to_world);
+                          TransformCuda &transform_camera_to_world,
+                          ImageCuda<uchar, 1>& mask);
 
     static void RayCasting(UniformTSDFVolumeCuda &volume,
-                           ImageCuda<float, 3> &image,
+                           ImageCuda<float, 3> &vertex,
+                           ImageCuda<float, 3> &normal,
+                           ImageCuda<uchar, 3> &color,
                            PinholeCameraIntrinsicCuda &camera,
                            TransformCuda &transform_camera_to_world);
 };
@@ -184,11 +194,14 @@ __GLOBAL__
 void IntegrateKernel(UniformTSDFVolumeCudaDevice server,
                      RGBDImageCudaDevice depth,
                      PinholeCameraIntrinsicCuda camera,
-                     TransformCuda transform_camera_to_world);
+                     TransformCuda transform_camera_to_world,
+                     ImageCudaDevice<uchar, 1> mask);
 
 __GLOBAL__
 void RayCastingKernel(UniformTSDFVolumeCudaDevice server,
-                      ImageCudaDevice<float, 3> image,
+                      ImageCudaDevice<float, 3> vertex,
+                      ImageCudaDevice<float, 3> normal,
+                      ImageCudaDevice<uchar, 3> color,
                       PinholeCameraIntrinsicCuda camera,
                       TransformCuda transform_camera_to_world);
 }  // namespace cuda

@@ -80,6 +80,10 @@ bool RGBDOdometryCudaDevice<N>::ComputePixelwiseCorrespondence(
     x_target = p_warped(0);
     y_target = p_warped(1);
 
+    //! Eliminate border values due to sobel
+    if(x_target <= 0 || y_target <= 0) return false;
+
+
     return true;
 }
 
