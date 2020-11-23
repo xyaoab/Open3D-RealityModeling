@@ -371,7 +371,7 @@ PointCloud VoxelGrid::MarchingCubes() {
     kernel::SpecialOpEW({voxel_size, triangle_count, masks_nb},
                         {sparse_surf_tl}, triangles, sparse_nb_surf_tl,
                         kernel::SpecialOpCode::MarchingCubesPass2);
-    p MemoryManager::Free(tsdf_iterators, device_);
+    MemoryManager::Free(tsdf_iterators, device_);
     MemoryManager::Free(tsdf_nb_iterators, device_);
 
     MemoryManager::Free(surf_iterators, device_);
