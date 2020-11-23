@@ -30,13 +30,51 @@
 #include "open3d/visualization/rendering/Open3DScene.h"
 #include "open3d/visualization/rendering/Renderer.h"
 #include "open3d/visualization/rendering/Scene.h"
+#include "open3d/visualization/rendering/View.h"
+#include "open3d/visualization/rendering/filament/FilamentEngine.h"
+#include "open3d/visualization/rendering/filament/FilamentRenderer.h"
 #include "pybind/docstring.h"
 #include "pybind/visualization/gui/gui.h"
+#include "pybind/visualization/visualization.h"
 #include "pybind11/functional.h"
 
 namespace open3d {
 namespace visualization {
 namespace rendering {
+
+class PyOffscreenRenderer {
+public:
+    PyOffscreenRenderer(int width,
+                        int height,
+                        const std::string &resource_path) {
+        gui::InitializeForPython(resource_path);
+        width_ = width;
+        height_ = height;
+        renderer_ = new FilamentRenderer(EngineInstance::GetInstance(), width,
+                                         height,
+                                         EngineInstance::GetResourceManager());
+        scene_ = new Open3DScene(*renderer_);
+    }
+
+    ~PyOffscreenRenderer() {
+        delete scene_;
+        delete renderer_;
+    }
+
+    Open3DScene *GetScene() { return scene_; }
+
+    std::shared_ptr<geometry::Image> RenderToImage() {
+        return gui::RenderToImageWithoutWindow(scene_, width_, height_);
+    }
+
+private:
+    int width_;
+    int height_;
+    FilamentRenderer *renderer_;
+    // The offscreen renderer owns the scene so that it can clean it up
+    // in the right order (otherwise we will crash).
+    Open3DScene *scene_;
+};
 
 void pybind_rendering_classes(py::module &m) {
     py::class_<Renderer> renderer(
@@ -46,6 +84,31 @@ void pybind_rendering_classes(py::module &m) {
                  "Sets the background color for the renderer, [r, g, b, a]. "
                  "Applies to everything being rendered, so it essentially acts "
                  "as the background color of the window");
+
+    // It would be nice to have this inherit from Renderer, but the problem is
+    // that Python needs to own this class and Python needs to not own Renderer,
+    // and pybind does not let us mix the two styls of ownership.
+    py::class_<PyOffscreenRenderer, std::shared_ptr<PyOffscreenRenderer>>
+            offscreen(m, "OffscreenRenderer",
+                      "Renderer instance that can be used for rendering to an "
+                      "image");
+    offscreen
+            .def(py::init([](int w, int h, const std::string &resource_path) {
+                     return std::make_shared<PyOffscreenRenderer>(
+                             w, h, resource_path);
+                 }),
+                 "width"_a, "height"_a, "resource_path"_a = "",
+                 "Takes width, height and an optional resource_path. If "
+                 "unspecified, resource_path will use the resource path from "
+                 "the installed Open3D library.")
+            .def_property_readonly(
+                    "scene", &PyOffscreenRenderer::GetScene,
+                    "Returns the Open3DScene for this renderer. This scene is "
+                    "destroyed when the renderer is destroyed and should not "
+                    "be accessed after that point.")
+            .def("render_to_image", &PyOffscreenRenderer::RenderToImage,
+                 "Renders scene to an image, blocking until the image is "
+                 "returned");
 
     // ---- Camera ----
     py::class_<Camera, std::shared_ptr<Camera>> cam(m, "Camera",
@@ -170,8 +233,8 @@ void pybind_rendering_classes(py::module &m) {
             .def_readwrite("shader", &Material::shader);
 
     // ---- Scene ----
-    py::class_<Scene, std::shared_ptr<Scene>> scene(
-            m, "Scene", "Low-level rendering scene");
+    py::class_<Scene, UnownedPointer<Scene>> scene(m, "Scene",
+                                                   "Low-level rendering scene");
     scene.def("add_camera", &Scene::AddCamera, "Adds a camera to the scene")
             .def("remove_camera", &Scene::RemoveCamera,
                  "Removes the camera with the given name")
@@ -216,23 +279,25 @@ void pybind_rendering_classes(py::module &m) {
                  "Sets the parameters of the directional light: direction, "
                  "color, intensity")
             .def("render_to_image", &Scene::RenderToImage,
-                 "Renders the scene; image will be provided via a callback "
-                 "function. The callback is necessary because rendering is "
-                 "done on a different thread. The image remains valid "
-                 "after the callback, assuming it was assigned somewhere.");
+                 "Renders the scene to an image. This can only be used in a "
+                 "GUI app. To render without a window, use "
+                 "Application.render_to_image");
+
     scene.attr("UPDATE_POINTS_FLAG") = py::int_(Scene::kUpdatePointsFlag);
     scene.attr("UPDATE_NORMALS_FLAG") = py::int_(Scene::kUpdateNormalsFlag);
     scene.attr("UPDATE_COLORS_FLAG") = py::int_(Scene::kUpdateColorsFlag);
     scene.attr("UPDATE_UV0_FLAG") = py::int_(Scene::kUpdateUv0Flag);
 
     // ---- Open3DScene ----
-    py::class_<Open3DScene, std::shared_ptr<Open3DScene>> o3dscene(
+    py::class_<Open3DScene, UnownedPointer<Open3DScene>> o3dscene(
             m, "Open3DScene", "High-level scene for rending");
     o3dscene.def(py::init<Renderer &>())
             .def("show_skybox", &Open3DScene::ShowSkybox,
                  "Toggles display of the skybox")
             .def("show_axes", &Open3DScene::ShowAxes,
                  "Toggles display of xyz axes")
+            .def("set_background_color", &Open3DScene::SetBackgroundColor,
+                 "Sets the background color of the scene, [r, g, b, a].")
             .def("clear_geometry", &Open3DScene::ClearGeometry)
             .def("add_geometry",
                  py::overload_cast<const std::string &,
@@ -248,12 +313,26 @@ void pybind_rendering_classes(py::module &m) {
                          &Open3DScene::AddGeometry),
                  "name"_a, "geometry"_a, "material"_a,
                  "add_downsampled_copy_for_fast_rendering"_a = true)
+            .def("has_geometry", &Open3DScene::HasGeometry,
+                 "has_geometry(name): returns True if the geometry has been "
+                 "added to the scene, False otherwise")
             .def("remove_geometry", &Open3DScene::RemoveGeometry,
                  "Removes the geometry with the given name")
+            .def("modify_geometry_material",
+                 &Open3DScene::ModifyGeometryMaterial,
+                 "modify_geometry_material(name, material). Modifies the "
+                 "material of the specified geometry")
             .def("show_geometry", &Open3DScene::ShowGeometry,
                  "Shows or hides the geometry with the given name")
             .def("update_material", &Open3DScene::UpdateMaterial,
                  "Applies the passed material to all the geometries")
+            .def(
+                    "set_view_size",
+                    [](Open3DScene *scene, int width, int height) {
+                        scene->GetView()->SetViewport(0, 0, width, height);
+                    },
+                    "Sets the view size. This should not be used except for "
+                    "rendering to an image")
             .def_property_readonly("scene", &Open3DScene::GetScene,
                                    "The low-level rendering scene object")
             .def_property_readonly("camera", &Open3DScene::GetCamera,
