@@ -196,6 +196,7 @@ void TSDFVoxelGrid::Integrate(const Image &depth,
     dsts = {{"block_values", block_hashmap_->GetValueTensor()}};
     core::kernel::GeneralEW(srcs, dsts,
                             core::kernel::GeneralEWOpCode::TSDFIntegrate);
+    utility::LogInfo("voxel_grid.block_count = {}", block_hashmap_->Size());
 }
 
 PointCloud TSDFVoxelGrid::ExtractSurfacePoints() {
