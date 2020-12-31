@@ -3,6 +3,9 @@
 
 **We are pushing the development of the official cuda branch. Please be patient :)**
 
+[Update 2020 Dec]: We have merged tensor-based CPU/CUDA compatible TSDF Integration in Open3D 0.12.0, please check `TIntegration.cpp` in CPP examples and `tintegrate.py` in Python examples. It is both faster and more stable, where thread conflicts have been resolved. Registration and Odometry is on the way!
+
+------
 This is the **unofficial** cuda branch of [Open3D](http://www.open3d.org/), aiming at accelerating parallel operations like RGB-D Odometry and TSDF Integration.
 Overall, this cuda pipeline can accelerate Open3D by a factor >10 for the scene reconstruction task. For a typical [lounge](http://qianyi.info/scenedata.html) scene,
 the pipeline can finish reconstruction in 5 minutes (tested on a laptop with an Intel i7 CPU, 1070 GPU). As an offline system, it reaches around 5~10 fps on average.
