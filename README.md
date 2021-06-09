@@ -3,6 +3,8 @@
 
 **We are pushing the development of the official cuda branch. Please be patient :)**
 
+[Update 2021 June]: A further accelerated version has been released in Open3D 0.13.0. A [real-time reconstruction system with GUI](https://github.com/intel-isl/Open3D/blob/master/examples/cpp/VoxelHashingGUI.cpp) is available. Further refactoration awaits.
+
 [Update 2020 Dec]: We have merged tensor-based CPU/CUDA compatible TSDF Integration in Open3D 0.12.0, please check `TIntegration.cpp` in CPP examples and `tintegrate.py` in Python examples. It is both faster and more stable, where thread conflicts have been resolved. Registration and Odometry is on the way!
 
 ------
