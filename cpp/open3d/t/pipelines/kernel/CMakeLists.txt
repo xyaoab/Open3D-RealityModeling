@@ -7,6 +7,8 @@ target_sources(tpipelines_kernel PRIVATE
     FillInLinearSystemCPU.cpp
     RGBDOdometry.cpp
     RGBDOdometryCPU.cpp
+    LiDAROdometry.cpp
+    LiDAROdometryCPU.cpp
     TransformationConverter.cpp
 )
 
@@ -15,6 +17,7 @@ if (BUILD_CUDA_MODULE)
         RegistrationCUDA.cu
         FillInLinearSystemCUDA.cu
         RGBDOdometryCUDA.cu
+        LiDAROdometryCUDA.cu
         TransformationConverter.cu
     )
 endif()

@@ -45,9 +45,22 @@ INSTANTIATE_TEST_SUITE_P(LiDAROdometry,
                          testing::ValuesIn(PermuteDevices::TestCases()));
 
 TEST_P(LiDAROdometryPermuteDevices, Calibration) {
+    core::Device device = GetParam();
+
     std::string calib_npz =
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz);
+    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+
+    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/000000.png"));
+
+    core::Tensor xyz_im, mask_im;
+    core::Tensor depth = src_depth.AsTensor().To(device);
+    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 1000.0, 0.0, 100.0);
+
+    auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
+            t::geometry::PointCloud(xyz_im.IndexGet({mask_im})).ToLegacy());
+    visualization::DrawGeometries({pcd_ptr});
 }
 
 TEST_P(LiDAROdometryPermuteDevices, ComputeOdometryResultPointToPlane) {

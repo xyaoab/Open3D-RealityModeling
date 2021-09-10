@@ -42,12 +42,14 @@ namespace odometry {
 
 class LiDARCalib {
 public:
-    LiDARCalib(const std::string& config_npz_file);
+    LiDARCalib(const std::string& config_npz_file, const core::Device& device);
 
     /// Return xyz-image and mask_image
     /// Input: range image in UInt16
-    std::tuple<core::Tensor, core::Tensor> Unproject(
-            core::Tensor& range_image, float scale_factor = 1000.0);
+    std::tuple<core::Tensor, core::Tensor> Unproject(core::Tensor& range_image,
+                                                     float depth_scale = 1000.0,
+                                                     float depth_min = 0.65,
+                                                     float detph_max = 10.0);
 
     /// Return u, v, r, mask
     std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor> Project(

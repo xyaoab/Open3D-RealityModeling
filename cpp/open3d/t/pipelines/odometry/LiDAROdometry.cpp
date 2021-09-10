@@ -32,32 +32,54 @@
 
 #include "open3d/core/Tensor.h"
 #include "open3d/t/geometry/Image.h"
-#include "open3d/t/geometry/RGBDImage.h"
 #include "open3d/t/io/NumpyIO.h"
+#include "open3d/t/pipelines/kernel/LiDAROdometry.h"
 
 namespace open3d {
 namespace t {
 namespace pipelines {
 namespace odometry {
 
-LiDARCalib::LiDARCalib(const std::string& config_npz_file) {
+LiDARCalib::LiDARCalib(const std::string& config_npz_file,
+                       const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
-    lidar_to_sensor_ = result.at("lidar_to_sensor");
+    lidar_to_sensor_ =
+            result.at("lidar_to_sensor").To(device, core::Dtype::Float64);
 
-    azimuth_lut_ = result.at("azimuth_table");
-    altitude_lut_ = result.at("altitude_table");
-    inv_altitude_lut_ = result.at("inv_altitude_table");
+    azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
+    altitude_lut_ =
+            result.at("altitude_table").To(device, core::Dtype::Float32);
+    inv_altitude_lut_ =
+            result.at("inv_altitude_table").To(device, core::Dtype::Int32);
 
-    unproj_dir_lut_ = result.at("lut_dir");
-    unproj_dir_lut_ = result.at("lut_offset");
+    unproj_dir_lut_ = result.at("lut_dir").To(device, core::Dtype::Float32);
+    unproj_offset_lut_ =
+            result.at("lut_offset").To(device, core::Dtype::Float32);
 }
 
 /// Return xyz-image and mask_image
 /// Input: range image in UInt16
 std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
-        core::Tensor& range_image, float scale_factor) {
-    return std::make_tuple(core::Tensor(), core::Tensor());
+        core::Tensor& range_image,
+        float depth_scale,
+        float depth_min,
+        float depth_max) {
+    // TODO: shape check
+    auto sv = range_image.GetShape();
+    int64_t h = sv[0];
+    int64_t w = sv[1];
+
+    core::Device device = range_image.GetDevice();
+    core::Tensor xyz_im(core::SizeVector{h, w, 3}, core::Dtype::Float32,
+                        device);
+    core::Tensor mask_im(core::SizeVector{h, w}, core::Dtype::Bool, device);
+
+    kernel::odometry::LiDARUnproject(range_image, unproj_dir_lut_,
+                                     unproj_offset_lut_, xyz_im, mask_im,
+                                     depth_scale, depth_min, depth_max);
+
+    return std::make_tuple(xyz_im, mask_im);
 }
 
 /// Return u, v, r, mask
