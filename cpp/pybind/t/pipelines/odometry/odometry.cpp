@@ -131,11 +131,23 @@ void pybind_odometry_classes(py::module &m) {
     py::class_<LiDARCalib> lidar_calib(m, "LiDARCalib",
                                        "Calibration for Ouster LiDAR, "
                                        "providing projection and unprojection");
-    lidar_calib.def(
-            py::init<const std::string &, const core::Device & device>(),
-            "calib_npz_file"_a, "device"_a);
+    lidar_calib.def(py::init<const std::string &, const core::Device &>(),
+                    "calib_npz_file"_a, "device"_a);
+
     lidar_calib.def("unproject", &LiDARCalib::Unproject,
-                    "Unproject a point cloud");
+                    "Unproject an range image to generate a point cloud "
+                    "followed by a transformation.",
+                    "range_image"_a,
+                    "transformation"_a = core::Tensor::Eye(
+                            4, core::Dtype::Float64, core::Device()),
+                    "depth_min"_a = 0.65, "depth_max"_a = 10.0);
+
+    lidar_calib.def("project", &LiDARCalib::Project,
+                    "Project a point cloud to a specified-size image after a "
+                    "transformation.",
+                    "xyz"_a,
+                    "transformation"_a = core::Tensor::Eye(
+                            4, core::Dtype::Float64, core::Device()));
 }
 
 // Odometry functions have similar arguments, sharing arg docstrings.
