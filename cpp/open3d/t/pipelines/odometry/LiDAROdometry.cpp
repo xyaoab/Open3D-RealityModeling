@@ -47,6 +47,12 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
     lidar_to_sensor_ =
             result.at("lidar_to_sensor").To(device, core::Dtype::Float64);
 
+    sensor_to_lidar_ = lidar_to_sensor_.Inverse();
+    auto key0 = core::TensorKey::Slice(0, 3, 1);
+    auto key1 = core::TensorKey::Slice(3, 4, 1);
+    core::Tensor t = sensor_to_lidar_.GetItem({key0, key1}) / range_scale_;
+    sensor_to_lidar_.SetItem({key0, key1}, t);
+
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
@@ -61,10 +67,7 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
 /// Return xyz-image and mask_image
 /// Input: range image in UInt16
 std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
-        core::Tensor& range_image,
-        float depth_scale,
-        float depth_min,
-        float depth_max) {
+        core::Tensor& range_image, float depth_min, float depth_max) {
     // TODO: shape check
     auto sv = range_image.GetShape();
     int64_t h = sv[0];
@@ -77,7 +80,7 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
 
     kernel::odometry::LiDARUnproject(range_image, unproj_dir_lut_,
                                      unproj_offset_lut_, xyz_im, mask_im,
-                                     depth_scale, depth_min, depth_max);
+                                     range_scale_, depth_min, depth_max);
 
     return std::make_tuple(xyz_im, mask_im);
 }
@@ -86,8 +89,19 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
 std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor>
 LiDARCalib::Project(const core::Tensor& xyz,
                     const core::Tensor& transformation) {
-    return std::make_tuple(core::Tensor(), core::Tensor(), core::Tensor(),
-                           core::Tensor());
+    core::Device device = xyz.GetDevice();
+
+    int64_t n = xyz.GetLength();
+    core::Tensor u(core::SizeVector{n}, core::Dtype::Int64, device);
+    core::Tensor v(core::SizeVector{n}, core::Dtype::Int64, device);
+    core::Tensor r(core::SizeVector{n}, core::Dtype::Float32, device);
+    core::Tensor mask(core::SizeVector{n}, core::Dtype::Bool, device);
+
+    // core::Tensor trans = sensor_to_sensor_.Matmul(transformation);
+    // kernel::Odometry::LiDARProject(xyz, azimuth_lut_, altitude_lut_,
+    //                                inv_altitude_lut_, u, v, r, mask);
+
+    return std::make_tuple(u, v, r, mask);
 }
 
 }  // namespace odometry

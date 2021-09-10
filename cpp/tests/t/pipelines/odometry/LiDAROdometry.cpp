@@ -44,7 +44,7 @@ INSTANTIATE_TEST_SUITE_P(LiDAROdometry,
                          LiDAROdometryPermuteDevices,
                          testing::ValuesIn(PermuteDevices::TestCases()));
 
-TEST_P(LiDAROdometryPermuteDevices, Calibration) {
+TEST_P(LiDAROdometryPermuteDevices, Unproject) {
     core::Device device = GetParam();
 
     std::string calib_npz =
@@ -56,11 +56,32 @@ TEST_P(LiDAROdometryPermuteDevices, Calibration) {
 
     core::Tensor xyz_im, mask_im;
     core::Tensor depth = src_depth.AsTensor().To(device);
-    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 1000.0, 0.0, 100.0);
+    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 0.0, 100.0);
 
     auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
             t::geometry::PointCloud(xyz_im.IndexGet({mask_im})).ToLegacy());
     visualization::DrawGeometries({pcd_ptr});
+}
+
+TEST_P(LiDAROdometryPermuteDevices, Project) {
+    core::Device device = GetParam();
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+
+    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/000000.png"));
+
+    core::Tensor xyz_im, mask_im;
+    core::Tensor depth = src_depth.AsTensor().To(device);
+    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 0.0, 100.0);
+
+    /// (N, 3)
+    core::Tensor xyz = xyz_im.IndexGet({mask_im});
+
+    core::Tensor u, v, r, mask;
+    std::tie(u, v, r, mask) = calib.Project(xyz);
 }
 
 TEST_P(LiDAROdometryPermuteDevices, ComputeOdometryResultPointToPlane) {

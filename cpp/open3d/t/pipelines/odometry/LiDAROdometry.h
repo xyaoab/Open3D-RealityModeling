@@ -47,7 +47,6 @@ public:
     /// Return xyz-image and mask_image
     /// Input: range image in UInt16
     std::tuple<core::Tensor, core::Tensor> Unproject(core::Tensor& range_image,
-                                                     float depth_scale = 1000.0,
                                                      float depth_min = 0.65,
                                                      float detph_max = 10.0);
 
@@ -59,6 +58,7 @@ public:
 
 private:
     core::Tensor lidar_to_sensor_;
+    core::Tensor sensor_to_lidar_;
 
     core::Tensor azimuth_lut_;
 
@@ -67,6 +67,8 @@ private:
 
     core::Tensor unproj_dir_lut_;
     core::Tensor unproj_offset_lut_;
+
+    float range_scale_ = 1000.0;
 };
 
 OdometryResult ComputeLiDAROdometryPointToPlane(

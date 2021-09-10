@@ -43,6 +43,16 @@ void LiDARUnproject(const core::Tensor& range_image,
                     float depth_min,
                     float depth_max);
 
+void LiDARProject(const core::Tensor& xyz,
+                  const core::Tensor& transformation,
+                  const core::Tensor& azimuth_lut,
+                  const core::Tensor& altitude_lut,
+                  const core::Tensor& inv_altitude_lut,
+                  core::Tensor& u,
+                  core::Tensor& v,
+                  core::Tensor& r,
+                  core::Tensor& mask);
+
 void LiDARUnprojectCPU(const core::Tensor& range_image,
                        const core::Tensor& dir_lut,
                        const core::Tensor& offset_lut,
