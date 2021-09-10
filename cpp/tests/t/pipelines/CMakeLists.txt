@@ -4,6 +4,7 @@ target_sources(tests PRIVATE
 
 target_sources(tests PRIVATE
     odometry/RGBDOdometry.cpp
+    odometry/LiDAROdometry.cpp
 )
 
 target_sources(tests PRIVATE

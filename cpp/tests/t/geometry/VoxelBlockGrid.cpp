@@ -34,7 +34,6 @@
 #include "open3d/t/io/ImageIO.h"
 #include "open3d/t/io/NumpyIO.h"
 #include "open3d/visualization/utility/DrawGeometry.h"
-#include "tests/UnitTest.h"
 
 namespace open3d {
 namespace tests {

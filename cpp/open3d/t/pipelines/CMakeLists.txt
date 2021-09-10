@@ -4,6 +4,7 @@ add_library(tpipelines OBJECT)
 
 target_sources(tpipelines PRIVATE
     odometry/RGBDOdometry.cpp
+    odometry/LiDAROdometry.cpp
 )
 
 target_sources(tpipelines PRIVATE
