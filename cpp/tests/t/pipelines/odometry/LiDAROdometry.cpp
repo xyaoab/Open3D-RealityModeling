@@ -32,6 +32,7 @@
 #include "open3d/t/geometry/Image.h"
 #include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/io/ImageIO.h"
+#include "open3d/t/io/NumpyIO.h"
 #include "open3d/t/io/PointCloudIO.h"
 #include "open3d/visualization/utility/DrawGeometry.h"
 #include "tests/Tests.h"
@@ -72,9 +73,13 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 
     t::geometry::Image src_depth = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/000000.png"));
+    auto raw_im_ptr = std::make_shared<open3d::geometry::Image>(
+            src_depth.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
+    visualization::DrawGeometries({raw_im_ptr});
 
     core::Tensor xyz_im, mask_im;
     core::Tensor depth = src_depth.AsTensor().To(device);
+
     std::tie(xyz_im, mask_im) = calib.Unproject(depth, 0.0, 100.0);
 
     /// (N, 3)
@@ -82,6 +87,24 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 
     core::Tensor u, v, r, mask;
     std::tie(u, v, r, mask) = calib.Project(xyz);
+
+    core::Tensor rendered =
+            core::Tensor::Zeros(core::SizeVector{128, 1024},
+                                core::Dtype::Float32, depth.GetDevice());
+    auto u_mask = u.IndexGet({mask});
+    auto v_mask = v.IndexGet({mask});
+    auto r_mask = r.IndexGet({mask});
+    rendered.IndexSet({v_mask, u_mask}, r_mask);
+
+    t::geometry::Image rendered_im(rendered);
+    auto colorized_im_ptr = std::make_shared<open3d::geometry::Image>(
+            rendered_im.ColorizeDepth(1.0, 0.0, 30.0).ToLegacy());
+    visualization::DrawGeometries({colorized_im_ptr});
+
+    auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
+            t::geometry::PointCloud(xyz_im.IndexGet({v_mask, u_mask}))
+                    .ToLegacy());
+    visualization::DrawGeometries({pcd_ptr});
 }
 
 TEST_P(LiDAROdometryPermuteDevices, ComputeOdometryResultPointToPlane) {

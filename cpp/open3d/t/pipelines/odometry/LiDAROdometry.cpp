@@ -44,9 +44,8 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
                        const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
-    lidar_to_sensor_ =
-            result.at("lidar_to_sensor").To(device, core::Dtype::Float64);
-
+    // Transformations always live on CPU
+    lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);
     sensor_to_lidar_ = lidar_to_sensor_.Inverse();
     auto key0 = core::TensorKey::Slice(0, 3, 1);
     auto key1 = core::TensorKey::Slice(3, 4, 1);
@@ -57,7 +56,7 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
     inv_altitude_lut_ =
-            result.at("inv_altitude_table").To(device, core::Dtype::Int32);
+            result.at("inv_altitude_table").To(device, core::Dtype::Int64);
 
     unproj_dir_lut_ = result.at("lut_dir").To(device, core::Dtype::Float32);
     unproj_offset_lut_ =
@@ -97,9 +96,10 @@ LiDARCalib::Project(const core::Tensor& xyz,
     core::Tensor r(core::SizeVector{n}, core::Dtype::Float32, device);
     core::Tensor mask(core::SizeVector{n}, core::Dtype::Bool, device);
 
-    // core::Tensor trans = sensor_to_sensor_.Matmul(transformation);
-    // kernel::Odometry::LiDARProject(xyz, azimuth_lut_, altitude_lut_,
-    //                                inv_altitude_lut_, u, v, r, mask);
+    // Left-multiply two 4x4 matrices.
+    core::Tensor trans = sensor_to_lidar_.Matmul(transformation);
+    kernel::odometry::LiDARProject(xyz, trans, azimuth_lut_, altitude_lut_,
+                                   inv_altitude_lut_, u, v, r, mask);
 
     return std::make_tuple(u, v, r, mask);
 }

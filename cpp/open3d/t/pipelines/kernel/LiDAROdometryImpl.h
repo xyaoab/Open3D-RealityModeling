@@ -26,6 +26,8 @@
 
 // Private header. Do not include in Open3d.h.
 
+#include <cmath>
+
 #include "open3d/core/ParallelFor.h"
 #include "open3d/t/geometry/kernel/GeometryIndexer.h"
 #include "open3d/t/geometry/kernel/GeometryMacros.h"
@@ -35,6 +37,11 @@ namespace t {
 namespace pipelines {
 namespace kernel {
 namespace odometry {
+
+#define PI 3.14159265358979323846
+#define TWO_PI (2 * PI)
+#define RAD2DEG (180 / PI)
+#define DEG2RAD (PI / 180)
 
 #ifdef __CUDACC__
 void LiDARUnprojectCUDA
@@ -81,6 +88,113 @@ void LiDARUnprojectCPU
         }
     });
 }
+
+#ifdef __CUDACC__
+void LiDARProjectCUDA
+#else
+using std::abs;
+using std::asin;
+using std::atan2;
+using std::max;
+using std::min;
+using std::round;
+using std::sqrt;
+void LiDARProjectCPU
+#endif
+        (const core::Tensor& xyz,
+         const core::Tensor& transformation,
+         const core::Tensor& azimuth_lut,
+         const core::Tensor& altitude_lut,
+         const core::Tensor& inv_altitude_lut,
+         core::Tensor& us,
+         core::Tensor& vs,
+         core::Tensor& rs,
+         core::Tensor& masks) {
+    core::Device device = xyz.GetDevice();
+    int64_t n = xyz.GetLength();
+
+    // TODO: make them configurable
+    const int64_t width = 1024;
+    const int64_t height = altitude_lut.GetLength();
+    const int64_t inv_lut_len = inv_altitude_lut.GetLength();
+
+    const float azimuth_resolution = TWO_PI / width;
+    const float azimuth_deg_to_pixel = width / 360.0;
+
+    const float altitude_resolution = 0.4;
+    const float altitude_min = altitude_lut[height - 1].Item<float>();
+
+    t::geometry::kernel::TransformIndexer transform_indexer(
+            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
+            transformation.Contiguous());
+
+    const float* xyz_ptr = xyz.GetDataPtr<float>();
+    int64_t* u_ptr = us.GetDataPtr<int64_t>();
+    int64_t* v_ptr = vs.GetDataPtr<int64_t>();
+    float* r_ptr = rs.GetDataPtr<float>();
+    bool* mask_ptr = masks.GetDataPtr<bool>();
+
+    const float* azimuth_lut_ptr = azimuth_lut.GetDataPtr<float>();
+    const float* altitude_lut_ptr = altitude_lut.GetDataPtr<float>();
+    const int64_t* inv_altitude_lut_ptr =
+            inv_altitude_lut.GetDataPtr<int64_t>();
+
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+        auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
+            int64_t phi_int = static_cast<int64_t>(
+                    round((phi_deg - altitude_min) / altitude_resolution));
+            if (phi_int < 0 || phi_int >= inv_lut_len) {
+                return -1;
+            }
+
+            int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
+            int64_t v1 = max(v0 - 1, 0l);
+            int64_t v2 = min(v0 + 1, height - 1);
+
+            float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
+            float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
+            float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
+
+            bool flag = diff0 < diff1;
+            float diff = flag ? diff0 : diff1;
+            int64_t v = flag ? v0 : v1;
+
+            return diff < diff2 ? v : v2;
+        };
+
+        int64_t workload_offset = 3 * workload_idx;
+
+        float x, y, z;
+        transform_indexer.RigidTransform(
+                xyz_ptr[workload_offset + 0], xyz_ptr[workload_offset + 1],
+                xyz_ptr[workload_offset + 2], &x, &y, &z);
+        float r = sqrt(x * x + y * y + z * z);
+        r_ptr[workload_idx] = r;
+
+        // Estimate u
+        float u = atan2(y, x);
+        u = (u < 0) ? TWO_PI + u : u;
+        u = (TWO_PI - u) / azimuth_resolution;
+
+        // Estimate v
+        float phi = asin(z / r);
+        int64_t v = LookUpV(phi * RAD2DEG);
+
+        if (v >= 0) {
+            u -= azimuth_lut_ptr[v] * azimuth_deg_to_pixel;
+            u = (u < 0) ? u + width : u;
+            u = (u >= width) ? u - width : u;
+            u_ptr[workload_idx] = static_cast<int64_t>(u);
+            v_ptr[workload_idx] = static_cast<int64_t>(v);
+            mask_ptr[workload_idx] = true;
+        } else {
+            u_ptr[workload_idx] = u;
+            v_ptr[workload_idx] = -1;
+            mask_ptr[workload_idx] = false;
+        }
+    });
+}
+
 }  // namespace odometry
 }  // namespace kernel
 }  // namespace pipelines

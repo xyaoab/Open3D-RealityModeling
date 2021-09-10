@@ -62,6 +62,16 @@ void LiDARUnprojectCPU(const core::Tensor& range_image,
                        float depth_min,
                        float depth_max);
 
+void LiDARProjectCPU(const core::Tensor& xyz,
+                     const core::Tensor& transformation,
+                     const core::Tensor& azimuth_lut,
+                     const core::Tensor& altitude_lut,
+                     const core::Tensor& inv_altitude_lut,
+                     core::Tensor& u,
+                     core::Tensor& v,
+                     core::Tensor& r,
+                     core::Tensor& mask);
+
 #ifdef BUILD_CUDA_MODULE
 void LiDARUnprojectCUDA(const core::Tensor& range_image,
                         const core::Tensor& dir_lut,
@@ -71,6 +81,16 @@ void LiDARUnprojectCUDA(const core::Tensor& range_image,
                         float depth_scale,
                         float depth_min,
                         float depth_max);
+
+void LiDARProjectCUDA(const core::Tensor& xyz,
+                      const core::Tensor& transformation,
+                      const core::Tensor& azimuth_lut,
+                      const core::Tensor& altitude_lut,
+                      const core::Tensor& inv_altitude_lut,
+                      core::Tensor& u,
+                      core::Tensor& v,
+                      core::Tensor& r,
+                      core::Tensor& mask);
 #endif
 
 }  // namespace odometry
