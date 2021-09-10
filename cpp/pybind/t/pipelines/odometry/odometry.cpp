@@ -26,6 +26,7 @@
 
 #include "pybind/t/pipelines/odometry/odometry.h"
 
+#include "open3d/t/pipelines/odometry/LiDAROdometry.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
 #include "pybind/docstring.h"
 
@@ -126,6 +127,15 @@ void pybind_odometry_classes(py::module &m) {
                         olp.depth_outlier_trunc_, olp.depth_huber_delta_,
                         olp.intensity_huber_delta_);
             });
+
+    py::class_<LiDARCalib> lidar_calib(m, "LiDARCalib",
+                                       "Calibration for Ouster LiDAR, "
+                                       "providing projection and unprojection");
+    lidar_calib.def(
+            py::init<const std::string &, const core::Device & device>(),
+            "calib_npz_file"_a, "device"_a);
+    lidar_calib.def("unproject", &LiDARCalib::Unproject,
+                    "Unproject a point cloud");
 }
 
 // Odometry functions have similar arguments, sharing arg docstrings.

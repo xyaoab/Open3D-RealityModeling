@@ -35,6 +35,7 @@ namespace kernel {
 namespace odometry {
 
 void LiDARUnproject(const core::Tensor& range_image,
+                    const core::Tensor& transformation,
                     const core::Tensor& dir_lut,
                     const core::Tensor& offset_lut,
                     core::Tensor& xyz_im,
@@ -54,6 +55,7 @@ void LiDARProject(const core::Tensor& xyz,
                   core::Tensor& mask);
 
 void LiDARUnprojectCPU(const core::Tensor& range_image,
+                       const core::Tensor& transformation,
                        const core::Tensor& dir_lut,
                        const core::Tensor& offset_lut,
                        core::Tensor& xyz_im,
@@ -74,6 +76,7 @@ void LiDARProjectCPU(const core::Tensor& xyz,
 
 #ifdef BUILD_CUDA_MODULE
 void LiDARUnprojectCUDA(const core::Tensor& range_image,
+                        const core::Tensor& transformation,
                         const core::Tensor& dir_lut,
                         const core::Tensor& offset_lut,
                         core::Tensor& xyz_im,

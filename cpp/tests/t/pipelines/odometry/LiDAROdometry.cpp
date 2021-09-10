@@ -57,7 +57,10 @@ TEST_P(LiDAROdometryPermuteDevices, Unproject) {
 
     core::Tensor xyz_im, mask_im;
     core::Tensor depth = src_depth.AsTensor().To(device);
-    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 0.0, 100.0);
+    core::Tensor transformation =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    std::tie(xyz_im, mask_im) =
+            calib.Unproject(depth, transformation, 0.0, 100.0);
 
     auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
             t::geometry::PointCloud(xyz_im.IndexGet({mask_im})).ToLegacy());
@@ -80,7 +83,10 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     core::Tensor xyz_im, mask_im;
     core::Tensor depth = src_depth.AsTensor().To(device);
 
-    std::tie(xyz_im, mask_im) = calib.Unproject(depth, 0.0, 100.0);
+    core::Tensor transformation =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    std::tie(xyz_im, mask_im) =
+            calib.Unproject(depth, transformation, 0.0, 100.0);
 
     /// (N, 3)
     core::Tensor xyz = xyz_im.IndexGet({mask_im});

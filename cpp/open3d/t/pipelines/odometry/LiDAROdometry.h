@@ -44,11 +44,14 @@ class LiDARCalib {
 public:
     LiDARCalib(const std::string& config_npz_file, const core::Device& device);
 
-    /// Return xyz-image and mask_image
+    /// Return xyz-image and mask_image, with transformation
     /// Input: range image in UInt16
-    std::tuple<core::Tensor, core::Tensor> Unproject(core::Tensor& range_image,
-                                                     float depth_min = 0.65,
-                                                     float detph_max = 10.0);
+    std::tuple<core::Tensor, core::Tensor> Unproject(
+            const core::Tensor& range_image,
+            const core::Tensor& transformation =
+                    core::Tensor::Eye(4, core::Dtype::Float64, core::Device()),
+            float depth_min = 0.65,
+            float detph_max = 10.0);
 
     /// Return u, v, r, mask
     std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor> Project(

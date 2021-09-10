@@ -66,7 +66,10 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
 /// Return xyz-image and mask_image
 /// Input: range image in UInt16
 std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
-        core::Tensor& range_image, float depth_min, float depth_max) {
+        const core::Tensor& range_image,
+        const core::Tensor& transformation,
+        float depth_min,
+        float depth_max) {
     // TODO: shape check
     auto sv = range_image.GetShape();
     int64_t h = sv[0];
@@ -77,9 +80,9 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
                         device);
     core::Tensor mask_im(core::SizeVector{h, w}, core::Dtype::Bool, device);
 
-    kernel::odometry::LiDARUnproject(range_image, unproj_dir_lut_,
-                                     unproj_offset_lut_, xyz_im, mask_im,
-                                     range_scale_, depth_min, depth_max);
+    kernel::odometry::LiDARUnproject(
+            range_image, transformation, unproj_dir_lut_, unproj_offset_lut_,
+            xyz_im, mask_im, range_scale_, depth_min, depth_max);
 
     return std::make_tuple(xyz_im, mask_im);
 }

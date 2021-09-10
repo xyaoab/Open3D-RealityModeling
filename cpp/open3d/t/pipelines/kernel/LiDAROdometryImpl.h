@@ -49,6 +49,7 @@ void LiDARUnprojectCUDA
 void LiDARUnprojectCPU
 #endif
         (const core::Tensor& range_image,
+         const core::Tensor& transformation,
          const core::Tensor& dir_lut,
          const core::Tensor& offset_lut,
          core::Tensor& xyz_im,
@@ -62,6 +63,10 @@ void LiDARUnprojectCPU
     int64_t h = sv[0];
     int64_t w = sv[1];
     int64_t n = h * w;
+
+    t::geometry::kernel::TransformIndexer transform_indexer(
+            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
+            transformation.Contiguous());
 
     const uint16_t* range_image_ptr = range_image.GetDataPtr<uint16_t>();
     const float* dir_lut_ptr = dir_lut.GetDataPtr<float>();
@@ -81,11 +86,17 @@ void LiDARUnprojectCPU
 
         mask_im_ptr[workload_idx] = true;
         int64_t workload_offset = workload_idx * 3;
-        for (int i = 0; i < 3; ++i) {
-            xyz_im_ptr[workload_offset + i] =
-                    dir_lut_ptr[workload_offset + i] * range +
-                    offset_lut_ptr[workload_offset + i];
-        }
+        float x = dir_lut_ptr[workload_offset + 0] * range +
+                  offset_lut_ptr[workload_offset + 0];
+        float y = dir_lut_ptr[workload_offset + 1] * range +
+                  offset_lut_ptr[workload_offset + 1];
+        float z = dir_lut_ptr[workload_offset + 2] * range +
+                  offset_lut_ptr[workload_offset + 2];
+
+        transform_indexer.RigidTransform(x, y, z,
+                                         &xyz_im_ptr[workload_offset + 0],
+                                         &xyz_im_ptr[workload_offset + 1],
+                                         &xyz_im_ptr[workload_offset + 2]);
     });
 }
 
