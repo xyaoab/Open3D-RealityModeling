@@ -60,7 +60,7 @@ public:
             const core::Tensor& transformation = core::Tensor::Eye(
                     4, core::Dtype::Float64, core::Device())) const;
 
-private:
+public:
     core::Tensor lidar_to_sensor_;
     core::Tensor sensor_to_lidar_;
 

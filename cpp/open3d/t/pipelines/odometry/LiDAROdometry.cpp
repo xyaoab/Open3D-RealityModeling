@@ -169,6 +169,7 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     // return kernel::odometry::ComputeLiDAROdometryPointToPlane(
     //         source_vertex_map, source_mask_map, target_vertex_map,
     //         target_mask_map, target_normal_map, init_source_to_target,
+    //         calib.azimuth_lut_, calib.altitude_lut_, calib.inv_altitude_lut_,
     //         depth_diff);
 }
 
