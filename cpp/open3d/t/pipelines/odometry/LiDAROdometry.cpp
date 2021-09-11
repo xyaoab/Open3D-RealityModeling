@@ -31,9 +31,12 @@
 #include "open3d/t/pipelines/odometry/LiDAROdometry.h"
 
 #include "open3d/core/Tensor.h"
+#include "open3d/geometry/PointCloud.h"
 #include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/PointCloud.h"
 #include "open3d/t/io/NumpyIO.h"
 #include "open3d/t/pipelines/kernel/LiDAROdometry.h"
+#include "open3d/visualization/utility/DrawGeometry.h"
 
 namespace open3d {
 namespace t {
@@ -69,7 +72,7 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
         const core::Tensor& range_image,
         const core::Tensor& transformation,
         float depth_min,
-        float depth_max) {
+        float depth_max) const {
     // TODO: shape check
     auto sv = range_image.GetShape();
     int64_t h = sv[0];
@@ -90,7 +93,7 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
 /// Return u, v, r, mask
 std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor>
 LiDARCalib::Project(const core::Tensor& xyz,
-                    const core::Tensor& transformation) {
+                    const core::Tensor& transformation) const {
     core::Device device = xyz.GetDevice();
 
     int64_t n = xyz.GetLength();
@@ -105,6 +108,68 @@ LiDARCalib::Project(const core::Tensor& xyz,
                                    inv_altitude_lut_, u, v, r, mask);
 
     return std::make_tuple(u, v, r, mask);
+}
+
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float dist_diff,
+                             const OdometryConvergenceCriteria& criteria) {
+    core::Device device = source.GetDevice();
+    core::Tensor source_vertex_map, source_mask_map;
+    core::Tensor target_vertex_map, target_mask_map;
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    std::tie(source_vertex_map, source_mask_map) =
+            calib.Unproject(source.AsTensor(), identity, depth_min, depth_max);
+    std::tie(target_vertex_map, target_mask_map) =
+            calib.Unproject(target.AsTensor(), identity, depth_min, depth_max);
+
+    /// TODO: normal map estimate from kernels
+    t::geometry::PointCloud target_pcd(
+            target_vertex_map.Reshape(core::SizeVector{-1, 3}));
+    target_pcd = target_pcd.To(core::Device());
+    target_pcd.EstimateNormals();
+    visualization::DrawGeometries(
+            {std::make_shared<open3d::geometry::PointCloud>(
+                    target_pcd.ToLegacy())});
+
+    core::Tensor target_normal_map =
+            target_pcd.GetPointNormals()
+                    .Reshape(target_vertex_map.GetShape())
+                    .To(device);
+
+    OdometryResult result(init_source_to_target);
+    for (int i = 0; i < criteria.max_iteration_; ++i) {
+        OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
+                source_vertex_map, source_mask_map, target_vertex_map,
+                target_mask_map, target_normal_map, calib,
+                result.transformation_, dist_diff);
+        result.transformation_ =
+                delta_result.transformation_.Matmul(result.transformation_);
+    }
+    return result;
+}
+
+OdometryResult ComputeLiDAROdometryPointToPlane(
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        // Note: currently target_normal_map is from point cloud
+        const core::Tensor& target_normal_map,
+        const LiDARCalib& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_diff) {
+    return OdometryResult();
+    // return kernel::odometry::ComputeLiDAROdometryPointToPlane(
+    //         source_vertex_map, source_mask_map, target_vertex_map,
+    //         target_mask_map, target_normal_map, init_source_to_target,
+    //         depth_diff);
 }
 
 }  // namespace odometry

@@ -113,19 +113,32 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     visualization::DrawGeometries({pcd_ptr});
 }
 
-TEST_P(LiDAROdometryPermuteDevices, ComputeOdometryResultPointToPlane) {
+TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     core::Device device = GetParam();
 
-    // const float depth_scale = 1000.0;
-    // const float depth_diff = 0.2;
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+    const float depth_diff = 0.2;
 
-    t::geometry::Image src_depth = *t::io::CreateImageFromFile(
+    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
+                                                                       1e-6);
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+
+    t::geometry::Image src = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/000000.png"));
-    t::geometry::Image dst_depth = *t::io::CreateImageFromFile(
+    t::geometry::Image dst = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/000010.png"));
 
-    src_depth = src_depth.To(device);
-    dst_depth = dst_depth.To(device);
+    src = src.To(device);
+    dst = dst.To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    LiDAROdometry(src, dst, calib, identity, depth_min, depth_max, depth_diff,
+                  criteria);
 }
 }  // namespace tests
 }  // namespace open3d

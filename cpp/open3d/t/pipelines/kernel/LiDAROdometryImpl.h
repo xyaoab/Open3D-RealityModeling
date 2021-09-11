@@ -150,37 +150,34 @@ void LiDARProjectCPU
     const int64_t* inv_altitude_lut_ptr =
             inv_altitude_lut.GetDataPtr<int64_t>();
 
-    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
-        auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
-            int64_t phi_int = static_cast<int64_t>(
-                    round((phi_deg - altitude_min) / altitude_resolution));
-            if (phi_int < 0 || phi_int >= inv_lut_len) {
-                return -1;
-            }
+    auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
+        int64_t phi_int = static_cast<int64_t>(
+                round((phi_deg - altitude_min) / altitude_resolution));
+        if (phi_int < 0 || phi_int >= inv_lut_len) {
+            return -1;
+        }
 
-            int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
-            int64_t v1 = max(v0 - 1, 0l);
-            int64_t v2 = min(v0 + 1, height - 1);
+        int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
+        int64_t v1 = max(v0 - 1, 0l);
+        int64_t v2 = min(v0 + 1, height - 1);
 
-            float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
-            float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
-            float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
+        float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
+        float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
+        float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
 
-            bool flag = diff0 < diff1;
-            float diff = flag ? diff0 : diff1;
-            int64_t v = flag ? v0 : v1;
+        bool flag = diff0 < diff1;
+        float diff = flag ? diff0 : diff1;
+        int64_t v = flag ? v0 : v1;
 
-            return diff < diff2 ? v : v2;
-        };
+        return diff < diff2 ? v : v2;
+    };
 
-        int64_t workload_offset = 3 * workload_idx;
-
+    auto DeviceProject = [=] OPEN3D_DEVICE(float x_in, float y_in, float z_in,
+                                           int64_t* ui, int64_t* vi,
+                                           float* r) -> bool {
         float x, y, z;
-        transform_indexer.RigidTransform(
-                xyz_ptr[workload_offset + 0], xyz_ptr[workload_offset + 1],
-                xyz_ptr[workload_offset + 2], &x, &y, &z);
-        float r = sqrt(x * x + y * y + z * z);
-        r_ptr[workload_idx] = r;
+        transform_indexer.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
+        *r = sqrt(x * x + y * y + z * z);
 
         // Estimate u
         float u = atan2(y, x);
@@ -188,21 +185,29 @@ void LiDARProjectCPU
         u = (TWO_PI - u) / azimuth_resolution;
 
         // Estimate v
-        float phi = asin(z / r);
+        float phi = asin(z / *r);
         int64_t v = LookUpV(phi * RAD2DEG);
 
         if (v >= 0) {
             u -= azimuth_lut_ptr[v] * azimuth_deg_to_pixel;
             u = (u < 0) ? u + width : u;
             u = (u >= width) ? u - width : u;
-            u_ptr[workload_idx] = static_cast<int64_t>(u);
-            v_ptr[workload_idx] = static_cast<int64_t>(v);
-            mask_ptr[workload_idx] = true;
+            *ui = static_cast<int64_t>(u);
+            *vi = static_cast<int64_t>(v);
+            return true;
         } else {
-            u_ptr[workload_idx] = u;
-            v_ptr[workload_idx] = -1;
-            mask_ptr[workload_idx] = false;
+            *ui = static_cast<int64_t>(u);
+            *vi = -1;
+            return false;
         }
+    };
+
+    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+        int64_t workload_offset = 3 * workload_idx;
+        mask_ptr[workload_idx] = DeviceProject(
+                xyz_ptr[workload_offset + 0], xyz_ptr[workload_offset + 1],
+                xyz_ptr[workload_offset + 2], &u_ptr[workload_idx],
+                &v_ptr[workload_idx], &r_ptr[workload_idx]);
     });
 }
 

@@ -32,13 +32,14 @@
 
 #include "open3d/core/Tensor.h"
 #include "open3d/t/geometry/Image.h"
-#include "open3d/t/geometry/RGBDImage.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
 
 namespace open3d {
 namespace t {
 namespace pipelines {
 namespace odometry {
+
+using t::geometry::Image;
 
 class LiDARCalib {
 public:
@@ -51,13 +52,13 @@ public:
             const core::Tensor& transformation =
                     core::Tensor::Eye(4, core::Dtype::Float64, core::Device()),
             float depth_min = 0.65,
-            float detph_max = 10.0);
+            float detph_max = 10.0) const;
 
     /// Return u, v, r, mask
     std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor> Project(
             const core::Tensor& xyz,
-            const core::Tensor& transformation =
-                    core::Tensor::Eye(4, core::Dtype::Float64, core::Device()));
+            const core::Tensor& transformation = core::Tensor::Eye(
+                    4, core::Dtype::Float64, core::Device())) const;
 
 private:
     core::Tensor lidar_to_sensor_;
@@ -74,16 +75,25 @@ private:
     float range_scale_ = 1000.0;
 };
 
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float depth_diff,
+                             const OdometryConvergenceCriteria& criteria);
+
 OdometryResult ComputeLiDAROdometryPointToPlane(
         const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
         const core::Tensor& target_vertex_map,
         const core::Tensor& target_mask_map,
         // Note: currently target_normal_map is from point cloud
         const core::Tensor& target_normal_map,
         const LiDARCalib& calib,
         const core::Tensor& init_source_to_target,
-        const float depth_outlier_trunc,
-        const float depth_huber_delta);
+        const float depth_diff);
 
 }  // namespace odometry
 }  // namespace pipelines
