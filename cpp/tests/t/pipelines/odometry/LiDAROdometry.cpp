@@ -53,7 +53,7 @@ TEST_P(LiDAROdometryPermuteDevices, Unproject) {
     t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
 
     t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/000000.png"));
+            utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
 
     core::Tensor xyz_im, mask_im;
     core::Tensor depth = src_depth.AsTensor().To(device);
@@ -75,7 +75,7 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
 
     t::geometry::Image src_depth = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/000000.png"));
+            utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
     auto raw_im_ptr = std::make_shared<open3d::geometry::Image>(
             src_depth.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
     visualization::DrawGeometries({raw_im_ptr});
@@ -113,36 +113,19 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     visualization::DrawGeometries({pcd_ptr});
 }
 
-TEST_P(LiDAROdometryPermuteDevices, Odometry) {
-    core::Device device = GetParam();
-
-    const float depth_min = 0.0;
-    const float depth_max = 100.0;
-    const float depth_diff = 0.2;
-
-    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
-                                                                       1e-6);
-
-    std::string calib_npz =
-            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
-
-    t::geometry::Image src = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/000000.png"));
-    t::geometry::Image dst = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/000010.png"));
-
-    src = src.To(device);
-    dst = dst.To(device);
-
+void VisualizeRegistration(const t::geometry::Image &src,
+                           const t::geometry::Image &dst,
+                           const core::Tensor &transformation,
+                           const t::pipelines::odometry::LiDARCalib &calib,
+                           float depth_min,
+                           float depth_max) {
     core::Tensor identity =
             core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
-    auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
-                                depth_diff, criteria);
 
     core::Tensor src_xyz_map, src_mask_map, dst_xyz_map, dst_mask_map;
+
     std::tie(src_xyz_map, src_mask_map) = calib.Unproject(
-            src.AsTensor(), result.transformation_, depth_min, depth_max);
+            src.AsTensor(), transformation, depth_min, depth_max);
     std::tie(dst_xyz_map, dst_mask_map) =
             calib.Unproject(dst.AsTensor(), identity, depth_min, depth_max);
 
@@ -157,6 +140,38 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     dst_pcd_l->PaintUniformColor({0, 1, 0});
 
     visualization::DrawGeometries({src_pcd_l, dst_pcd_l});
+}
+
+TEST_P(LiDAROdometryPermuteDevices, Odometry) {
+    core::Device device = GetParam();
+
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+    const float depth_diff = 0.3;
+
+    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
+                                                                       1e-6);
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+
+    t::geometry::Image src = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/indoor/000000.png"));
+    t::geometry::Image dst = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/indoor/000010.png"));
+
+    src = src.To(device);
+    dst = dst.To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+
+    VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
+    auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
+                                depth_diff, criteria);
+    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
+                          depth_max);
 }
 }  // namespace tests
 }  // namespace open3d

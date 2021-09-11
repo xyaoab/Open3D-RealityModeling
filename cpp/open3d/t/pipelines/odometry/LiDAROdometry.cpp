@@ -148,7 +148,8 @@ OdometryResult LiDAROdometry(const Image& source,
                 target_mask_map, target_normal_map, calib,
                 result.transformation_, dist_diff);
         result.transformation_ =
-                delta_result.transformation_.Matmul(result.transformation_);
+                (delta_result.transformation_.Matmul(result.transformation_))
+                        .Contiguous();
         utility::LogDebug("iter {}: rmse = {}, fitness = {}", i,
                           delta_result.inlier_rmse_, delta_result.fitness_);
     }
@@ -172,8 +173,9 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
-            calib.azimuth_lut_, calib.altitude_lut_, calib.inv_altitude_lut_,
-            se3_delta, inlier_residual, inlier_count, depth_diff);
+            calib.sensor_to_lidar_, calib.azimuth_lut_, calib.altitude_lut_,
+            calib.inv_altitude_lut_, se3_delta, inlier_residual, inlier_count,
+            depth_diff);
 
     // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
     if (inlier_count <= 0) {

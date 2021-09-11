@@ -64,6 +64,7 @@ void ComputeLiDAROdometryPointToPlane(
         const core::Tensor& target_normal_map,
         // init transformation
         const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
         const core::Tensor& azimuth_lut,
         const core::Tensor& altitude_lut,
@@ -126,6 +127,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         const core::Tensor& target_normal_map,
         // init transformation
         const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
         const core::Tensor& azimuth_lut,
         const core::Tensor& altitude_lut,

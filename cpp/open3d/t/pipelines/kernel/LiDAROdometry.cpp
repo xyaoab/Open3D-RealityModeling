@@ -90,6 +90,7 @@ void ComputeLiDAROdometryPointToPlane(
         const core::Tensor& target_normal_map,
         // init transformation
         const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
         const core::Tensor& azimuth_lut,
         const core::Tensor& altitude_lut,
@@ -105,9 +106,9 @@ void ComputeLiDAROdometryPointToPlane(
     if (device.GetType() == core::Device::DeviceType::CUDA) {
         CUDA_CALL(ComputeLiDAROdometryPointToPlaneCUDA, source_vertex_map,
                   source_mask_map, target_vertex_map, target_mask_map,
-                  target_normal_map, init_source_to_target, azimuth_lut,
-                  altitude_lut, inv_altitude_lut, delta, inlier_residual,
-                  inlier_count, depth_diff);
+                  target_normal_map, init_source_to_target, sensor_to_lidar,
+                  azimuth_lut, altitude_lut, inv_altitude_lut, delta,
+                  inlier_residual, inlier_count, depth_diff);
     } else {
         utility::LogError("Unimplemented device {}", device.ToString());
     }

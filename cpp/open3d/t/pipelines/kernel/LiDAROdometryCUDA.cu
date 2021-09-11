@@ -49,9 +49,10 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         NDArrayIndexer source_vertex_indexer,
         NDArrayIndexer source_mask_indexer,
         NDArrayIndexer target_vertex_indexer,
-        NDArrayIndexer target_normal_indexer,
         NDArrayIndexer target_mask_indexer,
+        NDArrayIndexer target_normal_indexer,
         TransformIndexer transform_indexer,
+        TransformIndexer sensor_to_lidar_indexer,
         const float* azimuth_lut_ptr,
         const float* altitude_lut_ptr,
         const int64_t* inv_altitude_lut_ptr,
@@ -92,7 +93,7 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
                                            int64_t* ui, int64_t* vi,
                                            float* r) -> bool {
         float x, y, z;
-        transform_indexer.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
+        sensor_to_lidar_indexer.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
         *r = sqrt(x * x + y * y + z * z);
 
         // Estimate u
@@ -149,19 +150,24 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         r = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
             (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
             (T_source_to_target_v[2] - target_v[2]) * target_n[2];
-        if (abs(r) > depth_diff) {
-            return false;
-        }
 
-        J_ij[0] = -T_source_to_target_v[2] * target_n[1] +
-                  T_source_to_target_v[1] * target_n[2];
-        J_ij[1] = T_source_to_target_v[2] * target_n[0] -
-                  T_source_to_target_v[0] * target_n[2];
-        J_ij[2] = -T_source_to_target_v[1] * target_n[0] +
-                  T_source_to_target_v[0] * target_n[1];
-        J_ij[3] = target_n[0];
-        J_ij[4] = target_n[1];
-        J_ij[5] = target_n[2];
+        // Pseudo huber loss
+
+        float w = abs(r) > depth_diff ? 0 : 1;
+        // float depth_diff2 = depth_diff * depth_diff;
+        // float w = 1.0 / (depth_diff2 * sqrt((r * r / depth_diff2) +
+        // 1));
+
+        J_ij[0] = w * (-T_source_to_target_v[2] * target_n[1] +
+                       T_source_to_target_v[1] * target_n[2]);
+        J_ij[1] = w * (T_source_to_target_v[2] * target_n[0] -
+                       T_source_to_target_v[0] * target_n[2]);
+        J_ij[2] = w * (-T_source_to_target_v[1] * target_n[0] +
+                       T_source_to_target_v[0] * target_n[1]);
+        J_ij[3] = w * target_n[0];
+        J_ij[4] = w * target_n[1];
+        J_ij[5] = w * target_n[2];
+        r = w * r;
 
         return true;
     };
@@ -241,6 +247,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         const core::Tensor& target_normal_map,
         // init transformation
         const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
         const core::Tensor& azimuth_lut,
         const core::Tensor& altitude_lut,
@@ -259,10 +266,14 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
 
     // Index target data
     NDArrayIndexer target_vertex_indexer(target_vertex_map, 2);
-    NDArrayIndexer target_normal_indexer(target_normal_map, 2);
     NDArrayIndexer target_mask_indexer(target_mask_map, 2);
+    NDArrayIndexer target_normal_indexer(target_normal_map, 2);
 
     // Wrap transformation
+    t::geometry::kernel::TransformIndexer sensor_to_lidar_indexer(
+            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
+            sensor_to_lidar.Contiguous());
+
     t::geometry::kernel::TransformIndexer transform_indexer(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             init_source_to_target.Contiguous());
@@ -296,9 +307,9 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
                                                  core::cuda::GetStream()>>>(
             // Input
             source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
-            target_normal_indexer, target_mask_indexer,
+            target_mask_indexer, target_normal_indexer,
             // Transform
-            transform_indexer,
+            transform_indexer, sensor_to_lidar_indexer,
             // LiDAR calib LUTs
             azimuth_lut_ptr, altitude_lut_ptr, inv_altitude_lut_ptr,
             // Output
