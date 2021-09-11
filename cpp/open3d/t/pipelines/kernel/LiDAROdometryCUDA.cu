@@ -61,14 +61,13 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         int64_t width,
         int64_t inv_lut_length,
         float azimuth_resolution,
-        float azimuth_deg_to_pixel,
-        float altitude_resolution,
-        float altitude_min,
+        float altitude_lut_resolution,
         float depth_diff) {
     // Lookup vi from altitude lut
     auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
         int64_t phi_int = static_cast<int64_t>(
-                round((phi_deg - altitude_min) / altitude_resolution));
+                round((phi_deg - altitude_lut_ptr[height - 1]) /
+                      altitude_lut_resolution));
         if (phi_int < 0 || phi_int >= inv_lut_length) {
             return -1;
         }
@@ -288,9 +287,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
     const int64_t inv_lut_length = inv_altitude_lut.GetLength();
 
     const float azimuth_resolution = TWO_PI / width;
-    const float azimuth_deg_to_pixel = width / 360.0;
-    const float altitude_resolution = 0.4;
-    const float altitude_min = altitude_lut[height - 1].Item<float>();
+    const float altitude_lut_resolution = 0.4;
 
     // Result
     core::Tensor global_sum = core::Tensor::Zeros({29}, core::Float32, device);
@@ -314,8 +311,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
             global_sum_ptr,
             // Params
             height, width, inv_lut_length, azimuth_resolution,
-            azimuth_deg_to_pixel, altitude_resolution, altitude_min,
-            depth_diff);
+            altitude_lut_resolution, depth_diff);
     core::cuda::Synchronize();
 
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
