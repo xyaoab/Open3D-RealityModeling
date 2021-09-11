@@ -137,8 +137,26 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
 
     core::Tensor identity =
             core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
-    LiDAROdometry(src, dst, calib, identity, depth_min, depth_max, depth_diff,
-                  criteria);
+    auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
+                                depth_diff, criteria);
+
+    core::Tensor src_xyz_map, src_mask_map, dst_xyz_map, dst_mask_map;
+    std::tie(src_xyz_map, src_mask_map) = calib.Unproject(
+            src.AsTensor(), result.transformation_, depth_min, depth_max);
+    std::tie(dst_xyz_map, dst_mask_map) =
+            calib.Unproject(dst.AsTensor(), identity, depth_min, depth_max);
+
+    t::geometry::PointCloud src_pcd(src_xyz_map.IndexGet({src_mask_map}));
+    auto src_pcd_l =
+            std::make_shared<open3d::geometry::PointCloud>(src_pcd.ToLegacy());
+    src_pcd_l->PaintUniformColor({1, 0, 0});
+
+    t::geometry::PointCloud dst_pcd(dst_xyz_map.IndexGet({dst_mask_map}));
+    auto dst_pcd_l =
+            std::make_shared<open3d::geometry::PointCloud>(dst_pcd.ToLegacy());
+    dst_pcd_l->PaintUniformColor({0, 1, 0});
+
+    visualization::DrawGeometries({src_pcd_l, dst_pcd_l});
 }
 }  // namespace tests
 }  // namespace open3d

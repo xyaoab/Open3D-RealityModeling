@@ -80,6 +80,39 @@ void LiDARProject(const core::Tensor& xyz,
     }
 }
 
+void ComputeLiDAROdometryPointToPlane(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        // LiDAR calibration
+        const core::Tensor& azimuth_lut,
+        const core::Tensor& altitude_lut,
+        const core::Tensor& inv_altitude_lut,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float depth_diff) {
+    core::Device device = source_vertex_map.GetDevice();
+
+    if (device.GetType() == core::Device::DeviceType::CUDA) {
+        CUDA_CALL(ComputeLiDAROdometryPointToPlaneCUDA, source_vertex_map,
+                  source_mask_map, target_vertex_map, target_mask_map,
+                  target_normal_map, init_source_to_target, azimuth_lut,
+                  altitude_lut, inv_altitude_lut, delta, inlier_residual,
+                  inlier_count, depth_diff);
+    } else {
+        utility::LogError("Unimplemented device {}", device.ToString());
+    }
+}
+
 }  // namespace odometry
 }  // namespace kernel
 }  // namespace pipelines

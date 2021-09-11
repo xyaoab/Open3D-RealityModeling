@@ -54,6 +54,27 @@ void LiDARProject(const core::Tensor& xyz,
                   core::Tensor& r,
                   core::Tensor& mask);
 
+void ComputeLiDAROdometryPointToPlane(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        // LiDAR calibration
+        const core::Tensor& azimuth_lut,
+        const core::Tensor& altitude_lut,
+        const core::Tensor& inv_altitude_lut,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float depth_diff);
+
 void LiDARUnprojectCPU(const core::Tensor& range_image,
                        const core::Tensor& transformation,
                        const core::Tensor& dir_lut,
@@ -94,6 +115,28 @@ void LiDARProjectCUDA(const core::Tensor& xyz,
                       core::Tensor& v,
                       core::Tensor& r,
                       core::Tensor& mask);
+
+void ComputeLiDAROdometryPointToPlaneCUDA(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        // LiDAR calibration
+        const core::Tensor& azimuth_lut,
+        const core::Tensor& altitude_lut,
+        const core::Tensor& inv_altitude_lut,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float depth_diff);
+
 #endif
 
 }  // namespace odometry

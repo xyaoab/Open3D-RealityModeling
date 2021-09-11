@@ -195,7 +195,7 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
     for (int i = 0; i < 6; ++i) {
         reduction[offset++] = J[i] * r;
     }
-    reduction[offset++] = r;
+    reduction[offset++] = r * r;
     reduction[offset++] = valid;
 
     // Sum reduction: JtJ(21) and Jtr(6)
@@ -252,7 +252,6 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         // Other params
         float depth_diff) {
     core::Device device = source_vertex_map.GetDevice();
-    int64_t n = source_mask_map.NumElements();
 
     // Index source data
     NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
