@@ -95,6 +95,15 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const float depth_diff);
 
+OdometryResult ComputeLiDAROdometryPointToPlane(
+        const core::Tensor& source_xyz,
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        // Note: currently target_normal_map is from point cloud
+        const core::Tensor& target_normal_map,
+        const LiDARCalib& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_diff);
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t

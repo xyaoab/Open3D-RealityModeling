@@ -131,10 +131,14 @@ OdometryResult LiDAROdometry(const Image& source,
             calib.Unproject(target.AsTensor(), identity, depth_min, depth_max);
 
     /// TODO: normal map estimate from kernels
-    t::geometry::PointCloud target_pcd(
-            target_vertex_map.Reshape(core::SizeVector{-1, 3}));
-    target_pcd = target_pcd.To(core::Device());
-    target_pcd.EstimateNormals();
+    open3d::geometry::PointCloud target_pcd_l =
+            t::geometry::PointCloud(
+                    target_vertex_map.Reshape(core::SizeVector{-1, 3}))
+                    .ToLegacy();
+    target_pcd_l.EstimateNormals();
+
+    t::geometry::PointCloud target_pcd = t::geometry::PointCloud::FromLegacy(
+            target_pcd_l, core::Dtype::Float32, device);
 
     core::Tensor target_normal_map =
             target_pcd.GetPointNormals()
@@ -142,6 +146,8 @@ OdometryResult LiDAROdometry(const Image& source,
                     .To(device);
 
     OdometryResult result(init_source_to_target);
+    core::Tensor source_xyz = source_vertex_map.IndexGet({source_mask_map});
+
     for (int i = 0; i < criteria.max_iteration_; ++i) {
         OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
@@ -170,6 +176,7 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     float inlier_residual;
     int inlier_count;
 
+    utility::LogInfo("vertex system\n");
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
@@ -189,6 +196,39 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
             inlier_residual / inlier_count,
             double(inlier_count) / double(source_vertex_map.GetShape(0) *
                                           source_vertex_map.GetShape(1)));
+}
+
+OdometryResult ComputeLiDAROdometryPointToPlane(
+        const core::Tensor& source_xyz,
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        // Note: currently target_normal_map is from point cloud
+        const core::Tensor& target_normal_map,
+        const LiDARCalib& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_diff) {
+    core::Tensor se3_delta;
+    float inlier_residual;
+    int inlier_count;
+
+    utility::LogInfo("xyz system\n");
+    kernel::odometry::ComputeLiDAROdometryPointToPlane(
+            source_xyz, target_vertex_map, target_mask_map, target_normal_map,
+            init_source_to_target, calib.sensor_to_lidar_, calib.azimuth_lut_,
+            calib.altitude_lut_, calib.inv_altitude_lut_, se3_delta,
+            inlier_residual, inlier_count, depth_diff);
+
+    // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
+    if (inlier_count <= 0) {
+        utility::LogError("Invalid inlier_count value {}, must be > 0.",
+                          inlier_count);
+    }
+
+    utility::LogDebug("Inlier count = {}", inlier_count);
+    return OdometryResult(
+            pipelines::kernel::PoseToTransformation(se3_delta),
+            inlier_residual / inlier_count,
+            double(inlier_count) / double(source_xyz.GetLength()));
 }
 
 }  // namespace odometry

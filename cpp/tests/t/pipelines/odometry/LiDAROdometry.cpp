@@ -157,9 +157,9 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
 
     t::geometry::Image src = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/indoor/000000.png"));
+            utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
     t::geometry::Image dst = *t::io::CreateImageFromFile(
-            utility::GetDataPathCommon("LiDARICP/indoor/000010.png"));
+            utility::GetDataPathCommon("LiDARICP/outdoor/000010.png"));
 
     src = src.To(device);
     dst = dst.To(device);

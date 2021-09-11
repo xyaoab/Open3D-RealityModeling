@@ -79,7 +79,7 @@ void LiDARUnprojectCPU
     float depth_min_scaled = depth_min * depth_scale;
     core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
         float range = range_image_ptr[workload_idx];
-        if (range > depth_max_scaled || range < depth_min_scaled) {
+        if (range > depth_max_scaled || range <= depth_min_scaled) {
             mask_im_ptr[workload_idx] = false;
             return;
         }
