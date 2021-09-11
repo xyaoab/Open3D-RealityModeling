@@ -140,7 +140,7 @@ if __name__ == '__main__':
     labels_input.append(r'\textbf{Input length}')
 
     for i in range(4):
-        h, = ax.plot(x, ours_curve, color='k', marker=markers[i], label=num_ops[i])
+        h, = ax.plot([], color='k', marker=markers[i], markersize=12, label=num_ops[i])
         handles_input.append(h)
         labels_input.append(num_ops[i])
 
@@ -160,14 +160,14 @@ if __name__ == '__main__':
             slab_curve = stats_slab[di][opi][i][:limit]
             ours_curve = stats_ours[di][opi][i][:limit]
 
-            ax.plot(x, ours_curve, color='b', marker=markers[i], label=num_ops[i])
-            ax.plot(x, slab_curve, color='r', marker=markers[i])
+            ax.plot(x, ours_curve, color='b', marker=markers[i], label=num_ops[i], markersize=12)
+            ax.plot(x, slab_curve, color='r', marker=markers[i], markersize=12)
 
             ax.fill(np.append(x, x[::-1]),
                     np.append(slab_curve, ours_curve[::-1]),
                     color=colors[i])
             ax.set_title(r'\textbf{{Uniqueness = ${}$, Operation {}}}'.format(di, opi), fontsize=title_fontsize)
-        ax.set_xlabel('Hashmap value size (byte)', fontsize=normal_fontsize)
+        ax.set_xlabel('Hash map value size (byte)', fontsize=normal_fontsize)
         ax.set_xscale('log', base=2)
 
         ax.set_ylabel('Time (ms)', fontsize=normal_fontsize)

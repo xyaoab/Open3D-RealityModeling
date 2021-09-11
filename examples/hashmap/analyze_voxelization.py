@@ -27,8 +27,8 @@ data_500k = np.array([0.05,0.5380,0.7093,1.8193,
                       0.005, 0.8376, 1.1206, 22.1724]).reshape((6, -1))
 x = data_8m[:, 0] * 1000
 
-colors = ['#ff000020', '#00ff0020', '#0000ff20', '#ffff0020']
-
+# colors = ['#ff000020', '#00ff0020', '#0000ff20', '#ffff0020']
+colors = ["#e4253620", "#964a8b20", "#9c9ca120", "#7a21dd20"]
 # Then colors label
 plt.plot([x[0]], [data_8m[:, 1][0]], marker='None', linestyle='None', label=r'\textbf{Method}')
 plt.plot(x, data_8m[:, 1], '-b', label='ASH')
@@ -37,16 +37,16 @@ plt.plot(x, data_8m[:, 3], '-r', label='Open3D')
 
 # Marker label first
 plt.plot([x[0]], [data_8m[:, 1][0]], marker='None', linestyle='None', label=r'\textbf{Input length}')
-plt.plot(x, data_8m[:, 1], 'xk', label=r'$8\times 10^6$')
-plt.plot(x, data_500k[:, 1], 'ok', label=r'$5\times 10^5$')
+plt.plot(x, data_8m[:, 1], 'xk', label=r'$8\times 10^6$', markersize=8)
+plt.plot(x, data_500k[:, 1], 'ok', label=r'$5\times 10^5$', markersize=8)
 
-plt.plot(x, data_8m[:, 1], 'x-b')
-plt.plot(x, data_8m[:, 2], 'x-g')
-plt.plot(x, data_8m[:, 3], 'x-r')
+plt.plot(x, data_8m[:, 1], 'x-b', markersize=8)
+plt.plot(x, data_8m[:, 2], 'x-g', markersize=8)
+plt.plot(x, data_8m[:, 3], 'x-r', markersize=8)
 
-plt.plot(x, data_500k[:, 1], 'o-b')
-plt.plot(x, data_500k[:, 2], 'o-g')
-plt.plot(x, data_500k[:, 3], 'o-r')
+plt.plot(x, data_500k[:, 1], 'o-b', markersize=8)
+plt.plot(x, data_500k[:, 2], 'o-g', markersize=8)
+plt.plot(x, data_500k[:, 3], 'o-r', markersize=8)
 
 plt.fill(np.append(x, x[::-1]),
          np.append(data_8m[:, 1], data_8m[:, 2][::-1]),
