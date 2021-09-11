@@ -152,10 +152,9 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
 
         // Pseudo huber loss
 
-        float w = abs(r) > depth_diff ? 0 : 1;
-        // float depth_diff2 = depth_diff * depth_diff;
-        // float w = 1.0 / (depth_diff2 * sqrt((r * r / depth_diff2) +
-        // 1));
+        // float w = abs(r) > depth_diff ? 0 : 1;
+        float depth_diff2 = depth_diff * depth_diff;
+        float w = 1.0 / (depth_diff2 * sqrt((r * r / depth_diff2) + 1));
 
         J_ij[0] = w * (-T_source_to_target_v[2] * target_n[1] +
                        T_source_to_target_v[1] * target_n[2]);

@@ -37,6 +37,7 @@
 #include "open3d/t/io/NumpyIO.h"
 #include "open3d/t/pipelines/kernel/LiDAROdometry.h"
 #include "open3d/t/pipelines/kernel/TransformationConverter.h"
+#include "open3d/utility/Timer.h"
 #include "open3d/visualization/utility/DrawGeometry.h"
 
 namespace open3d {
@@ -119,7 +120,7 @@ OdometryResult LiDAROdometry(const Image& source,
                              const float depth_max,
                              const float dist_diff,
                              const OdometryConvergenceCriteria& criteria) {
-    core::Device device = source.GetDevice();
+    // core::Device device = source.GetDevice();
     core::Tensor source_vertex_map, source_mask_map;
     core::Tensor target_vertex_map, target_mask_map;
 
@@ -131,23 +132,17 @@ OdometryResult LiDAROdometry(const Image& source,
             calib.Unproject(target.AsTensor(), identity, depth_min, depth_max);
 
     /// TODO: normal map estimate from kernels
-    open3d::geometry::PointCloud target_pcd_l =
-            t::geometry::PointCloud(
-                    target_vertex_map.Reshape(core::SizeVector{-1, 3}))
-                    .ToLegacy();
-    target_pcd_l.EstimateNormals();
-
-    t::geometry::PointCloud target_pcd = t::geometry::PointCloud::FromLegacy(
-            target_pcd_l, core::Dtype::Float32, device);
-
+    t::geometry::PointCloud target_pcd(
+            target_vertex_map.Reshape(core::SizeVector{-1, 3}));
+    target_pcd.EstimateNormals(30, 5.0 * dist_diff);
     core::Tensor target_normal_map =
-            target_pcd.GetPointNormals()
-                    .Reshape(target_vertex_map.GetShape())
-                    .To(device);
+            target_pcd.GetPointNormals().Reshape(target_vertex_map.GetShape());
 
     OdometryResult result(init_source_to_target);
     core::Tensor source_xyz = source_vertex_map.IndexGet({source_mask_map});
 
+    utility::Timer timer;
+    timer.Start();
     for (int i = 0; i < criteria.max_iteration_; ++i) {
         OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
@@ -159,6 +154,10 @@ OdometryResult LiDAROdometry(const Image& source,
         utility::LogDebug("iter {}: rmse = {}, fitness = {}", i,
                           delta_result.inlier_rmse_, delta_result.fitness_);
     }
+    timer.Stop();
+    utility::LogInfo("Average {}ms per iteration",
+                     timer.GetDuration() / criteria.max_iteration_);
+
     return result;
 }
 
