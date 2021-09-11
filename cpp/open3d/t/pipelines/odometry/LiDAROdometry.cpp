@@ -175,7 +175,6 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     float inlier_residual;
     int inlier_count;
 
-    utility::LogInfo("vertex system\n");
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
@@ -189,45 +188,11 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
                           inlier_count);
     }
 
-    utility::LogDebug("Inlier count = {}", inlier_count);
     return OdometryResult(
             pipelines::kernel::PoseToTransformation(se3_delta),
             inlier_residual / inlier_count,
             double(inlier_count) / double(source_vertex_map.GetShape(0) *
                                           source_vertex_map.GetShape(1)));
-}
-
-OdometryResult ComputeLiDAROdometryPointToPlane(
-        const core::Tensor& source_xyz,
-        const core::Tensor& target_vertex_map,
-        const core::Tensor& target_mask_map,
-        // Note: currently target_normal_map is from point cloud
-        const core::Tensor& target_normal_map,
-        const LiDARCalib& calib,
-        const core::Tensor& init_source_to_target,
-        const float depth_diff) {
-    core::Tensor se3_delta;
-    float inlier_residual;
-    int inlier_count;
-
-    utility::LogInfo("xyz system\n");
-    kernel::odometry::ComputeLiDAROdometryPointToPlane(
-            source_xyz, target_vertex_map, target_mask_map, target_normal_map,
-            init_source_to_target, calib.sensor_to_lidar_, calib.azimuth_lut_,
-            calib.altitude_lut_, calib.inv_altitude_lut_, se3_delta,
-            inlier_residual, inlier_count, depth_diff);
-
-    // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
-    if (inlier_count <= 0) {
-        utility::LogError("Invalid inlier_count value {}, must be > 0.",
-                          inlier_count);
-    }
-
-    utility::LogDebug("Inlier count = {}", inlier_count);
-    return OdometryResult(
-            pipelines::kernel::PoseToTransformation(se3_delta),
-            inlier_residual / inlier_count,
-            double(inlier_count) / double(source_xyz.GetLength()));
 }
 
 }  // namespace odometry

@@ -41,6 +41,13 @@ namespace odometry {
 
 using t::geometry::Image;
 
+struct LiDARLUT {
+    // Azimuth lookup
+    float* azimuth_lut_ptr;
+    float* altitude_lut_ptr;
+    int64_t height;
+};
+
 class LiDARCalib {
 public:
     LiDARCalib(const std::string& config_npz_file, const core::Device& device);
@@ -95,15 +102,6 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const float depth_diff);
 
-OdometryResult ComputeLiDAROdometryPointToPlane(
-        const core::Tensor& source_xyz,
-        const core::Tensor& target_vertex_map,
-        const core::Tensor& target_mask_map,
-        // Note: currently target_normal_map is from point cloud
-        const core::Tensor& target_normal_map,
-        const LiDARCalib& calib,
-        const core::Tensor& init_source_to_target,
-        const float depth_diff);
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t

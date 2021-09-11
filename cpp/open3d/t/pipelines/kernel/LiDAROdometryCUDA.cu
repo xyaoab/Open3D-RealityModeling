@@ -99,21 +99,21 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         // Estimate u
         float u = atan2(y, x);
         u = (u < 0) ? TWO_PI + u : u;
-        u = (TWO_PI - u) / azimuth_resolution;
+        u = TWO_PI - u;
 
         // Estimate v
         float phi = asin(z / *r);
         int64_t v = LookUpV(phi * RAD2DEG);
 
         if (v >= 0) {
-            u -= azimuth_lut_ptr[v] * azimuth_deg_to_pixel;
+            u = (u - azimuth_lut_ptr[v] * DEG2RAD) / azimuth_resolution;
             u = (u < 0) ? u + width : u;
             u = (u >= width) ? u - width : u;
             *ui = static_cast<int64_t>(u);
             *vi = static_cast<int64_t>(v);
             return true;
         } else {
-            *ui = static_cast<int64_t>(u);
+            *ui = -1;
             *vi = -1;
             return false;
         }
@@ -319,145 +319,6 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
     core::cuda::Synchronize();
 
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
-}
-
-void ComputeLiDAROdometryPointToPlaneCUDA(
-        // source input
-        const core::Tensor& source_xyz,
-        // target input
-        const core::Tensor& target_vertex_map,
-        const core::Tensor& target_mask_map,
-        const core::Tensor& target_normal_map,
-        // init transformation
-        const core::Tensor& init_source_to_target,
-        const core::Tensor& sensor_to_lidar,
-        // LiDAR calibration
-        const core::Tensor& azimuth_lut,
-        const core::Tensor& altitude_lut,
-        const core::Tensor& inv_altitude_lut,
-        // Output linear system result
-        core::Tensor& delta,
-        float& inlier_residual,
-        int& inlier_count,
-        // Other params
-        float depth_diff) {
-    core::Device device = source_xyz.GetDevice();
-    int64_t n = source_xyz.GetLength();
-
-    // Index source data
-    const float* xyz_ptr = source_xyz.GetDataPtr<float>();
-
-    // Index target data
-    NDArrayIndexer target_vertex_indexer(target_vertex_map, 2);
-    NDArrayIndexer target_mask_indexer(target_mask_map, 2);
-    NDArrayIndexer target_normal_indexer(target_normal_map, 2);
-
-    // Wrap transformation
-    t::geometry::kernel::TransformIndexer sensor_to_lidar_indexer(
-            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
-            sensor_to_lidar.Contiguous());
-
-    t::geometry::kernel::TransformIndexer transform_indexer(
-            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
-            init_source_to_target.Contiguous());
-
-    // Projection LUTs
-    const float* azimuth_lut_ptr = azimuth_lut.GetDataPtr<float>();
-    const float* altitude_lut_ptr = altitude_lut.GetDataPtr<float>();
-    const int64_t* inv_altitude_lut_ptr =
-            inv_altitude_lut.GetDataPtr<int64_t>();
-
-    // Projection consts
-    const int64_t width = 1024;
-    const int64_t height = 128;
-    const int64_t inv_lut_length = inv_altitude_lut.GetLength();
-
-    const float azimuth_resolution = TWO_PI / width;
-    const float azimuth_deg_to_pixel = width / 360.0;
-    const float altitude_resolution = 0.4;
-    const float altitude_min = altitude_lut[height - 1].Item<float>();
-
-    // Result
-    core::Tensor global_sum = core::Tensor::Zeros({29}, core::Float32, device);
-    float* global_sum_ptr = global_sum.GetDataPtr<float>();
-
-    // Launcher config
-    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int workload_idx) {
-        // Lookup vi from altitude lut
-        auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
-            int64_t phi_int = static_cast<int64_t>(
-                    round((phi_deg - altitude_min) / altitude_resolution));
-            if (phi_int < 0 || phi_int >= inv_lut_length) {
-                return -1;
-            }
-
-            int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
-            int64_t v1 = max(v0 - 1, 0l);
-            int64_t v2 = min(v0 + 1, height - 1);
-
-            float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
-            float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
-            float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
-
-            bool flag = diff0 < diff1;
-            float diff = flag ? diff0 : diff1;
-            int64_t v = flag ? v0 : v1;
-
-            return diff < diff2 ? v : v2;
-        };
-
-        // Project xyz -> uvr
-        auto DeviceProject = [=] OPEN3D_DEVICE(float x_in, float y_in,
-                                               float z_in, int64_t* ui,
-                                               int64_t* vi, float* r) -> bool {
-            float x, y, z;
-            sensor_to_lidar_indexer.RigidTransform(x_in, y_in, z_in, &x, &y,
-                                                   &z);
-            *r = sqrt(x * x + y * y + z * z);
-
-            // Estimate u
-            float u = atan2(y, x);
-            u = (u < 0) ? TWO_PI + u : u;
-            u = (TWO_PI - u) / azimuth_resolution;
-
-            // Estimate v
-            float phi = asin(z / *r);
-            int64_t v = LookUpV(phi * RAD2DEG);
-
-            if (v >= 0) {
-                u -= azimuth_lut_ptr[v] * azimuth_deg_to_pixel;
-                u = (u < 0) ? u + width : u;
-                u = (u >= width) ? u - width : u;
-                *ui = static_cast<int64_t>(u);
-                *vi = static_cast<int64_t>(v);
-                return true;
-            } else {
-                *ui = static_cast<int64_t>(u);
-                *vi = -1;
-                return false;
-            }
-        };
-
-        int64_t workload_offset = 3 * workload_idx;
-        float x, y, z;
-        transform_indexer.RigidTransform(
-                xyz_ptr[workload_offset + 0], xyz_ptr[workload_offset + 1],
-                xyz_ptr[workload_offset + 2], &x, &y, &z);
-
-        int64_t ui, vi;
-        float r;
-        bool mask_proj = DeviceProject(x, y, z, &ui, &vi, &r);
-        if (!mask_proj) return;
-
-        bool mask_valid_target = *target_mask_indexer.GetDataPtr<bool>(ui, vi);
-
-        atomicAdd(&global_sum_ptr[0], mask_valid_target);
-    });
-
-    std::cout << n << "\n";
-    std::cout << global_sum[0].Item<float>() << "\n";
-    exit(0);
-    // DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 
 }  // namespace odometry
