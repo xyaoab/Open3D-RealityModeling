@@ -134,7 +134,7 @@ std::pair<OdometryResult, float> LiDAROdometry(
         const float depth_max,
         const float dist_diff,
         const OdometryConvergenceCriteria& criteria) {
-    // core::Device device = source.GetDevice();
+    core::Device device = source.GetDevice();
     core::Tensor source_vertex_map, source_mask_map;
     core::Tensor target_vertex_map, target_mask_map;
 
@@ -145,12 +145,25 @@ std::pair<OdometryResult, float> LiDAROdometry(
     std::tie(target_vertex_map, target_mask_map) =
             calib.Unproject(target.AsTensor(), identity, depth_min, depth_max);
 
-    /// TODO: normal map estimate from kernels
-    t::geometry::PointCloud target_pcd(
-            target_vertex_map.Reshape(core::SizeVector{-1, 3}));
-    target_pcd.EstimateNormals(30, 5.0 * dist_diff);
-    core::Tensor target_normal_map =
-            target_pcd.GetPointNormals().Reshape(target_vertex_map.GetShape());
+    /// TODO: normal map estimate from image kernels
+    core::Tensor target_normal_map;
+    if (device.GetType() == core::Device::DeviceType::CUDA) {
+        t::geometry::PointCloud target_pcd(
+                target_vertex_map.Reshape(core::SizeVector{-1, 3}));
+        target_pcd.EstimateNormals();
+        target_normal_map = target_pcd.GetPointNormals().Reshape(
+                target_vertex_map.GetShape());
+    } else {
+        /// CPU's tensor version is rediculously slow
+        t::geometry::PointCloud target_pcd(
+                target_vertex_map.Reshape(core::SizeVector{-1, 3}));
+        open3d::geometry::PointCloud target_pcd_l = target_pcd.ToLegacy();
+        target_pcd_l.EstimateNormals();
+        target_pcd = t::geometry::PointCloud::FromLegacy(target_pcd_l);
+        target_normal_map = target_pcd.GetPointNormals().Reshape(
+                target_vertex_map.GetShape());
+    }
+
     OdometryResult result(init_source_to_target);
 
     utility::Timer timer;

@@ -213,6 +213,14 @@ static const std::unordered_map<std::string, std::string>
                  "by CreateVertexMap before calling this function."}};
 
 void pybind_odometry_methods(py::module &m) {
+    m.def("lidar_odometry", &LiDAROdometry,
+          py::call_guard<py::gil_scoped_release>(),
+          "Function for LiDAR odometry.", "source"_a, "target"_a, "calib"_a,
+          "init_source_to_target"_a =
+                  core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
+          "depth_min"_a = 0.0f, "depth_max"_a = 20.0f, "dist_diff"_a = 0.2f,
+          "criteria"_a = OdometryConvergenceCriteria(20));
+
     m.def("rgbd_odometry_multi_scale", &RGBDOdometryMultiScale,
           py::call_guard<py::gil_scoped_release>(),
           "Function for Multi Scale RGBD odometry.", "source"_a, "target"_a,
