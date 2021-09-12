@@ -152,7 +152,6 @@ OdometryResult LiDAROdometry(const Image& source,
             target_pcd.GetPointNormals().Reshape(target_vertex_map.GetShape());
 
     OdometryResult result(init_source_to_target);
-    core::Tensor source_xyz = source_vertex_map.IndexGet({source_mask_map});
 
     utility::Timer timer;
     timer.Start();
@@ -191,9 +190,8 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
-            calib.sensor_to_lidar_, calib.azimuth_lut_, calib.altitude_lut_,
-            calib.inv_altitude_lut_, se3_delta, inlier_residual, inlier_count,
-            depth_diff);
+            calib.sensor_to_lidar_, calib.calib_config_, se3_delta,
+            inlier_residual, inlier_count, depth_diff);
 
     // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
     if (inlier_count <= 0) {

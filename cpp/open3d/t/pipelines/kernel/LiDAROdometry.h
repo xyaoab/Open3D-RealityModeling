@@ -66,9 +66,7 @@ void ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const core::Tensor& azimuth_lut,
-        const core::Tensor& altitude_lut,
-        const core::Tensor& inv_altitude_lut,
+        const LiDARCalibConfig& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,
@@ -87,9 +85,7 @@ void ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const core::Tensor& azimuth_lut,
-        const core::Tensor& altitude_lut,
-        const core::Tensor& inv_altitude_lut,
+        const LiDARCalibConfig& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,
@@ -144,9 +140,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const core::Tensor& azimuth_lut,
-        const core::Tensor& altitude_lut,
-        const core::Tensor& inv_altitude_lut,
+        const LiDARCalibConfig& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,

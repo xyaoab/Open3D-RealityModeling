@@ -53,71 +53,9 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         NDArrayIndexer target_normal_indexer,
         TransformIndexer proj_transform,
         TransformIndexer src2dst_transform,
-        const float* azimuth_lut_ptr,
-        const float* altitude_lut_ptr,
-        const int64_t* inv_altitude_lut_ptr,
+        LiDARCalibConfig config,
         float* global_sum,
-        int64_t height,
-        int64_t width,
-        int64_t inv_lut_length,
-        float azimuth_resolution,
-        float altitude_lut_resolution,
         float depth_diff) {
-    // Lookup vi from altitude lut
-    auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
-        int64_t phi_int = static_cast<int64_t>(
-                round((phi_deg - altitude_lut_ptr[height - 1]) /
-                      altitude_lut_resolution));
-        if (phi_int < 0 || phi_int >= inv_lut_length) {
-            return -1;
-        }
-
-        int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
-        int64_t v1 = max(v0 - 1, 0l);
-        int64_t v2 = min(v0 + 1, height - 1);
-
-        float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
-        float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
-        float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
-
-        bool flag = diff0 < diff1;
-        float diff = flag ? diff0 : diff1;
-        int64_t v = flag ? v0 : v1;
-
-        return diff < diff2 ? v : v2;
-    };
-
-    // Project xyz -> uvr
-    auto DeviceProject = [=] OPEN3D_DEVICE(float x_in, float y_in, float z_in,
-                                           int64_t* ui, int64_t* vi,
-                                           float* r) -> bool {
-        float x, y, z;
-        proj_transform.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
-        *r = sqrt(x * x + y * y + z * z);
-
-        // Estimate u
-        float u = atan2(y, x);
-        u = (u < 0) ? TWO_PI + u : u;
-        u = TWO_PI - u;
-
-        // Estimate v
-        float phi = asin(z / *r);
-        int64_t v = LookUpV(phi * RAD2DEG);
-
-        if (v >= 0) {
-            u = (u - azimuth_lut_ptr[v] * DEG2RAD) / azimuth_resolution;
-            u = (u < 0) ? u + width : u;
-            u = (u >= width) ? u - width : u;
-            *ui = static_cast<int64_t>(u);
-            *vi = static_cast<int64_t>(v);
-            return true;
-        } else {
-            *ui = -1;
-            *vi = -1;
-            return false;
-        }
-    };
-
     // Find correspondence and obtain Jacobian at (x, y)
     // Note the built-in indexer uses (x, y) and (u, v) convention.
     auto GetJacobianPointToPlane = [=] OPEN3D_DEVICE(int x, int y, float* J_ij,
@@ -128,8 +66,8 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
 
         int64_t ui, vi;
         float d;
-        bool mask_proj = DeviceProject(source_v[0], source_v[1], source_v[2],
-                                       &ui, &vi, &d);
+        bool mask_proj = DeviceProject(config, proj_transform, source_v[0],
+                                       source_v[1], source_v[2], &ui, &vi, &d);
         if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
             return false;
         }
@@ -180,7 +118,7 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
     local_sum1[tid] = 0;
     local_sum2[tid] = 0;
 
-    if (y >= height || x >= width) return;
+    if (y >= config.height || x >= config.width) return;
 
     float J[6] = {0}, reduction[21 + 6 + 2];
     float r = 0;
@@ -244,9 +182,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const core::Tensor& azimuth_lut,
-        const core::Tensor& altitude_lut,
-        const core::Tensor& inv_altitude_lut,
+        const LiDARCalibConfig& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,
@@ -273,28 +209,14 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             init_source_to_target.Contiguous());
 
-    // Projection LUTs
-    const float* azimuth_lut_ptr = azimuth_lut.GetDataPtr<float>();
-    const float* altitude_lut_ptr = altitude_lut.GetDataPtr<float>();
-    const int64_t* inv_altitude_lut_ptr =
-            inv_altitude_lut.GetDataPtr<int64_t>();
-
-    // Projection consts
-    const int64_t width = 1024;
-    const int64_t height = 128;
-    const int64_t inv_lut_length = inv_altitude_lut.GetLength();
-
-    const float azimuth_resolution = TWO_PI / width;
-    const float altitude_lut_resolution = 0.4;
-
     // Result
     core::Tensor global_sum = core::Tensor::Zeros({29}, core::Float32, device);
     float* global_sum_ptr = global_sum.GetDataPtr<float>();
 
     // Launcher config
     const int kThreadSize = 16;
-    const dim3 blocks((width + kThreadSize - 1) / kThreadSize,
-                      (height + kThreadSize - 1) / kThreadSize);
+    const dim3 blocks((config.width + kThreadSize - 1) / kThreadSize,
+                      (config.height + kThreadSize - 1) / kThreadSize);
     const dim3 threads(kThreadSize, kThreadSize);
     ComputeLiDAROdometryPointToPlaneCUDAKernel<<<blocks, threads, 0,
                                                  core::cuda::GetStream()>>>(
@@ -304,12 +226,11 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
             // Transform
             proj_transform, src2dst_transform,
             // LiDAR calib LUTs
-            azimuth_lut_ptr, altitude_lut_ptr, inv_altitude_lut_ptr,
+            config,
             // Output
             global_sum_ptr,
             // Params
-            height, width, inv_lut_length, azimuth_resolution,
-            altitude_lut_resolution, depth_diff);
+            depth_diff);
     core::cuda::Synchronize();
 
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
