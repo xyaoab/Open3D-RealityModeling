@@ -37,8 +37,7 @@ namespace odometry {
 
 void LiDARUnproject(const core::Tensor& range_image,
                     const core::Tensor& transformation,
-                    const core::Tensor& dir_lut,
-                    const core::Tensor& offset_lut,
+                    const LiDARCalibConfig& config,
                     core::Tensor& xyz_im,
                     core::Tensor& mask_im,
                     float depth_scale,
@@ -47,12 +46,11 @@ void LiDARUnproject(const core::Tensor& range_image,
     core::Device device = range_image.GetDevice();
 
     if (device.GetType() == core::Device::DeviceType::CPU) {
-        LiDARUnprojectCPU(range_image, transformation, dir_lut, offset_lut,
-                          xyz_im, mask_im, depth_scale, depth_min, depth_max);
+        LiDARUnprojectCPU(range_image, transformation, config, xyz_im, mask_im,
+                          depth_scale, depth_min, depth_max);
     } else if (device.GetType() == core::Device::DeviceType::CUDA) {
-        CUDA_CALL(LiDARUnprojectCUDA, range_image, transformation, dir_lut,
-                  offset_lut, xyz_im, mask_im, depth_scale, depth_min,
-                  depth_max);
+        CUDA_CALL(LiDARUnprojectCUDA, range_image, transformation, config,
+                  xyz_im, mask_im, depth_scale, depth_min, depth_max);
     } else {
         utility::LogError("Unimplemented device {}", device.ToString());
     }

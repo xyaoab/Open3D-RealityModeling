@@ -99,9 +99,9 @@ std::tuple<core::Tensor, core::Tensor> LiDARCalib::Unproject(
                         device);
     core::Tensor mask_im(core::SizeVector{h, w}, core::Dtype::Bool, device);
 
-    kernel::odometry::LiDARUnproject(
-            range_image, transformation, unproj_dir_lut_, unproj_offset_lut_,
-            xyz_im, mask_im, range_scale_, depth_min, depth_max);
+    kernel::odometry::LiDARUnproject(range_image, transformation, calib_config_,
+                                     xyz_im, mask_im, range_scale_, depth_min,
+                                     depth_max);
 
     return std::make_tuple(xyz_im, mask_im);
 }
