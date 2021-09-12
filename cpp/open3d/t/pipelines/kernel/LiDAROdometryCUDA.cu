@@ -51,8 +51,8 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         NDArrayIndexer target_vertex_indexer,
         NDArrayIndexer target_mask_indexer,
         NDArrayIndexer target_normal_indexer,
-        TransformIndexer transform_indexer,
-        TransformIndexer sensor_to_lidar_indexer,
+        TransformIndexer proj_transform,
+        TransformIndexer src2dst_transform,
         const float* azimuth_lut_ptr,
         const float* altitude_lut_ptr,
         const int64_t* inv_altitude_lut_ptr,
@@ -92,7 +92,7 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
                                            int64_t* ui, int64_t* vi,
                                            float* r) -> bool {
         float x, y, z;
-        sensor_to_lidar_indexer.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
+        proj_transform.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
         *r = sqrt(x * x + y * y + z * z);
 
         // Estimate u
@@ -126,21 +126,19 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         bool mask_v = *source_mask_indexer.GetDataPtr<bool>(x, y);
         if (!mask_v) return false;
 
-        // Transform source points to the target camera's coordinate space.
-        float T_source_to_target_v[3];
-        transform_indexer.RigidTransform(
-                source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],
-                &T_source_to_target_v[1], &T_source_to_target_v[2]);
-
         int64_t ui, vi;
         float d;
-        bool mask_proj =
-                DeviceProject(T_source_to_target_v[0], T_source_to_target_v[1],
-                              T_source_to_target_v[2], &ui, &vi, &d);
-
+        bool mask_proj = DeviceProject(source_v[0], source_v[1], source_v[2],
+                                       &ui, &vi, &d);
         if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
             return false;
         }
+
+        // Transform source points to the target camera's coordinate space.
+        float T_source_to_target_v[3];
+        src2dst_transform.RigidTransform(
+                source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],
+                &T_source_to_target_v[1], &T_source_to_target_v[2]);
 
         float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
         float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
@@ -267,11 +265,11 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
     NDArrayIndexer target_normal_indexer(target_normal_map, 2);
 
     // Wrap transformation
-    t::geometry::kernel::TransformIndexer sensor_to_lidar_indexer(
+    t::geometry::kernel::TransformIndexer proj_transform(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
-            sensor_to_lidar.Contiguous());
+            (sensor_to_lidar.Matmul(init_source_to_target)).Contiguous());
 
-    t::geometry::kernel::TransformIndexer transform_indexer(
+    t::geometry::kernel::TransformIndexer src2dst_transform(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             init_source_to_target.Contiguous());
 
@@ -304,7 +302,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
             source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
             target_mask_indexer, target_normal_indexer,
             // Transform
-            transform_indexer, sensor_to_lidar_indexer,
+            proj_transform, src2dst_transform,
             // LiDAR calib LUTs
             azimuth_lut_ptr, altitude_lut_ptr, inv_altitude_lut_ptr,
             // Output
