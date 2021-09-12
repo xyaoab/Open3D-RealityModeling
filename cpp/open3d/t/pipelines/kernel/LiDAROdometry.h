@@ -27,12 +27,15 @@
 #pragma once
 
 #include "open3d/core/Tensor.h"
+#include "open3d/t/pipelines/odometry/LiDAROdometry.h"
 
 namespace open3d {
 namespace t {
 namespace pipelines {
 namespace kernel {
 namespace odometry {
+
+using t::pipelines::odometry::LiDARCalibConfig;
 
 void LiDARUnproject(const core::Tensor& range_image,
                     const core::Tensor& transformation,
@@ -46,9 +49,7 @@ void LiDARUnproject(const core::Tensor& range_image,
 
 void LiDARProject(const core::Tensor& xyz,
                   const core::Tensor& transformation,
-                  const core::Tensor& azimuth_lut,
-                  const core::Tensor& altitude_lut,
-                  const core::Tensor& inv_altitude_lut,
+                  const LiDARCalibConfig& config,
                   core::Tensor& u,
                   core::Tensor& v,
                   core::Tensor& r,
@@ -109,9 +110,7 @@ void LiDARUnprojectCPU(const core::Tensor& range_image,
 
 void LiDARProjectCPU(const core::Tensor& xyz,
                      const core::Tensor& transformation,
-                     const core::Tensor& azimuth_lut,
-                     const core::Tensor& altitude_lut,
-                     const core::Tensor& inv_altitude_lut,
+                     const LiDARCalibConfig& config,
                      core::Tensor& u,
                      core::Tensor& v,
                      core::Tensor& r,
@@ -130,9 +129,7 @@ void LiDARUnprojectCUDA(const core::Tensor& range_image,
 
 void LiDARProjectCUDA(const core::Tensor& xyz,
                       const core::Tensor& transformation,
-                      const core::Tensor& azimuth_lut,
-                      const core::Tensor& altitude_lut,
-                      const core::Tensor& inv_altitude_lut,
+                      const LiDARCalibConfig& config,
                       core::Tensor& u,
                       core::Tensor& v,
                       core::Tensor& r,

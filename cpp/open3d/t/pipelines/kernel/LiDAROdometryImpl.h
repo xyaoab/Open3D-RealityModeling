@@ -31,6 +31,7 @@
 #include "open3d/core/ParallelFor.h"
 #include "open3d/t/geometry/kernel/GeometryIndexer.h"
 #include "open3d/t/geometry/kernel/GeometryMacros.h"
+#include "open3d/t/pipelines/odometry/LiDAROdometry.h"
 
 namespace open3d {
 namespace t {
@@ -42,6 +43,8 @@ namespace odometry {
 #define TWO_PI (2 * PI)
 #define RAD2DEG (180 / PI)
 #define DEG2RAD (PI / 180)
+
+using t::pipelines::odometry::LiDARCalibConfig;
 
 #ifdef __CUDACC__
 void LiDARUnprojectCUDA
@@ -114,9 +117,7 @@ void LiDARProjectCPU
 #endif
         (const core::Tensor& xyz,
          const core::Tensor& transformation,
-         const core::Tensor& azimuth_lut,
-         const core::Tensor& altitude_lut,
-         const core::Tensor& inv_altitude_lut,
+         const LiDARCalibConfig& config,
          core::Tensor& us,
          core::Tensor& vs,
          core::Tensor& rs,
@@ -125,16 +126,6 @@ void LiDARProjectCPU
     int64_t n = xyz.GetLength();
 
     // TODO: make them configurable
-    const int64_t width = 1024;
-    const int64_t height = altitude_lut.GetLength();
-    const int64_t inv_lut_len = inv_altitude_lut.GetLength();
-
-    const float azimuth_resolution = TWO_PI / width;
-    const float azimuth_deg_to_pixel = width / 360.0;
-
-    const float altitude_resolution = 0.4;
-    const float altitude_min = altitude_lut[height - 1].Item<float>();
-
     t::geometry::kernel::TransformIndexer transform_indexer(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             transformation.Contiguous());
@@ -145,25 +136,21 @@ void LiDARProjectCPU
     float* r_ptr = rs.GetDataPtr<float>();
     bool* mask_ptr = masks.GetDataPtr<bool>();
 
-    const float* azimuth_lut_ptr = azimuth_lut.GetDataPtr<float>();
-    const float* altitude_lut_ptr = altitude_lut.GetDataPtr<float>();
-    const int64_t* inv_altitude_lut_ptr =
-            inv_altitude_lut.GetDataPtr<int64_t>();
-
     auto LookUpV = [=] OPEN3D_DEVICE(float phi_deg) -> int64_t {
         int64_t phi_int = static_cast<int64_t>(
-                round((phi_deg - altitude_min) / altitude_resolution));
-        if (phi_int < 0 || phi_int >= inv_lut_len) {
+                round((phi_deg - config.altitude_lut_ptr[config.height - 1]) /
+                      config.inv_altitude_lut_resolution));
+        if (phi_int < 0 || phi_int >= config.inv_altitude_lut_length) {
             return -1;
         }
 
-        int64_t v0 = height - 1 - inv_altitude_lut_ptr[phi_int];
+        int64_t v0 = config.height - 1 - config.inv_altitude_lut_ptr[phi_int];
         int64_t v1 = max(v0 - 1, 0l);
-        int64_t v2 = min(v0 + 1, height - 1);
+        int64_t v2 = min(v0 + 1, config.height - 1);
 
-        float diff0 = abs(altitude_lut_ptr[v0] - phi_deg);
-        float diff1 = abs(altitude_lut_ptr[v1] - phi_deg);
-        float diff2 = abs(altitude_lut_ptr[v2] - phi_deg);
+        float diff0 = abs(config.altitude_lut_ptr[v0] - phi_deg);
+        float diff1 = abs(config.altitude_lut_ptr[v1] - phi_deg);
+        float diff2 = abs(config.altitude_lut_ptr[v2] - phi_deg);
 
         bool flag = diff0 < diff1;
         float diff = flag ? diff0 : diff1;
@@ -182,21 +169,21 @@ void LiDARProjectCPU
         // Estimate u
         float u = atan2(y, x);
         u = (u < 0) ? TWO_PI + u : u;
-        u = (TWO_PI - u) / azimuth_resolution;
+        u = TWO_PI - u;
 
         // Estimate v
         float phi = asin(z / *r);
         int64_t v = LookUpV(phi * RAD2DEG);
 
         if (v >= 0) {
-            u -= azimuth_lut_ptr[v] * azimuth_deg_to_pixel;
-            u = (u < 0) ? u + width : u;
-            u = (u >= width) ? u - width : u;
+            u = (u - config.azimuth_lut_ptr[v]) / config.azimuth_resolution;
+            u = (u < 0) ? u + config.width : u;
+            u = (u >= config.width) ? u - config.width : u;
             *ui = static_cast<int64_t>(u);
             *vi = static_cast<int64_t>(v);
             return true;
         } else {
-            *ui = static_cast<int64_t>(u);
+            *ui = -1;
             *vi = -1;
             return false;
         }

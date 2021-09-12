@@ -60,9 +60,7 @@ void LiDARUnproject(const core::Tensor& range_image,
 
 void LiDARProject(const core::Tensor& xyz,
                   const core::Tensor& transformation,
-                  const core::Tensor& azimuth_lut,
-                  const core::Tensor& altitude_lut,
-                  const core::Tensor& inv_altitude_lut,
+                  const LiDARCalibConfig& config,
                   core::Tensor& u,
                   core::Tensor& v,
                   core::Tensor& r,
@@ -70,11 +68,9 @@ void LiDARProject(const core::Tensor& xyz,
     core::Device device = xyz.GetDevice();
 
     if (device.GetType() == core::Device::DeviceType::CPU) {
-        LiDARProjectCPU(xyz, transformation, azimuth_lut, altitude_lut,
-                        inv_altitude_lut, u, v, r, mask);
+        LiDARProjectCPU(xyz, transformation, config, u, v, r, mask);
     } else if (device.GetType() == core::Device::DeviceType::CUDA) {
-        CUDA_CALL(LiDARProjectCUDA, xyz, transformation, azimuth_lut,
-                  altitude_lut, inv_altitude_lut, u, v, r, mask);
+        CUDA_CALL(LiDARProjectCUDA, xyz, transformation, config, u, v, r, mask);
     } else {
         utility::LogError("Unimplemented device {}", device.ToString());
     }

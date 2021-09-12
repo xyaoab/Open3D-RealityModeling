@@ -34,6 +34,8 @@
 #include "open3d/t/geometry/Image.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
 
+class kernelTransformIndexer;
+
 namespace open3d {
 namespace t {
 namespace pipelines {
@@ -41,11 +43,25 @@ namespace odometry {
 
 using t::geometry::Image;
 
-struct LiDARLUT {
-    // Azimuth lookup
+// Struct to directly pass to kernels instead of the LiDARCalib itself
+struct LiDARCalibConfig {
+    // Unprojection LUTs
+    float* dir_lut_ptr;
+    float* offset_lut_ptr;
+
+    // Projection LUTs
     float* azimuth_lut_ptr;
     float* altitude_lut_ptr;
+    int64_t* inv_altitude_lut_ptr;
+
+    // LUT params
+    float azimuth_resolution;
+    int64_t inv_altitude_lut_length;
+    float inv_altitude_lut_resolution;
+
+    // Other params
     int64_t height;
+    int64_t width;
 };
 
 class LiDARCalib {
@@ -80,6 +96,8 @@ public:
     core::Tensor unproj_offset_lut_;
 
     float range_scale_ = 1000.0;
+
+    LiDARCalibConfig calib_config_;
 };
 
 OdometryResult LiDAROdometry(const Image& source,

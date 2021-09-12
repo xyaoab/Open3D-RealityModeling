@@ -66,6 +66,20 @@ LiDARCalib::LiDARCalib(const std::string& config_npz_file,
     unproj_dir_lut_ = result.at("lut_dir").To(device, core::Dtype::Float32);
     unproj_offset_lut_ =
             result.at("lut_offset").To(device, core::Dtype::Float32);
+
+    // Specify config sent to kernels
+    calib_config_.dir_lut_ptr = unproj_dir_lut_.GetDataPtr<float>();
+    calib_config_.offset_lut_ptr = unproj_offset_lut_.GetDataPtr<float>();
+    calib_config_.azimuth_lut_ptr = azimuth_lut_.GetDataPtr<float>();
+    calib_config_.altitude_lut_ptr = altitude_lut_.GetDataPtr<float>();
+    calib_config_.inv_altitude_lut_ptr =
+            inv_altitude_lut_.GetDataPtr<int64_t>();
+
+    calib_config_.width = 1024;
+    calib_config_.height = 128;
+    calib_config_.azimuth_resolution = (2 * M_PI) / calib_config_.width;
+    calib_config_.inv_altitude_lut_length = inv_altitude_lut_.GetLength();
+    calib_config_.inv_altitude_lut_resolution = 0.4;
 }
 
 /// Return xyz-image and mask_image
@@ -104,10 +118,9 @@ LiDARCalib::Project(const core::Tensor& xyz,
     core::Tensor r(core::SizeVector{n}, core::Dtype::Float32, device);
     core::Tensor mask(core::SizeVector{n}, core::Dtype::Bool, device);
 
-    // Left-multiply two 4x4 matrices.
+    // sensor_to_lidar @ transformation @ xyz
     core::Tensor trans = sensor_to_lidar_.Matmul(transformation);
-    kernel::odometry::LiDARProject(xyz, trans, azimuth_lut_, altitude_lut_,
-                                   inv_altitude_lut_, u, v, r, mask);
+    kernel::odometry::LiDARProject(xyz, trans, calib_config_, u, v, r, mask);
 
     return std::make_tuple(u, v, r, mask);
 }
