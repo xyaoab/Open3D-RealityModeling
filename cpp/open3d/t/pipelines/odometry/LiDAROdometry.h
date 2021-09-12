@@ -100,15 +100,27 @@ public:
     LiDARCalibConfig calib_config_;
 };
 
-std::pair<OdometryResult, float> LiDAROdometry(
-        const Image& source,
-        const Image& target,
-        const LiDARCalib& calib,
-        const core::Tensor& init_source_to_target,
-        const float depth_min,
-        const float depth_max,
-        const float depth_diff,
-        const OdometryConvergenceCriteria& criteria);
+/// Currently from point cloud, could be slow.
+core::Tensor GetNormalMap(const Image& im, const LiDARCalib& calib);
+
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float dist_diff,
+                             const OdometryConvergenceCriteria& criteria);
+
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const core::Tensor& target_normal_map,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float dist_diff,
+                             const OdometryConvergenceCriteria& criteria);
 
 OdometryResult ComputeLiDAROdometryPointToPlane(
         const core::Tensor& source_vertex_map,

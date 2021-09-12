@@ -125,16 +125,49 @@ LiDARCalib::Project(const core::Tensor& xyz,
     return std::make_tuple(u, v, r, mask);
 }
 
-std::pair<OdometryResult, float> LiDAROdometry(
-        const Image& source,
-        const Image& target,
-        const LiDARCalib& calib,
-        const core::Tensor& init_source_to_target,
-        const float depth_min,
-        const float depth_max,
-        const float dist_diff,
-        const OdometryConvergenceCriteria& criteria) {
-    core::Device device = source.GetDevice();
+core::Tensor GetNormalMap(const t::geometry::Image& im,
+                          const LiDARCalib& calib) {
+    core::Device device = im.GetDevice();
+    core::Tensor vertex_map, mask_map;
+    std::tie(vertex_map, mask_map) = calib.Unproject(im.AsTensor());
+
+    core::Tensor normal_map;
+    t::geometry::PointCloud pcd(vertex_map.Reshape(core::SizeVector{-1, 3}));
+
+    if (device.GetType() == core::Device::DeviceType::CUDA) {
+        pcd.EstimateNormals();
+    } else {
+        /// CPU's tensor version is rediculously slow, use legacy
+        open3d::geometry::PointCloud pcd_l = pcd.ToLegacy();
+        pcd_l.EstimateNormals();
+        pcd = t::geometry::PointCloud::FromLegacy(pcd_l);
+    }
+    return pcd.GetPointNormals().Reshape(vertex_map.GetShape());
+}
+
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float dist_diff,
+                             const OdometryConvergenceCriteria& criteria) {
+    core::Tensor target_normal_map = GetNormalMap(target, calib);
+    return LiDAROdometry(source, target, target_normal_map, calib,
+                         init_source_to_target, depth_min, depth_max, dist_diff,
+                         criteria);
+}
+
+OdometryResult LiDAROdometry(const Image& source,
+                             const Image& target,
+                             const core::Tensor& target_normal_map,
+                             const LiDARCalib& calib,
+                             const core::Tensor& init_source_to_target,
+                             const float depth_min,
+                             const float depth_max,
+                             const float dist_diff,
+                             const OdometryConvergenceCriteria& criteria) {
     core::Tensor source_vertex_map, source_mask_map;
     core::Tensor target_vertex_map, target_mask_map;
 
@@ -145,29 +178,7 @@ std::pair<OdometryResult, float> LiDAROdometry(
     std::tie(target_vertex_map, target_mask_map) =
             calib.Unproject(target.AsTensor(), identity, depth_min, depth_max);
 
-    /// TODO: normal map estimate from image kernels
-    core::Tensor target_normal_map;
-    if (device.GetType() == core::Device::DeviceType::CUDA) {
-        t::geometry::PointCloud target_pcd(
-                target_vertex_map.Reshape(core::SizeVector{-1, 3}));
-        target_pcd.EstimateNormals();
-        target_normal_map = target_pcd.GetPointNormals().Reshape(
-                target_vertex_map.GetShape());
-    } else {
-        /// CPU's tensor version is rediculously slow
-        t::geometry::PointCloud target_pcd(
-                target_vertex_map.Reshape(core::SizeVector{-1, 3}));
-        open3d::geometry::PointCloud target_pcd_l = target_pcd.ToLegacy();
-        target_pcd_l.EstimateNormals();
-        target_pcd = t::geometry::PointCloud::FromLegacy(target_pcd_l);
-        target_normal_map = target_pcd.GetPointNormals().Reshape(
-                target_vertex_map.GetShape());
-    }
-
     OdometryResult result(init_source_to_target);
-
-    utility::Timer timer;
-    timer.Start();
     for (int i = 0; i < criteria.max_iteration_; ++i) {
         OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
@@ -179,9 +190,8 @@ std::pair<OdometryResult, float> LiDAROdometry(
         utility::LogDebug("iter {}: rmse = {}, fitness = {}", i,
                           delta_result.inlier_rmse_, delta_result.fitness_);
     }
-    timer.Stop();
 
-    return std::make_pair(result, timer.GetDuration());
+    return result;
 }
 
 OdometryResult ComputeLiDAROdometryPointToPlane(

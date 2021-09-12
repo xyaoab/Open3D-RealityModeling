@@ -170,9 +170,41 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
     auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
                                 depth_diff, criteria);
-    utility::LogInfo("Odometry takes {}ms", result.second);
-    VisualizeRegistration(src, dst, result.first.transformation_, calib,
-                          depth_min, depth_max);
+    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
+                          depth_max);
+}
+
+TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {
+    core::Device device = GetParam();
+
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+    const float depth_diff = 0.3;
+
+    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
+                                                                       1e-6);
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+
+    t::geometry::Image src = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
+    t::geometry::Image dst = *t::io::CreateImageFromFile(
+            utility::GetDataPathCommon("LiDARICP/outdoor/000010.png"));
+
+    src = src.To(device);
+    dst = dst.To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+
+    core::Tensor dst_normal_map = GetNormalMap(dst, calib);
+    VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
+    auto result = LiDAROdometry(src, dst, dst_normal_map, calib, identity,
+                                depth_min, depth_max, depth_diff, criteria);
+    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
+                          depth_max);
 }
 }  // namespace tests
 }  // namespace open3d
