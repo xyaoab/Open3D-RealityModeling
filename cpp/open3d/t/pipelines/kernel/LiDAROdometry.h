@@ -74,25 +74,6 @@ void ComputeLiDAROdometryPointToPlane(
         // Other params
         float depth_diff);
 
-void ComputeLiDAROdometryPointToPlane(
-        // source input
-        const core::Tensor& source_xyz,
-        // target input
-        const core::Tensor& target_vertex_map,
-        const core::Tensor& target_mask_map,
-        const core::Tensor& target_normal_map,
-        // init transformation
-        const core::Tensor& init_source_to_target,
-        const core::Tensor& sensor_to_lidar,
-        // LiDAR calibration
-        const LiDARCalibConfig& config,
-        // Output linear system result
-        core::Tensor& delta,
-        float& inlier_residual,
-        int& inlier_count,
-        // Other params
-        float depth_diff);
-
 void LiDARUnprojectCPU(const core::Tensor& range_image,
                        const core::Tensor& transformation,
                        const LiDARCalibConfig& config,
@@ -109,6 +90,26 @@ void LiDARProjectCPU(const core::Tensor& xyz,
                      core::Tensor& v,
                      core::Tensor& r,
                      core::Tensor& mask);
+
+void ComputeLiDAROdometryPointToPlaneCPU(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
+        // LiDAR calibration
+        const LiDARCalibConfig& config,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float depth_diff);
 
 #ifdef BUILD_CUDA_MODULE
 void LiDARUnprojectCUDA(const core::Tensor& range_image,

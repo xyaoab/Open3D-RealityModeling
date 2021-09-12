@@ -27,7 +27,6 @@
 #include "open3d/t/pipelines/kernel/LiDAROdometry.h"
 
 #include "open3d/core/CUDAUtils.h"
-#include "open3d/t/pipelines/kernel/LiDAROdometryImpl.h"
 
 namespace open3d {
 namespace t {
@@ -95,7 +94,13 @@ void ComputeLiDAROdometryPointToPlane(
         float depth_diff) {
     core::Device device = source_vertex_map.GetDevice();
 
-    if (device.GetType() == core::Device::DeviceType::CUDA) {
+    if (device.GetType() == core::Device::DeviceType::CPU) {
+        ComputeLiDAROdometryPointToPlaneCPU(
+                source_vertex_map, source_mask_map, target_vertex_map,
+                target_mask_map, target_normal_map, init_source_to_target,
+                sensor_to_lidar, config, delta, inlier_residual, inlier_count,
+                depth_diff);
+    } else if (device.GetType() == core::Device::DeviceType::CUDA) {
         ComputeLiDAROdometryPointToPlaneCUDA(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, init_source_to_target,
