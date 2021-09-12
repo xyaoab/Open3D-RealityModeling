@@ -170,8 +170,9 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
     auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
                                 depth_diff, criteria);
-    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
-                          depth_max);
+    utility::LogInfo("Odometry takes {}ms", result.second);
+    VisualizeRegistration(src, dst, result.first.transformation_, calib,
+                          depth_min, depth_max);
 }
 }  // namespace tests
 }  // namespace open3d
