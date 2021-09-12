@@ -58,52 +58,6 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         float depth_diff) {
     // Find correspondence and obtain Jacobian at (x, y)
     // Note the built-in indexer uses (x, y) and (u, v) convention.
-    auto GetJacobianPointToPlane = [=] OPEN3D_DEVICE(int x, int y, float* J_ij,
-                                                     float& r) -> bool {
-        float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
-        bool mask_v = *source_mask_indexer.GetDataPtr<bool>(x, y);
-        if (!mask_v) return false;
-
-        int64_t ui, vi;
-        float d;
-        bool mask_proj = DeviceProject(config, proj_transform, source_v[0],
-                                       source_v[1], source_v[2], &ui, &vi, &d);
-        if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
-            return false;
-        }
-
-        // Transform source points to the target camera's coordinate space.
-        float T_source_to_target_v[3];
-        src2dst_transform.RigidTransform(
-                source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],
-                &T_source_to_target_v[1], &T_source_to_target_v[2]);
-
-        float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
-        float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
-
-        r = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
-            (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
-            (T_source_to_target_v[2] - target_v[2]) * target_n[2];
-
-        // Pseudo huber loss
-
-        // float w = abs(r) > depth_diff ? 0 : 1;
-        float depth_diff2 = depth_diff * depth_diff;
-        float w = 1.0 / (depth_diff2 * sqrt((r * r / depth_diff2) + 1));
-
-        J_ij[0] = w * (-T_source_to_target_v[2] * target_n[1] +
-                       T_source_to_target_v[1] * target_n[2]);
-        J_ij[1] = w * (T_source_to_target_v[2] * target_n[0] -
-                       T_source_to_target_v[0] * target_n[2]);
-        J_ij[2] = w * (-T_source_to_target_v[1] * target_n[0] +
-                       T_source_to_target_v[0] * target_n[1]);
-        J_ij[3] = w * target_n[0];
-        J_ij[4] = w * target_n[1];
-        J_ij[5] = w * target_n[2];
-        r = w * r;
-
-        return true;
-    };
 
     const int kBlockSize = 256;
     __shared__ float local_sum0[kBlockSize];
@@ -122,7 +76,10 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
 
     float J[6] = {0}, reduction[21 + 6 + 2];
     float r = 0;
-    bool valid = GetJacobianPointToPlane(x, y, J, r);
+    bool valid = GetJacobianPointToPlane(
+            source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
+            target_mask_indexer, target_normal_indexer, proj_transform,
+            src2dst_transform, config, depth_diff, x, y, J, r);
 
     // Dump J, r into JtJ and Jtr
     int offset = 0;

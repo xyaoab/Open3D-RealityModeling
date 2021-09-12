@@ -43,7 +43,7 @@ namespace odometry {
 #define TWO_PI (2 * PI)
 #define RAD2DEG (180 / PI)
 #define DEG2RAD (PI / 180)
-
+using t::geometry::kernel::NDArrayIndexer;
 using t::geometry::kernel::TransformIndexer;
 using t::pipelines::odometry::LiDARCalibConfig;
 
@@ -144,6 +144,65 @@ inline OPEN3D_DEVICE void DeviceUnproject(const LiDARCalibConfig& config,
                                           float* z_out) {
     DeviceUnproject(config, v * config.width + u, r, x_out, y_out, z_out);
 }
+
+inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
+        const NDArrayIndexer& source_vertex_indexer,
+        const NDArrayIndexer& source_mask_indexer,
+        const NDArrayIndexer& target_vertex_indexer,
+        const NDArrayIndexer& target_mask_indexer,
+        const NDArrayIndexer& target_normal_indexer,
+        const TransformIndexer& proj_transform,
+        const TransformIndexer& src2dst_transform,
+        const LiDARCalibConfig& config,
+        float depth_diff,
+        int x,
+        int y,
+        float* J_ij,
+        float& r) {
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    bool mask_v = *source_mask_indexer.GetDataPtr<bool>(x, y);
+    if (!mask_v) return false;
+
+    int64_t ui, vi;
+    float d;
+    bool mask_proj = DeviceProject(config, proj_transform, source_v[0],
+                                   source_v[1], source_v[2], &ui, &vi, &d);
+    if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
+        return false;
+    }
+
+    // Transform source points to the target camera's coordinate space.
+    float T_source_to_target_v[3];
+    src2dst_transform.RigidTransform(
+            source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],
+            &T_source_to_target_v[1], &T_source_to_target_v[2]);
+
+    float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
+    float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
+
+    r = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
+        (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
+        (T_source_to_target_v[2] - target_v[2]) * target_n[2];
+
+    // Pseudo huber loss
+
+    // float w = abs(r) > depth_diff ? 0 : 1;
+    float depth_diff2 = depth_diff * depth_diff;
+    float w = 1.0 / (depth_diff2 * sqrt((r * r / depth_diff2) + 1));
+
+    J_ij[0] = w * (-T_source_to_target_v[2] * target_n[1] +
+                   T_source_to_target_v[1] * target_n[2]);
+    J_ij[1] = w * (T_source_to_target_v[2] * target_n[0] -
+                   T_source_to_target_v[0] * target_n[2]);
+    J_ij[2] = w * (-T_source_to_target_v[1] * target_n[0] +
+                   T_source_to_target_v[0] * target_n[1]);
+    J_ij[3] = w * target_n[0];
+    J_ij[4] = w * target_n[1];
+    J_ij[5] = w * target_n[2];
+    r = w * r;
+
+    return true;
+};
 
 #ifdef __CUDACC__
 void LiDARUnprojectCUDA
