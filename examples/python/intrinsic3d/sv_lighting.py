@@ -47,7 +47,7 @@ def compute_surface_and_normal(voxel_coords, voxel_tsdf, key, selection,
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('path_dataset')
+    # parser.add_argument('path_dataset')
 
     # Selections
     parser.add_argument('--spatial', default='voxels_spatial.npz')
@@ -210,7 +210,10 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam([param_svsh], lr=1e-3)
 
     lam_diffuse = 0.01
+    times = []
+    import time
     for i in range(100):
+        start = time.time()
         # Setup the computation model
         svsh_interp = ratio_000 * param_svsh[index_000] \
                     + ratio_001 * param_svsh[index_001] \
@@ -238,6 +241,9 @@ if __name__ == '__main__':
                 i, loss.item(), loss_data.item(),
                 lam_diffuse * loss_diffuse.item()))
         optimizer.step()
+        end = time.time()
+        times.append(end-start)
+    print('avg time: ', np.mean(np.array(times)))
 
     # After optimization
     svsh_interp = ratio_000 * param_svsh[index_000] \

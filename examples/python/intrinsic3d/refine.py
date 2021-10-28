@@ -152,10 +152,14 @@ if __name__ == '__main__':
     lambda_R = 1000
     lambda_t = 1000
 
+    times = []
+    import time
     for factor in [4, 2, 1]:
         # Re-initialize Adam per pyramid level
         optimizer = torch.optim.Adam([param_tsdf, param_albedo], lr=1e-3)
+
         for epoch in range(max_epochs):
+            start = time.time()
             surfaces_c, normals_c = compute_surface_and_normal(
                 voxel_coords, param_tsdf, 'index_data_c', selection, voxel_nbs)
 
@@ -311,6 +315,10 @@ if __name__ == '__main__':
 
             loss.backward()
             optimizer.step()
+            end = time.time()
+            if factor == 1:
+                times.append(end - start)
+    print('avg time: ', np.mean(np.array(times)))
 
     np.savez(args.output,
              voxel_tsdf=param_tsdf.detach().cpu().numpy(),
