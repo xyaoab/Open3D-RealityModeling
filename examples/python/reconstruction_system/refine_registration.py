@@ -184,6 +184,19 @@ def make_posegraph_for_refined_scene(ply_file_names, config):
         pose_graph_new)
 
 
+def write_poses_to_log(filename, poses):
+    with open(filename, 'w') as f:
+        for i, pose in enumerate(poses):
+            f.write('{} {} {}\n'.format(i, i, i + 1))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[0, 0], pose[0, 1], pose[0, 2], pose[0, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[1, 0], pose[1, 1], pose[1, 2], pose[1, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[2, 0], pose[2, 1], pose[2, 2], pose[2, 3]))
+            f.write('{0:.8f} {1:.8f} {2:.8f} {3:.8f}\n'.format(
+                pose[3, 0], pose[3, 1], pose[3, 2], pose[3, 3]))
+
 def run(config):
     print("refine rough registration of fragments.")
     o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
@@ -191,3 +204,24 @@ def run(config):
         join(config["path_dataset"], config["folder_fragment"]), ".ply")
     make_posegraph_for_refined_scene(ply_file_names, config)
     optimize_posegraph_for_refined_scene(config["path_dataset"], config)
+
+    path_dataset = config['path_dataset']
+    n_fragments = len(ply_file_names)
+
+    poses = []
+    pose_graph_fragment = o3d.io.read_pose_graph(
+        join(path_dataset, config["template_refined_posegraph_optimized"]))
+    for fragment_id in range(len(pose_graph_fragment.nodes)):
+        pose_graph_rgbd = o3d.io.read_pose_graph(
+            join(path_dataset,
+                 config["template_fragment_posegraph_optimized"] % fragment_id))
+        for frame_id in range(len(pose_graph_rgbd.nodes)):
+            frame_id_abs = fragment_id * \
+                    config['n_frames_per_fragment'] + frame_id
+            pose = np.dot(pose_graph_fragment.nodes[fragment_id].pose,
+                          pose_graph_rgbd.nodes[frame_id].pose)
+            poses.append(pose)
+
+    traj_name = join(path_dataset, config["template_global_traj"])
+    write_poses_to_log(traj_name, poses)
+
