@@ -34,13 +34,14 @@ using namespace open3d;
 
 std::tuple<std::shared_ptr<geometry::PointCloud>,
            std::shared_ptr<pipelines::registration::Feature>>
-PreprocessPointCloud(const char *file_name) {
+PreprocessPointCloud(const char *file_name, float voxel_size) {
     auto pcd = open3d::io::CreatePointCloudFromFile(file_name);
-    auto pcd_down = pcd->VoxelDownSample(0.05);
+    auto pcd_down = pcd->VoxelDownSample(voxel_size);
     pcd_down->EstimateNormals(
-            open3d::geometry::KDTreeSearchParamHybrid(0.1, 30));
+            open3d::geometry::KDTreeSearchParamHybrid(voxel_size * 2, 30));
     auto pcd_fpfh = pipelines::registration::ComputeFPFHFeature(
-            *pcd_down, open3d::geometry::KDTreeSearchParamHybrid(0.25, 100));
+            *pcd_down,
+            open3d::geometry::KDTreeSearchParamHybrid(voxel_size * 5, 100));
     return std::make_tuple(pcd_down, pcd_fpfh);
 }
 
@@ -62,7 +63,7 @@ int main(int argc, char *argv[]) {
 
     utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
-    if (argc < 3 || argc > 7) {
+    if (argc < 3) {
         utility::LogInfo(
                 "Usage : RegistrationRANSAC path_to_first_point_cloud "
                 "path_to_second_point_cloud [--method=feature_matching] "
@@ -89,6 +90,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    float voxel_size =
+            utility::GetProgramOptionAsDouble(argc, argv, "--voxel_size");
+    int max_iteration =
+            utility::GetProgramOptionAsInt(argc, argv, "--max_iteration");
+    float confidence =
+            utility::GetProgramOptionAsDouble(argc, argv, "--confidence");
+
     bool mutual_filter = false;
     if (utility::ProgramOptionExists(argc, argv, "--mutual_filter")) {
         mutual_filter = true;
@@ -97,8 +105,8 @@ int main(int argc, char *argv[]) {
     // Prepare input
     std::shared_ptr<geometry::PointCloud> source, target;
     std::shared_ptr<pipelines::registration::Feature> source_fpfh, target_fpfh;
-    std::tie(source, source_fpfh) = PreprocessPointCloud(argv[1]);
-    std::tie(target, target_fpfh) = PreprocessPointCloud(argv[2]);
+    std::tie(source, source_fpfh) = PreprocessPointCloud(argv[1], voxel_size);
+    std::tie(target, target_fpfh) = PreprocessPointCloud(argv[2], voxel_size);
 
     pipelines::registration::RegistrationResult registration_result;
 
@@ -111,7 +119,7 @@ int main(int argc, char *argv[]) {
                     0.9);
     auto correspondence_checker_distance =
             pipelines::registration::CorrespondenceCheckerBasedOnDistance(
-                    0.075);
+                    voxel_size * 1.5);
     auto correspondence_checker_normal =
             pipelines::registration::CorrespondenceCheckerBasedOnNormal(
                     0.52359878);
@@ -123,12 +131,12 @@ int main(int argc, char *argv[]) {
         registration_result = pipelines::registration::
                 RegistrationRANSACBasedOnFeatureMatching(
                         *source, *target, *source_fpfh, *target_fpfh,
-                        mutual_filter, 0.075,
+                        mutual_filter, voxel_size * 1.5,
                         pipelines::registration::
                                 TransformationEstimationPointToPoint(false),
                         3, correspondence_checker,
                         pipelines::registration::RANSACConvergenceCriteria(
-                                100000, 0.999));
+                                max_iteration, confidence));
     } else if (method == kMethodCorres) {
         // Use mutual filter by default
         int nPti = int(source->points_.size());
@@ -171,22 +179,22 @@ int main(int argc, char *argv[]) {
             utility::LogDebug("{:d} points remain", mutual.size());
             registration_result = pipelines::registration::
                     RegistrationRANSACBasedOnCorrespondence(
-                            *source, *target, mutual, 0.075,
+                            *source, *target, mutual, voxel_size * 1.5,
                             pipelines::registration::
                                     TransformationEstimationPointToPoint(false),
                             3, correspondence_checker,
                             pipelines::registration::RANSACConvergenceCriteria(
-                                    100000, 0.999));
+                                    max_iteration, confidence));
         } else {
             utility::LogDebug("{:d} points remain", corres_ji.size());
             registration_result = pipelines::registration::
                     RegistrationRANSACBasedOnCorrespondence(
-                            *source, *target, corres_ji, 0.075,
+                            *source, *target, corres_ji, voxel_size * 1.5,
                             pipelines::registration::
                                     TransformationEstimationPointToPoint(false),
                             3, correspondence_checker,
                             pipelines::registration::RANSACConvergenceCriteria(
-                                    100000, 0.999));
+                                    max_iteration, confidence));
         }
     }
 
