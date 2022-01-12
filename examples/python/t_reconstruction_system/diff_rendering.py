@@ -46,7 +46,7 @@ def optimize(vbg, depth_file_names, color_file_names, intrinsic, extrinsics,
         k = np.random.randint(0, n_files)
 
         # GT depth (to accelerate rendering),
-        # TODO: query all the blocks for better rendering
+        # TODO(wei): query all the blocks for better rendering
         depth = o3d.t.io.read_image(depth_file_names[k]).to(device)
         extrinsic = extrinsics[k]
 
@@ -59,6 +59,7 @@ def optimize(vbg, depth_file_names, color_file_names, intrinsic, extrinsics,
                                  ['normal', 'mask', 'interp_ratio', 'index'],
                                  config.depth_scale, config.depth_min,
                                  config.depth_max, 1)
+        # TODO(wei): Reserved for differentiating SDF
         normal_map = rendering['normal']
 
         # In-place modification used here, need to think how to make them differentiable
@@ -73,8 +74,8 @@ def optimize(vbg, depth_file_names, color_file_names, intrinsic, extrinsics,
             mask_i = mask[:, :, i]
             ratio_i = ratio[:, :, i]
             index_i = index[:, :, i]
-            rhs = torch.unsqueeze(ratio_i[mask_i],
-                                  -1) * color_volume_th[index_i[mask_i]]
+            rhs = torch.unsqueeze(ratio_i[mask_i], -1) \
+                                  * color_volume_th[index_i[mask_i]]
 
             color_rendering[mask_i] += rhs / 255.0
 
@@ -86,7 +87,14 @@ def optimize(vbg, depth_file_names, color_file_names, intrinsic, extrinsics,
         loss = torch.abs(color_rendering - color_gt.cuda()).mean()
         loss.backward()
         optimizer.step()
+
         print('step {}, loss {}'.format(step, loss.item()))
+
+        if step % 50 == 0:
+            plt.imshow(color_rendering.detach().cpu().numpy())
+            plt.show()
+
+
 
 if __name__ == '__main__':
     parser = ConfigParser()
