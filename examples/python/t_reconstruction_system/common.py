@@ -63,6 +63,18 @@ def load_depth_file_names(config):
     return sorted(depth_file_names)
 
 
+def load_image_file_names(config):
+    color_folder = os.path.join(config.path_dataset, config.color_folder)
+    extensions = ['*.png', '*.jpg']
+
+    for ext in extensions:
+        color_file_names = glob.glob(os.path.join(color_folder, ext))
+        if len(color_file_names) > 0:
+            return sorted(color_file_names)
+
+    return []
+
+
 def load_rgbd_file_names(config):
     depth_file_names = load_depth_file_names(config)
     if len(depth_file_names) == 0:
