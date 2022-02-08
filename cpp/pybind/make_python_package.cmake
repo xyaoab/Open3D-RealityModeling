@@ -1,3 +1,5 @@
+set(MIN_NODE_VERSION "14.00.0")
+
 # Clean up directory
 file(REMOVE_RECURSE ${PYTHON_PACKAGE_DST_DIR})
 file(MAKE_DIRECTORY ${PYTHON_PACKAGE_DST_DIR}/open3d)
@@ -44,8 +46,14 @@ configure_file("${PYTHON_PACKAGE_SRC_DIR}/setup.py"
                "${PYTHON_PACKAGE_DST_DIR}/setup.py")
 configure_file("${PYTHON_PACKAGE_SRC_DIR}/open3d/__init__.py"
                "${PYTHON_PACKAGE_DST_DIR}/open3d/__init__.py")
+configure_file("${PYTHON_PACKAGE_SRC_DIR}/tools/cli.py"
+               "${PYTHON_PACKAGE_DST_DIR}/open3d/tools/cli.py")
+configure_file("${PYTHON_PACKAGE_SRC_DIR}/tools/app.py"
+               "${PYTHON_PACKAGE_DST_DIR}/open3d/app.py")
 configure_file("${PYTHON_PACKAGE_SRC_DIR}/open3d/visualization/__init__.py"
                "${PYTHON_PACKAGE_DST_DIR}/open3d/visualization/__init__.py")
+configure_file("${PYTHON_PACKAGE_SRC_DIR}/open3d/visualization/app/__init__.py"
+               "${PYTHON_PACKAGE_DST_DIR}/open3d/visualization/app/__init__.py")
 configure_file("${PYTHON_PACKAGE_SRC_DIR}/open3d/visualization/gui/__init__.py"
                "${PYTHON_PACKAGE_DST_DIR}/open3d/visualization/gui/__init__.py")
 configure_file("${PYTHON_PACKAGE_SRC_DIR}/open3d/visualization/rendering/__init__.py"
@@ -79,23 +87,35 @@ endif()
 
 # Build Jupyter plugin.
 if (BUILD_JUPYTER_EXTENSION)
-    if(WIN32 OR UNIX AND NOT LINUX_AARCH64)
+    if (WIN32 OR UNIX AND NOT LINUX_AARCH64)
         message(STATUS "Jupyter support is enabled, building Jupyter plugin now.")
     else()
         message(FATAL_ERROR "Jupyter plugin is not supported on ARM.")
     endif()
 
-    find_program(NPM npm)
-    if(NPM)
-        message(STATUS "NPM found at: ${NPM}")
+    find_program(NODE node)
+    if (NODE)
+        message(STATUS "node found at: ${NODE}")
     else()
-        message(FATAL_ERROR "npm not found. Please install Node.js and npm."
-                            "Visit https://www.npmjs.com/get-npm for details.")
+        message(STATUS "node not found.")
+        message(FATAL_ERROR "Please install Node.js."
+                            "Visit https://nodejs.org/en/download/package-manager/ for details."
+                            "For ubuntu, we recommend getting the latest version of Node.js from"
+                            "https://github.com/nodesource/distributions/blob/master/README.md#installation-instructions.")
+    endif()
+    execute_process(COMMAND "${NODE}" --version
+                    OUTPUT_VARIABLE NODE_VERSION
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
+    STRING(REGEX REPLACE "v" "" NODE_VERSION ${NODE_VERSION})
+    message(STATUS "node version: ${NODE_VERSION}")
+    if (NODE_VERSION VERSION_LESS ${MIN_NODE_VERSION})
+        message(FATAL_ERROR "node version ${NODE_VERSION} is too old. "
+                            "Please upgrade to ${MIN_NODE_VERSION} or higher.")
     endif()
 
     find_program(YARN yarn)
-    if(YARN)
-        message(STATUS "YARN found at: ${YARN}")
+    if (YARN)
+        message(STATUS "yarn found at: ${YARN}")
     else()
         message(FATAL_ERROR "yarn not found. You may install yarm globally by "
                             "npm install -g yarn.")
@@ -115,3 +135,14 @@ if (BUILD_GUI)
     file(COPY ${GUI_RESOURCE_DIR}
          DESTINATION "${PYTHON_PACKAGE_DST_DIR}/open3d/")
 endif()
+
+# Add all examples to installation directory.
+# TODO: after downloader is implemented, refactor test data dir
+file(MAKE_DIRECTORY "${PYTHON_PACKAGE_DST_DIR}/open3d/examples/")
+file(MAKE_DIRECTORY "${PYTHON_PACKAGE_DST_DIR}/open3d/test_data/")
+file(COPY "${PYTHON_PACKAGE_SRC_DIR}/../examples/python/"
+    DESTINATION "${PYTHON_PACKAGE_DST_DIR}/open3d/examples")
+file(COPY "${PYTHON_PACKAGE_SRC_DIR}/../examples/python/"
+    DESTINATION "${PYTHON_PACKAGE_DST_DIR}/open3d/examples")
+file(COPY "${PYTHON_PACKAGE_SRC_DIR}/../examples/test_data/"
+    DESTINATION "${PYTHON_PACKAGE_DST_DIR}/open3d/test_data")

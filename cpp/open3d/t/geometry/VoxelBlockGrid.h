@@ -26,10 +26,6 @@
 
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <unordered_set>
-
 #include "open3d/core/Tensor.h"
 #include "open3d/core/hashmap/HashMap.h"
 #include "open3d/t/geometry/Geometry.h"
@@ -48,6 +44,8 @@ namespace geometry {
 /// a sparse voxel grid.
 class VoxelBlockGrid {
 public:
+    VoxelBlockGrid() = default;
+
     /// \brief Default Constructor.
     /// Example:
     /// VoxelBlockGrid({"tsdf", "weight", "color"},
@@ -61,15 +59,12 @@ public:
     VoxelBlockGrid(const std::vector<std::string> &attr_names,
                    const std::vector<core::Dtype> &attr_dtypes,
                    const std::vector<core::SizeVector> &attr_channels,
-                   float voxel_size,
+                   float voxel_size = 0.0058,
                    int64_t block_resolution = 16,
                    int64_t block_count = 10000,
                    const core::Device &device = core::Device("CPU:0"),
                    const core::HashBackendType &backend =
                            core::HashBackendType::Default);
-
-    /// Default destructor.
-    ~VoxelBlockGrid() = default;
 
     /// Get the underlying hash map that stores values in structure of arrays
     /// (SoA).
@@ -118,10 +113,16 @@ public:
     /// coordinates, multiply by voxel size.
     core::Tensor GetVoxelCoordinates(const core::Tensor &voxel_indices) const;
 
-    std::pair<core::Tensor, core::Tensor>
-    GetVoxelCoordinatesAndFlattenedIndices();
+    /// Accelerated combination of GetVoxelIndices and GetVoxelCoordinates.
+    /// Returns a (N, 3) coordinate in float, and a (N, ) flattend index tensor,
+    /// where N is the number of active voxels located at buf_indices.
     std::pair<core::Tensor, core::Tensor>
     GetVoxelCoordinatesAndFlattenedIndices(const core::Tensor &buf_indices);
+
+    /// Same as above, but N is the number of all the active voxels with blocks
+    /// stored in the hash map.
+    std::pair<core::Tensor, core::Tensor>
+    GetVoxelCoordinatesAndFlattenedIndices();
 
     /// Get a (3, M) active block coordinates from a depth image, with potential
     /// duplicates removed.
@@ -131,10 +132,12 @@ public:
                                            const core::Tensor &intrinsic,
                                            const core::Tensor &extrinsic,
                                            float depth_scale = 1000.0f,
-                                           float depth_max = 3.0f);
+                                           float depth_max = 3.0f,
+                                           float trunc_voxel_multiplier = 8.0);
 
     /// Obtain active block coordinates from a point cloud.
-    core::Tensor GetUniqueBlockCoordinates(const PointCloud &pcd);
+    core::Tensor GetUniqueBlockCoordinates(const PointCloud &pcd,
+                                           float trunc_voxel_multiplier = 8.0);
 
     /// Specific operation for TSDF volumes.
     /// Integrate an RGB-D frame in the selected block coordinates using pinhole
@@ -152,10 +155,34 @@ public:
     void Integrate(const core::Tensor &block_coords,
                    const Image &depth,
                    const Image &color,
+                   const core::Tensor &depth_intrinsic,
+                   const core::Tensor &color_intrinsic,
+                   const core::Tensor &extrinsic,
+                   float depth_scale = 1000.0f,
+                   float depth_max = 3.0f,
+                   float trunc_voxel_multiplier = 8.0f);
+
+    /// Specific operation for TSDF volumes.
+    /// Similar to RGB-D integration, but uses the same intrinsics for depth and
+    /// color.
+    void Integrate(const core::Tensor &block_coords,
+                   const Image &depth,
+                   const Image &color,
                    const core::Tensor &intrinsic,
                    const core::Tensor &extrinsic,
                    float depth_scale = 1000.0f,
-                   float depth_max = 3.0f);
+                   float depth_max = 3.0f,
+                   float trunc_voxel_multiplier = 8.0f);
+
+    /// Specific operation for TSDF volumes.
+    /// Similar to RGB-D integration, but only applied to depth.
+    void Integrate(const core::Tensor &block_coords,
+                   const Image &depth,
+                   const core::Tensor &intrinsic,
+                   const core::Tensor &extrinsic,
+                   float depth_scale = 1000.0f,
+                   float depth_max = 3.0f,
+                   float trunc_voxel_multiplier = 8.0f);
 
     /// Specific operation for TSDF volumes.
     /// Perform volumetric ray casting in the selected block coordinates.
@@ -167,16 +194,18 @@ public:
     /// The block coordinates in the frustum can be taken from
     /// GetUniqueBlockCoordinates.
     /// All the block coordinates can be taken from GetHashMap().GetKeyTensor().
-    std::unordered_map<std::string, core::Tensor> RayCast(
-            const core::Tensor &block_coords,
-            const core::Tensor &intrinsic,
-            const core::Tensor &extrinsic,
-            int width,
-            int height,
-            float depth_scale = 1000.0f,
-            float depth_min = 0.1f,
-            float depth_max = 3.0f,
-            float weight_threshold = 3.0f);
+    TensorMap RayCast(const core::Tensor &block_coords,
+                      const core::Tensor &intrinsic,
+                      const core::Tensor &extrinsic,
+                      int width,
+                      int height,
+                      const std::vector<std::string> attrs = {"depth", "color"},
+                      float depth_scale = 1000.0f,
+                      float depth_min = 0.1f,
+                      float depth_max = 3.0f,
+                      float weight_threshold = 3.0f,
+                      float trunc_voxel_multiplier = 8.0f,
+                      int range_map_down_factor = 8);
 
     /// Specific operation for TSDF volumes.
     /// Extract point cloud at isosurface points.
@@ -184,8 +213,11 @@ public:
     /// where we assume a reliable surface point comes from the fusion of at
     /// least 3 viewpoints. Use as low as 0.0 to accept all the possible
     /// observations.
-    PointCloud ExtractPointCloud(int estimate_number = -1,
-                                 float weight_threshold = 3.0f);
+    /// Estimated point numbers optionally speeds up the process by a one-pass
+    /// extraction with pre-allocated buffers. Use -1 when no estimate is
+    /// available.
+    PointCloud ExtractPointCloud(float weight_threshold = 3.0f,
+                                 int estimated_point_number = -1);
 
     /// Specific operation for TSDF volumes.
     /// Extract mesh near iso-surfaces with Marching Cubes.
@@ -193,8 +225,11 @@ public:
     /// where we assume a reliable surface point comes from the fusion of at
     /// least 3 viewpoints. Use as low as 0.0 to accept all the possible
     /// observations.
-    TriangleMesh ExtractTriangleMesh(int estimate_number = -1,
-                                     float weight_threshold = 3.0f);
+    /// Estimated point numbers optionally speeds up the process by a one-pass
+    /// extraction with pre-allocated buffers. Use -1 when no estimate is
+    /// available.
+    TriangleMesh ExtractTriangleMesh(float weight_threshold = 3.0f,
+                                     int estimated_vertex_numer = -1);
 
     /// Save a voxel block grid to a .npz file.
     void Save(const std::string &file_name) const;
@@ -203,8 +238,10 @@ public:
     static VoxelBlockGrid Load(const std::string &file_name);
 
 private:
-    float voxel_size_;
-    int64_t block_resolution_;
+    void AssertInitialized() const;
+
+    float voxel_size_ = -1;
+    int64_t block_resolution_ = -1;
 
     // Global hash map: 3D coords -> voxel blocks in SoA.
     std::shared_ptr<core::HashMap> block_hashmap_;

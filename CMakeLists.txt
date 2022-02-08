@@ -1,25 +1,36 @@
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.19.2)
 # If you're using Ubuntu 18.04, we suggest you install the latest CMake from the
-# official repository https://apt.kitware.com/.  CMake 3.19+ is required to
-# allow linking with OBJECT libraries, to prevent erroneous -gencode option
-# deduplication with CUDA, to simplify generator expressions for selecting
-# compile flags and setting global hardened link flags, and to parse JSON files
-# for downloading files from the open3d_downloads repository.
+# official repository https://apt.kitware.com/.  CMake 3.19+ is required to:
+# - allow linking with OBJECT libraries
+# - prevent erroneous -gencode option deduplication with CUDA
+# - simplify generator expressions for selecting compile flags and setting
+#   global hardened link flags
+# - parse JSON files for downloading files from the open3d_downloads repository
+# - use first-class language support for ISPC (3.19.2 patch release required)
 
 if (APPLE)
-set (CMAKE_OSX_DEPLOYMENT_TARGET "10.14" CACHE STRING
+set (CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING
     "Minimum OS X deployment version" FORCE)
 endif()
 
+# CMAKE_HOST_SYSTEM_PROCESSOR is only available after calling project(),
+# which depends on ${OPEN3D_VERSION}, which depends on ${DEVELOPER_BUILD}.
 if(UNIX AND NOT APPLE)
-    # CMAKE_HOST_SYSTEM_PROCESSOR is only available after calling project(),
-    # which depends on ${OPEN3D_VERSION}, which depends on ${DEVELOPER_BUILD}.
     execute_process(COMMAND uname -p
         OUTPUT_VARIABLE PROCESSOR_ARCH
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
     if(PROCESSOR_ARCH STREQUAL "aarch64")
         set(LINUX_AARCH64 TRUE)
+    endif()
+endif()
+if(APPLE)
+    execute_process(COMMAND uname -m
+        OUTPUT_VARIABLE PROCESSOR_ARCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(PROCESSOR_ARCH STREQUAL "arm64")
+        set(APPLE_AARCH64 TRUE)
     endif()
 endif()
 
@@ -34,23 +45,40 @@ option(BUILD_PYTHON_MODULE        "Build the python module"                  ON 
 option(BUILD_CUDA_MODULE          "Build the CUDA module"                    OFF)
 option(BUILD_COMMON_CUDA_ARCHS    "Build for common CUDA GPUs (for release)" OFF)
 option(BUILD_CACHED_CUDA_MANAGER  "Build the cached CUDA memory manager"     ON )
+if(NOT LINUX_AARCH64 AND NOT APPLE_AARCH64)
+    option(BUILD_ISPC_MODULE      "Build the ISPC module"                    ON )
+else()
+    option(BUILD_ISPC_MODULE      "Build the ISPC module"                    OFF)
+endif()
+option(BUILD_COMMON_ISPC_ISAS     "Build for common ISPC ISAs (for release)" OFF)
 option(BUILD_GUI                  "Builds new GUI"                           ON )
 option(WITH_OPENMP                "Use OpenMP multi-threading"               ON )
 option(WITH_IPPICV                "Use Intel Performance Primitives"         ON )
 option(ENABLE_HEADLESS_RENDERING  "Use OSMesa for headless rendering"        OFF)
-cmake_dependent_option(
-       STATIC_WINDOWS_RUNTIME     "Use static (MT/MTd) Windows runtime"      ON
-       "NOT BUILD_SHARED_LIBS"                                               OFF)
-option(GLIBCXX_USE_CXX11_ABI      "Set -D_GLIBCXX_USE_CXX11_ABI=1"           OFF)
-if(WIN32 OR UNIX AND NOT LINUX_AARCH64)
-    cmake_dependent_option(BUILD_WEBRTC "Build WebRTC visualizer" ON "BUILD_GUI" OFF)
+if(BUILD_SHARED_LIBS)
+    option(STATIC_WINDOWS_RUNTIME "Use static (MT/MTd) Windows runtime"      OFF)
+else()
+    option(STATIC_WINDOWS_RUNTIME "Use static (MT/MTd) Windows runtime"      ON )
+endif()
+option(GLIBCXX_USE_CXX11_ABI      "Set -D_GLIBCXX_USE_CXX11_ABI=1"           ON )
+if(BUILD_GUI AND (WIN32 OR UNIX AND NOT LINUX_AARCH64 AND NOT APPLE_AARCH64))
+    option(BUILD_WEBRTC           "Build WebRTC visualizer"                  ON )
 else()
     option(BUILD_WEBRTC           "Build WebRTC visualizer"                  OFF)
 endif()
 option(BUILD_JUPYTER_EXTENSION    "Build Jupyter, requires BUILD_WEBRTC=ON"  OFF)
 
 # 3rd-party build options
-option(USE_BLAS                   "Use BLAS/LAPACK instead of MKL"           OFF)
+if(LINUX_AARCH64 OR APPLE_AARCH64)
+    option(USE_BLAS               "Use BLAS/LAPACK instead of MKL"           ON )
+else()
+    option(USE_BLAS               "Use BLAS/LAPACK instead of MKL"           OFF)
+endif()
+if(USE_BLAS)
+    option(USE_SYSTEM_BLAS        "Use system pre-installed openblas"        OFF)
+else()
+    option(USE_SYSTEM_BLAS        "Use system pre-installed openblas"        ON )
+endif()
 option(USE_SYSTEM_EIGEN3          "Use system pre-installed eigen3"          OFF)
 option(USE_SYSTEM_FMT             "Use system pre-installed fmt"             OFF)
 option(USE_SYSTEM_GLEW            "Use system pre-installed glew"            OFF)
@@ -63,9 +91,13 @@ option(USE_SYSTEM_PYBIND11        "Use system pre-installed pybind11"        OFF
 option(USE_SYSTEM_QHULLCPP        "Use system pre-installed qhullcpp"        OFF)
 option(USE_SYSTEM_TINYGLTF        "Use system pre-installed tinygltf"        OFF)
 option(USE_SYSTEM_TINYOBJLOADER   "Use system pre-installed tinyobjloader"   OFF)
-option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"               OFF)
+if(LINUX_AARCH64 OR APPLE_AARCH64)
+    option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"           ON )
+else()
+    option(BUILD_FILAMENT_FROM_SOURCE "Build filament from source"           OFF)
+endif()
+
 option(PREFER_OSX_HOMEBREW        "Prefer Homebrew libs over frameworks"     ON )
-option(WITH_FAISS                 "Enable Faiss"                             ON )
 
 # Sensor options
 option(BUILD_LIBREALSENSE         "Build support for Intel RealSense camera" OFF)
@@ -92,8 +124,8 @@ endif()
 # https://blog.kitware.com/cmake-and-the-default-build-type/
 if(NOT CMAKE_CONFIGURATION_TYPES)
     if(NOT CMAKE_BUILD_TYPE)
-        message(STATUS "Setting build type to RelWithDebInfo as none was specified.")
-        set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Choose the type of build." FORCE)
+        message(STATUS "Setting build type to Release as none was specified.")
+        set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
         # Set the possible values of build type for cmake-gui.
         set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
                     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
@@ -131,19 +163,16 @@ if(NOT USE_SYSTEM_GLFW)
 endif()
 cmake_policy(GET CMP0072 CMP0072_VALUE)
 
-# Set BLAS/LAPACK library preference.
-if(LINUX_AARCH64)
-    if(NOT USE_BLAS)
-        set(USE_BLAS ON)
-        message(WARNING "ARM CPU detected, setting USE_BLAS=ON.")
-    endif()
-    if(BUILD_GUI AND (NOT BUILD_FILAMENT_FROM_SOURCE))
-        set(BUILD_FILAMENT_FROM_SOURCE ON)
-        message(WARNING "ARM CPU detected, setting BUILD_FILAMENT_FROM_SOURCE=ON.")
-    endif()
-endif()
-
 # Catch a few incompatible build options
+if ((LINUX_AARCH64 OR APPLE_AARCH64) AND BUILD_ISPC_MODULE)
+    message(FATAL_ERROR "ISPC module is not yet supported on ARM Linux")
+endif()
+if ((LINUX_AARCH64 OR APPLE_AARCH64) AND NOT BUILD_FILAMENT_FROM_SOURCE)
+    message(FATAL_ERROR "ARM CPU detected, you must set BUILD_FILAMENT_FROM_SOURCE=ON.")
+endif()
+if ((LINUX_AARCH64 OR APPLE_AARCH64) AND NOT USE_BLAS)
+    message(FATAL_ERROR "ARM CPU detected, you must set USE_BLAS=ON.")
+endif()
 if (APPLE AND ENABLE_HEADLESS_RENDERING)
     message(WARNING "Headless rendering is not supported on Mac OS")
     set(ENABLE_HEADLESS_RENDERING OFF)
@@ -195,8 +224,19 @@ string(CONCAT OPEN3D_VERSION
     ".${OPEN3D_VERSION_PATCH}"
 )
 set(OPEN3D_VERSION_FULL "${OPEN3D_VERSION}${OPEN3D_VERSION_DEVHASH}")
+# Set additional info
+set(PROJECT_EMAIL       "info@open3d.org")
+set(PROJECT_DOCS        "http://www.open3d.org/docs")
+set(PROJECT_CODE        "https://github.com/isl-org/Open3D")
+set(PROJECT_ISSUES      "https://github.com/isl-org/Open3D/issues")
 
-project(Open3D VERSION ${OPEN3D_VERSION} LANGUAGES C CXX)
+project(Open3D
+    VERSION ${OPEN3D_VERSION}
+    # Set PROJECT_DESCRIPTION
+    DESCRIPTION "Open3D: A Modern Library for 3D Data Processing."
+    # Set PROJECT_HOMEPAGE_URL
+    HOMEPAGE_URL "http://www.open3d.org"
+    LANGUAGES C CXX)
 message(STATUS "Open3D ${OPEN3D_VERSION_FULL}")
 
 # FIXME: Remove this workaround once a fixed Visual Studio 16.10 version is released.
@@ -214,16 +254,16 @@ if (BUILD_CUDA_MODULE
 endif()
 
 # CMake modules
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/CMake")
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cmake")
 
 # Setup Python executable
 if(NOT DEFINED Python3_FIND_REGISTRY)
     # Only consider PATH variable on Windows by default
     set(Python3_FIND_REGISTRY NEVER)
 endif()
-find_package(Python3 3.6...<3.10
-             COMPONENTS Interpreter Development
-)
+# Requires Python 3.6+
+find_package(Python3 3.6
+             COMPONENTS Interpreter Development)
 if (Python3_FOUND)
     # Setup PYTHON_EXECUTABLE for 3rdparty modules
     # which still use the deprecated find_package(PythonInterp)
@@ -231,7 +271,7 @@ if (Python3_FOUND)
         "Deprecated path to the Python executable (for 3rdparty only)" FORCE)
 else()
     if (BUILD_PYTHON_MODULE)
-        message(FATAL_ERROR "BUILD_PYTHON_MODULE=ON requires Python 3.6-3.9. Please ensure it is in PATH.")
+        message(FATAL_ERROR "BUILD_PYTHON_MODULE=ON requires Python >= 3.6. Please ensure it is in PATH.")
     endif()
 endif()
 
@@ -251,13 +291,6 @@ string(CONCAT PROJECT_VERSION_THREE_NUMBER "${OPEN3D_VERSION_MAJOR}"
 if(NOT DEFINED PYPI_PACKAGE_NAME)
     set(PYPI_PACKAGE_NAME "open3d")
 endif()
-
-# Set additional info
-set(PROJECT_EMAIL   "info@open3d.org")
-set(PROJECT_HOME    "http://www.open3d.org")
-set(PROJECT_DOCS    "http://www.open3d.org/docs")
-set(PROJECT_CODE    "https://github.com/isl-org/Open3D")
-set(PROJECT_ISSUES  "https://github.com/isl-org/Open3D/issues")
 
 # Set installation paths
 if(UNIX OR CYGWIN)
@@ -299,9 +332,20 @@ add_compile_definitions("${HARDENING_DEFINITIONS}")
 
 # Explicitly specifiy the preference of using -pthread over -lpthread.
 # This must be defined here since CUDA calls find_package(Threads) internally.
-# -pthread is disabled since some compilers, e.g. the ISPC compiler, have
-# problems with this compile flag and issue errors.
-set(THREADS_PREFER_PTHREAD_FLAG FALSE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+
+# Overwrites property for Thread::Threads in find_package(Threads)
+# For CUDA, "-pthread" is replaced with "-Xcompiler -pthread" (CMake's default)
+# For ISPC, "-pthread" is disabled
+macro(open3d_patch_findthreads_module_)
+    if(TARGET Threads::Threads AND THREADS_HAVE_PTHREAD_ARG)
+        set_property(TARGET Threads::Threads
+                     PROPERTY INTERFACE_COMPILE_OPTIONS
+                     "$<$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>:SHELL:-Xcompiler -pthread>"
+                     "$<$<AND:$<NOT:$<COMPILE_LANG_AND_ID:CUDA,NVIDIA>>,$<NOT:$<COMPILE_LANGUAGE:ISPC>>>:-pthread>")
+    endif()
+endmacro()
+cmake_language(EVAL CODE "cmake_language(DEFER CALL open3d_patch_findthreads_module_)")
 
 # Build CUDA module by default if CUDA is available
 if(BUILD_CUDA_MODULE)
@@ -316,6 +360,40 @@ if(BUILD_CUDA_MODULE)
         message(FATAL_ERROR "CUDA 10.0 and older are not supported. Please upgrade to CUDA 10.1 or newer.")
     endif()
 endif ()
+
+# ISPC language emulation support
+include(Open3DISPC)
+
+if (CMAKE_ISPC_COMPILER_LOADED OR (CMAKE_GENERATOR MATCHES "Make" OR CMAKE_GENERATOR MATCHES "Ninja"))
+    option(ISPC_USE_LEGACY_EMULATION "Use legacy ISPC language emulation over first-class CMake support" OFF)
+else()
+    option(ISPC_USE_LEGACY_EMULATION "Use legacy ISPC language emulation over first-class CMake support" ON)
+endif()
+mark_as_advanced(ISPC_USE_LEGACY_EMULATION)
+option(ISPC_PRINT_LEGACY_COMPILE_COMMANDS "Prints legacy compile commands on CMake configuration time" ON)
+mark_as_advanced(ISPC_PRINT_LEGACY_COMPILE_COMMANDS)
+
+# Build ISPC module by default if ISPC is available
+if (BUILD_ISPC_MODULE)
+    include(Open3DFetchISPCCompiler)
+    open3d_fetch_ispc_compiler()
+
+    include(Open3DMakeISPCInstructionSets)
+    open3d_make_ispc_instruction_sets(ISPC_ISAS)
+    set(CMAKE_ISPC_INSTRUCTION_SETS ${ISPC_ISAS})
+
+    message(STATUS "Using ISPC instruction sets: ${CMAKE_ISPC_INSTRUCTION_SETS}")
+
+    open3d_ispc_enable_language(ISPC)
+
+    if (CMAKE_ISPC_COMPILER_ID STREQUAL "Intel" AND CMAKE_ISPC_COMPILER_VERSION VERSION_LESS "1.16")
+        message(FATAL_ERROR "ISPC 1.15 and older are not supported. Please upgrade to ISPC 1.16 or newer.")
+    endif()
+
+    if (NOT CMAKE_ISPC_COMPILER_ID)
+        message(FATAL_ERROR "Unknown ISPC compiler.")
+    endif()
+endif()
 
 # OS specific settings
 if(WIN32)
@@ -350,16 +428,15 @@ add_custom_target(open3d_downloads
 # Folder view for project files
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-# Check if the compiler defines the _GLIBCXX_USE_CXX11_ABI macro
-include(CheckCXXSourceCompiles)
-check_cxx_source_compiles("#include <cxxabi.h>
-int main() { return _GLIBCXX_USE_CXX11_ABI; }" HAS_GLIBCXX_USE_CXX11_ABI)
-
 macro(add_source_group module_name)
     file(GLOB MODULE_HEADER_FILES "${module_name}/*.h")
     source_group("Header Files\\${module_name}" FILES ${MODULE_HEADER_FILES})
     file(GLOB MODULE_SOURCE_FILES "${module_name}/*.cpp")
     source_group("Source Files\\${module_name}" FILES ${MODULE_SOURCE_FILES})
+    file(GLOB MODULE_ISPC_HEADER_FILES "${module_name}/*.isph")
+    source_group("Header Files\\ISPC" FILES ${MODULE_ISPC_HEADER_FILES})
+    file(GLOB MODULE_ISPC_SOURCE_FILES "${module_name}/*.ispc")
+    source_group("Source Files\\ISPC" FILES ${MODULE_ISPC_SOURCE_FILES})
     file(GLOB MODULE_SHADER_FILES "${module_name}/*.glsl")
     source_group("Source Files\\Shader\\GLSL" FILES ${MODULE_SHADER_FILES})
     file(GLOB MODULE_MATERIAL_FILES "${module_name}/*.mat")
@@ -404,6 +481,8 @@ if (Python3_EXECUTABLE)
         COMMENT "Python executable used for style check: ${Python3_EXECUTABLE}."
     )
 endif()
+
+include(Open3DPackaging)
 
 # `make check-cpp-style` checks style for c++/cuda files.
 # This works outside of python virtualenv.

@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "open3d/core/Device.h"
+#include "open3d/core/Dtype.h"
 #include "open3d/core/SizeVector.h"
 #include "tests/Tests.h"
 
@@ -39,33 +40,21 @@
 namespace open3d {
 namespace tests {
 
+class PermuteDtypesWithBool : public testing::TestWithParam<core::Dtype> {
+public:
+    static std::vector<core::Dtype> TestCases() {
+        return {
+                core::Bool,  core::UInt8,   core::Int8,    core::UInt16,
+                core::Int16, core::UInt32,  core::Int32,   core::UInt64,
+                core::Int64, core::Float32, core::Float64,
+        };
+    }
+};
+
 class PermuteDevices : public testing::TestWithParam<core::Device> {
 public:
     static std::vector<core::Device> TestCases() {
 #ifdef BUILD_CUDA_MODULE
-        const int device_count = core::cuda::DeviceCount();
-        if (device_count >= 1) {
-            return {
-                    core::Device("CPU:0"),
-                    core::Device("CUDA:0"),
-            };
-        } else {
-            return {
-                    core::Device("CPU:0"),
-            };
-        }
-#else
-        return {
-                core::Device("CPU:0"),
-        };
-#endif
-    }
-};
-
-class PermuteDevicesWithFaiss : public testing::TestWithParam<core::Device> {
-public:
-    static std::vector<core::Device> TestCases() {
-#if defined(BUILD_CUDA_MODULE) && defined(WITH_FAISS)
         const int device_count = core::cuda::DeviceCount();
         if (device_count >= 1) {
             return {

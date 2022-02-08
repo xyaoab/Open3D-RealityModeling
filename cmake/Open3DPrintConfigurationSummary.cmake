@@ -20,6 +20,7 @@ function(open3d_print_configuration_summary)
     open3d_aligned_print("Azure Kinect Support" "${BUILD_AZURE_KINECT}")
     open3d_aligned_print("Intel RealSense Support" "${BUILD_LIBREALSENSE}")
     open3d_aligned_print("CUDA Support" "${BUILD_CUDA_MODULE}")
+    open3d_aligned_print("ISPC Support" "${BUILD_ISPC_MODULE}")
     open3d_aligned_print("Build GUI" "${BUILD_GUI}")
     open3d_aligned_print("Build WebRTC visualizer" "${BUILD_WEBRTC}")
     open3d_aligned_print("Build Shared Library" "${BUILD_SHARED_LIBS}")
@@ -45,7 +46,7 @@ function(open3d_print_configuration_summary)
             "   '-Xcompiler -fno-gnu-unique'                                                 \n"
             "                                                                                \n"
             " or use the PyTorch wheels at                                                   \n"
-            "   https://github.com/isl-org/open3d_downloads/releases/tag/torch1.8.1          \n"
+            "   https://github.com/isl-org/open3d_downloads/releases/tag/torch1.8.2          \n"
             "                                                                                \n"
             "--------------------------------------------------------------------------------\n"
         )
@@ -61,8 +62,8 @@ function(open3d_print_configuration_summary)
     message(STATUS "================================================================================")
     message(STATUS "Third-Party Dependencies:")
     set(3RDPARTY_DEPENDENCIES
+        BLAS
         Eigen3
-        faiss
         filament
         fmt
         GLEW

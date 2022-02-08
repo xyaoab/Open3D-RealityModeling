@@ -27,7 +27,7 @@
 from setuptools import setup, find_packages
 from setuptools.command.install import install as _install
 import os
-import glob
+import sys
 import ctypes
 
 data_files_spec = [
@@ -46,10 +46,10 @@ if "@BUILD_JUPYTER_EXTENSION@" == "ON":
             combine_commands,
         )
 
-        # ipywidgets and jupyterlab are required to package JS code properly. They
-        # are not used in setup.py.
-        import ipywidgets
-        import jupyterlab
+        # ipywidgets and jupyterlab are required to package JS code properly.
+        # They are not used in setup.py.
+        import ipywidgets  # noqa # pylint: disable=unused-import
+        import jupyterlab  # noqa # pylint: disable=unused-import
     except ImportError as error:
         print(error.__class__.__name__ + ": " + error.message)
         print("Run `pip install jupyter_packaging ipywidgets jupyterlab`.")
@@ -123,6 +123,16 @@ if '@BUNDLE_OPEN3D_ML@' == 'ON':
     with open('@OPEN3D_ML_ROOT@/requirements.txt', 'r') as f:
         install_requires += [line.strip() for line in f.readlines() if line]
 
+entry_points = {
+    'console_scripts': ['open3d = @PYPI_PACKAGE_NAME@.tools.cli:main',]
+}
+if sys.platform != 'darwin':  # Remove check when off main thread GUI works
+    entry_points.update({
+        "tensorboard_plugins": [
+            "Open3D = @PYPI_PACKAGE_NAME@.visualization.tensorboard_plugin"
+            ".plugin:Open3DPlugin",
+        ]
+    })
 setup_args = dict(
     name="@PYPI_PACKAGE_NAME@",
     version='@PROJECT_VERSION@',
@@ -130,11 +140,12 @@ setup_args = dict(
     include_package_data=True,
     install_requires=install_requires,
     packages=find_packages(),
+    entry_points=entry_points,
     zip_safe=False,
     cmdclass=cmdclass,
     author='Open3D Team',
     author_email='@PROJECT_EMAIL@',
-    url="@PROJECT_HOME@",
+    url="@PROJECT_HOMEPAGE_URL@",
     project_urls={
         'Documentation': '@PROJECT_DOCS@',
         'Source code': '@PROJECT_CODE@',
@@ -156,7 +167,7 @@ setup_args = dict(
         "License :: OSI Approved :: MIT License",
         "Natural Language :: English",
         "Operating System :: POSIX :: Linux",
-        "Operating System :: MacOS :: MacOSX",
+        "Operating System :: MacOS :: MacOS X",
         "Operating System :: Microsoft :: Windows",
         "Programming Language :: C",
         "Programming Language :: C++",
@@ -177,7 +188,7 @@ setup_args = dict(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities",
     ],
-    description='Open3D: A Modern Library for 3D Data Processing.',
+    description='@PROJECT_DESCRIPTION@',
     long_description=open('README.rst').read(),
     long_description_content_type='text/x-rst',
 )

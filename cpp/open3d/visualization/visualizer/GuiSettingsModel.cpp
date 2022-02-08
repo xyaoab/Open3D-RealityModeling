@@ -228,6 +228,12 @@ void GuiSettingsModel::SetSunFollowsCamera(bool follow) {
     NotifyChanged();
 }
 
+bool GuiSettingsModel::GetBasicMode() const { return basic_mode_enabled_; }
+void GuiSettingsModel::SetBasicMode(bool enable) {
+    basic_mode_enabled_ = enable;
+    NotifyChanged();
+}
+
 const Eigen::Vector3f& GuiSettingsModel::GetBackgroundColor() const {
     return bg_color_;
 }
@@ -239,6 +245,7 @@ void GuiSettingsModel::SetBackgroundColor(const Eigen::Vector3f& color) {
 const GuiSettingsModel::LightingProfile& GuiSettingsModel::GetLighting() const {
     return lighting_;
 }
+
 void GuiSettingsModel::SetLightingProfile(const LightingProfile& profile) {
     lighting_ = profile;
     user_has_changed_lighting_profile_ = true;

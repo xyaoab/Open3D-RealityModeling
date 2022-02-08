@@ -29,7 +29,7 @@
 #include "open3d/core/Tensor.h"
 #include "open3d/t/geometry/Image.h"
 #include "open3d/t/geometry/RGBDImage.h"
-#include "open3d/t/geometry/TSDFVoxelGrid.h"
+#include "open3d/t/geometry/VoxelBlockGrid.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
 #include "open3d/t/pipelines/slam/Frame.h"
 
@@ -45,7 +45,6 @@ class Model {
 public:
     Model() {}
     Model(float voxel_size,
-          float sdf_trunc,
           int block_resolution,
           int block_count,
           const core::Tensor& T_init = core::Tensor::Eye(4,
@@ -73,6 +72,7 @@ public:
                               float depth_scale,
                               float depth_min,
                               float depth_max,
+                              float trunc_voxel_multiplier = 8.0,
                               bool enable_color = true);
 
     /// Track using PointToPlane depth odometry.
@@ -95,32 +95,34 @@ public:
     /// camera.
     void Integrate(const Frame& input_frame,
                    float depth_scale,
-                   float depth_max);
+                   float depth_max,
+                   float trunc_voxel_multiplier = 8.0f);
 
     /// Extract surface point cloud for visualization / model saving.
-    /// \param estimated_number Estimation of the point cloud size, helpful for
-    /// real-time visualization.
     /// \param weight_threshold Weight threshold of the TSDF voxels to prune
     /// noise.
+    /// \param estimated_number Estimation of the point cloud size, helpful for
+    /// real-time visualization.
     /// \return Extracted point cloud.
-    t::geometry::PointCloud ExtractPointCloud(int estimated_number = -1,
-                                              float weight_threshold = 3.0f);
+    t::geometry::PointCloud ExtractPointCloud(float weight_threshold = 3.0f,
+                                              int estimated_number = -1);
 
     /// Extract surface triangle mesh for visualization / model saving.
-    /// \param estimated_number Estimation of the point cloud size, helpful for
-    /// real-time visualization.
     /// \param weight_threshold Weight threshold of the TSDF voxels to prune
     /// noise.
+    /// \param estimated_number Estimation of the point cloud size, helpful for
+    /// real-time visualization.
     /// \return Extracted point cloud.
-    t::geometry::TriangleMesh ExtractTriangleMesh(
-            int estimated_number = -1, float weight_threshold = 3.0f);
+    t::geometry::TriangleMesh ExtractTriangleMesh(float weight_threshold = 3.0f,
+                                                  int estimated_number = -1);
 
-    /// Get block hashmap int the TSDFVoxelGrid.
+    /// Get block hashmap int the VoxelBlockGrid.
     core::HashMap GetHashMap();
 
 public:
     /// Maintained volumetric map.
-    t::geometry::TSDFVoxelGrid voxel_grid_;
+    t::geometry::VoxelBlockGrid voxel_grid_;
+    core::Tensor frustum_block_coords_;
 
     /// T_frame_to_model, maintained tracking state in a (4, 4), Float64 Tensor
     /// on CPU.

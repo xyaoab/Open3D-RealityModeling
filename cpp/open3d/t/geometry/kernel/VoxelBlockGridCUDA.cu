@@ -124,8 +124,8 @@ void PointCloudTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
 
 void DepthTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
                     const core::Tensor &depth,
-                    const core::Tensor &intrinsics,
-                    const core::Tensor &extrinsics,
+                    const core::Tensor &intrinsic,
+                    const core::Tensor &extrinsic,
                     core::Tensor &voxel_block_coords,
                     index_t voxel_grid_resolution,
                     float voxel_size,
@@ -135,8 +135,8 @@ void DepthTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
                     index_t stride) {
     core::Device device = depth.GetDevice();
     NDArrayIndexer depth_indexer(depth, 2);
-    core::Tensor pose = t::geometry::InverseTransformation(extrinsics);
-    TransformIndexer ti(intrinsics, pose, 1.0f);
+    core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+    TransformIndexer ti(intrinsic, pose, 1.0f);
 
     // Output
     index_t rows_strided = depth_indexer.GetShape(0) / stride;
@@ -245,13 +245,14 @@ void DepthTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
     OPEN3D_CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-#define FN_ARGUMENTS                                                        \
-    const core::Tensor &depth, const core::Tensor &color,                   \
-            const core::Tensor &indices, const core::Tensor &block_keys,    \
-            std::vector<core::Tensor> &block_values,                        \
-            const core::Tensor &intrinsics, const core::Tensor &extrinsics, \
-            index_t resolution, float voxel_size, float sdf_trunc,          \
-            float depth_scale, float depth_max
+#define FN_ARGUMENTS                                                      \
+    const core::Tensor &depth, const core::Tensor &color,                 \
+            const core::Tensor &indices, const core::Tensor &block_keys,  \
+            TensorMap &block_values, const core::Tensor &depth_intrinsic, \
+            const core::Tensor &color_intrinsic,                          \
+            const core::Tensor &extrinsic, index_t resolution,            \
+            float voxel_size, float sdf_trunc, float depth_scale,         \
+            float depth_max
 
 template void IntegrateCUDA<uint16_t, uint8_t, float, uint16_t, uint16_t>(
         FN_ARGUMENTS);
@@ -263,15 +264,14 @@ template void IntegrateCUDA<float, float, float, float, float>(FN_ARGUMENTS);
 
 #undef FN_ARGUMENTS
 
-#define FN_ARGUMENTS                                                          \
-    std::shared_ptr<core::HashMap> &hashmap,                                  \
-            const std::vector<core::Tensor> &block_values,                    \
-            const core::Tensor &range_map,                                    \
-            std::unordered_map<std::string, core::Tensor> &renderings_map,    \
-            const core::Tensor &intrinsics, const core::Tensor &extrinsics,   \
-            index_t h, index_t w, index_t block_resolution, float voxel_size, \
-            float sdf_trunc, float depth_scale, float depth_min,              \
-            float depth_max, float weight_threshold
+#define FN_ARGUMENTS                                                           \
+    std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \
+            const core::Tensor &range_map, TensorMap &renderings_map,          \
+            const core::Tensor &intrinsic, const core::Tensor &extrinsic,      \
+            index_t h, index_t w, index_t block_resolution, float voxel_size,  \
+            float depth_scale, float depth_min, float depth_max,               \
+            float weight_threshold, float trunc_voxel_multiplier,              \
+            int range_map_down_factor
 
 template void RayCastCUDA<float, uint16_t, uint16_t>(FN_ARGUMENTS);
 template void RayCastCUDA<float, float, float>(FN_ARGUMENTS);
@@ -281,8 +281,7 @@ template void RayCastCUDA<float, float, float>(FN_ARGUMENTS);
 #define FN_ARGUMENTS                                                           \
     const core::Tensor &block_indices, const core::Tensor &nb_block_indices,   \
             const core::Tensor &nb_block_masks,                                \
-            const core::Tensor &block_keys,                                    \
-            const std::vector<core::Tensor> &block_values,                     \
+            const core::Tensor &block_keys, const TensorMap &block_value_map,  \
             core::Tensor &points, core::Tensor &normals, core::Tensor &colors, \
             index_t block_resolution, float voxel_size,                        \
             float weight_threshold, index_t &valid_size
@@ -311,8 +310,7 @@ void ExtractTriangleMeshCUDA(const core::Tensor &block_indices,
     const core::Tensor &block_indices, const core::Tensor &inv_block_indices, \
             const core::Tensor &nb_block_indices,                             \
             const core::Tensor &nb_block_masks,                               \
-            const core::Tensor &block_keys,                                   \
-            const std::vector<core::Tensor> &block_values,                    \
+            const core::Tensor &block_keys, const TensorMap &block_value_map, \
             core::Tensor &vertices, core::Tensor &triangles,                  \
             core::Tensor &vertex_normals, core::Tensor &vertex_colors,        \
             index_t block_resolution, float voxel_size,                       \

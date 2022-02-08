@@ -169,8 +169,9 @@ void IntegrateCPU
          const core::Tensor& color,
          const core::Tensor& indices,
          const core::Tensor& block_keys,
-         std::vector<core::Tensor>& block_values,
-         const core::Tensor& intrinsics,
+         TensorMap& block_value_map,
+         const core::Tensor& depth_intrinsic,
+         const core::Tensor& color_intrinsic,
          const core::Tensor& extrinsics,
          index_t resolution,
          float voxel_size,
@@ -181,26 +182,44 @@ void IntegrateCPU
     index_t resolution2 = resolution * resolution;
     index_t resolution3 = resolution2 * resolution;
 
-    TransformIndexer transform_indexer(intrinsics, extrinsics, voxel_size);
+    TransformIndexer transform_indexer(depth_intrinsic, extrinsics, voxel_size);
+    TransformIndexer colormap_indexer(
+            color_intrinsic,
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device("CPU:0")));
 
     ArrayIndexer voxel_indexer({resolution, resolution, resolution});
 
     ArrayIndexer block_keys_indexer(block_keys, 1);
     ArrayIndexer depth_indexer(depth, 2);
-    ArrayIndexer color_indexer;
-
-    bool integrate_color = false;
-    if (color.NumElements() != 0) {
-        color_indexer = ArrayIndexer(color, 2);
-        integrate_color = true;
-    }
-
     core::Device device = block_keys.GetDevice();
 
     const index_t* indices_ptr = indices.GetDataPtr<index_t>();
-    tsdf_t* tsdf_base_ptr = block_values[0].GetDataPtr<tsdf_t>();
-    weight_t* weight_base_ptr = block_values[1].GetDataPtr<weight_t>();
-    color_t* color_base_ptr = block_values[2].GetDataPtr<color_t>();
+
+    if (!block_value_map.Contains("tsdf") ||
+        !block_value_map.Contains("weight")) {
+        utility::LogError(
+                "TSDF and/or weight not allocated in blocks, please implement "
+                "customized integration.");
+    }
+    tsdf_t* tsdf_base_ptr = block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    weight_t* weight_base_ptr =
+            block_value_map.at("weight").GetDataPtr<weight_t>();
+
+    bool integrate_color =
+            block_value_map.Contains("color") && color.NumElements() > 0;
+    color_t* color_base_ptr = nullptr;
+    ArrayIndexer color_indexer;
+
+    float color_multiplier = 1.0;
+    if (integrate_color) {
+        color_base_ptr = block_value_map.at("color").GetDataPtr<color_t>();
+        color_indexer = ArrayIndexer(color, 2);
+
+        // Float32: [0, 1] -> [0, 255]
+        if (color.GetDtype() == core::Float32) {
+            color_multiplier = 255.0;
+        }
+    }
 
     index_t n = indices.GetLength() * resolution3;
     core::ParallelFor(device, n, [=] OPEN3D_DEVICE(index_t workload_idx) {
@@ -256,22 +275,228 @@ void IntegrateCPU
 
         tsdf_t* tsdf_ptr = tsdf_base_ptr + linear_idx;
         weight_t* weight_ptr = weight_base_ptr + linear_idx;
-        color_t* color_ptr = color_base_ptr + 3 * linear_idx;
 
         float inv_wsum = 1.0f / (*weight_ptr + 1);
         float weight = *weight_ptr;
         *tsdf_ptr = (weight * (*tsdf_ptr) + sdf) * inv_wsum;
+
         if (integrate_color) {
-            input_color_t* input_color_ptr =
-                    color_indexer.GetDataPtr<input_color_t>(ui, vi);
-            for (index_t i = 0; i < 3; ++i) {
-                color_ptr[i] =
-                        (weight * color_ptr[i] + input_color_ptr[i]) * inv_wsum;
+            color_t* color_ptr = color_base_ptr + 3 * linear_idx;
+
+            // Unproject ui, vi with depth_intrinsic, then project back with
+            // color_intrinsic
+            float x, y, z;
+            transform_indexer.Unproject(ui, vi, 1.0, &x, &y, &z);
+
+            float uf, vf;
+            colormap_indexer.Project(x, y, z, &uf, &vf);
+            if (color_indexer.InBoundary(uf, vf)) {
+                ui = round(uf);
+                vi = round(vf);
+
+                input_color_t* input_color_ptr =
+                        color_indexer.GetDataPtr<input_color_t>(ui, vi);
+
+                for (index_t i = 0; i < 3; ++i) {
+                    color_ptr[i] = (weight * color_ptr[i] +
+                                    input_color_ptr[i] * color_multiplier) *
+                                   inv_wsum;
+                }
             }
         }
         *weight_ptr = weight + 1;
     });
 
+#if defined(__CUDACC__)
+    core::cuda::Synchronize();
+#endif
+}
+
+#if defined(__CUDACC__)
+void EstimateRangeCUDA
+#else
+void EstimateRangeCPU
+#endif
+        (const core::Tensor& block_keys,
+         core::Tensor& range_minmax_map,
+         const core::Tensor& intrinsics,
+         const core::Tensor& extrinsics,
+         int h,
+         int w,
+         int down_factor,
+         int64_t block_resolution,
+         float voxel_size,
+         float depth_min,
+         float depth_max) {
+
+    // TODO(wei): reserve it in a reusable buffer
+
+    // Every 2 channels: (min, max)
+    int h_down = h / down_factor;
+    int w_down = w / down_factor;
+    range_minmax_map = core::Tensor({h_down, w_down, 2}, core::Float32,
+                                    block_keys.GetDevice());
+    NDArrayIndexer range_map_indexer(range_minmax_map, 2);
+
+    // Every 6 channels: (v_min, u_min, v_max, u_max, z_min, z_max)
+    const int fragment_size = 16;
+    const int frag_buffer_size = 65535;
+
+    // TODO(wei): explicit buffer
+    core::Tensor fragment_buffer = core::Tensor(
+            {frag_buffer_size, 6}, core::Float32, block_keys.GetDevice());
+
+    NDArrayIndexer frag_buffer_indexer(fragment_buffer, 1);
+    NDArrayIndexer block_keys_indexer(block_keys, 1);
+    TransformIndexer w2c_transform_indexer(intrinsics, extrinsics);
+#if defined(__CUDACC__)
+    core::Tensor count(std::vector<int>{0}, {1}, core::Int32,
+                       block_keys.GetDevice());
+    int* count_ptr = count.GetDataPtr<int>();
+#else
+    std::atomic<int> count_atomic(0);
+    std::atomic<int>* count_ptr = &count_atomic;
+#endif
+
+#ifndef __CUDACC__
+    using std::max;
+    using std::min;
+#endif
+
+    // Pass 0: iterate over blocks, fill-in an rendering fragment array
+    core::ParallelFor(
+            block_keys.GetDevice(), block_keys.GetLength(),
+            [=] OPEN3D_DEVICE(int64_t workload_idx) {
+                int* key = block_keys_indexer.GetDataPtr<int>(workload_idx);
+
+                int u_min = w_down - 1, v_min = h_down - 1, u_max = 0,
+                    v_max = 0;
+                float z_min = depth_max, z_max = depth_min;
+
+                float xc, yc, zc, u, v;
+
+                // Project 8 corners to low-res image and form a rectangle
+                for (int i = 0; i < 8; ++i) {
+                    float xw = (key[0] + ((i & 1) > 0)) * block_resolution *
+                               voxel_size;
+                    float yw = (key[1] + ((i & 2) > 0)) * block_resolution *
+                               voxel_size;
+                    float zw = (key[2] + ((i & 4) > 0)) * block_resolution *
+                               voxel_size;
+
+                    w2c_transform_indexer.RigidTransform(xw, yw, zw, &xc, &yc,
+                                                         &zc);
+                    if (zc <= 0) continue;
+
+                    // Project to the down sampled image buffer
+                    w2c_transform_indexer.Project(xc, yc, zc, &u, &v);
+                    u /= down_factor;
+                    v /= down_factor;
+
+                    v_min = min(static_cast<int>(floorf(v)), v_min);
+                    v_max = max(static_cast<int>(ceilf(v)), v_max);
+
+                    u_min = min(static_cast<int>(floorf(u)), u_min);
+                    u_max = max(static_cast<int>(ceilf(u)), u_max);
+
+                    z_min = min(z_min, zc);
+                    z_max = max(z_max, zc);
+                }
+
+                v_min = max(0, v_min);
+                v_max = min(h_down - 1, v_max);
+
+                u_min = max(0, u_min);
+                u_max = min(w_down - 1, u_max);
+
+                if (v_min >= v_max || u_min >= u_max || z_min >= z_max) return;
+
+                // Divide the rectangle into small 16x16 fragments
+                int frag_v_count =
+                        ceilf(float(v_max - v_min + 1) / float(fragment_size));
+                int frag_u_count =
+                        ceilf(float(u_max - u_min + 1) / float(fragment_size));
+
+                int frag_count = frag_v_count * frag_u_count;
+                int frag_count_start = OPEN3D_ATOMIC_ADD(count_ptr, 1);
+                int frag_count_end = frag_count_start + frag_count;
+                if (frag_count_end >= frag_buffer_size) {
+                    printf("Fragment count exceeding buffer size, abort!\n");
+                }
+
+                int offset = 0;
+                for (int frag_v = 0; frag_v < frag_v_count; ++frag_v) {
+                    for (int frag_u = 0; frag_u < frag_u_count;
+                         ++frag_u, ++offset) {
+                        float* frag_ptr = frag_buffer_indexer.GetDataPtr<float>(
+                                frag_count_start + offset);
+                        // zmin, zmax
+                        frag_ptr[0] = z_min;
+                        frag_ptr[1] = z_max;
+
+                        // vmin, umin
+                        frag_ptr[2] = v_min + frag_v * fragment_size;
+                        frag_ptr[3] = u_min + frag_u * fragment_size;
+
+                        // vmax, umax
+                        frag_ptr[4] = min(frag_ptr[2] + fragment_size - 1,
+                                          static_cast<float>(v_max));
+                        frag_ptr[5] = min(frag_ptr[3] + fragment_size - 1,
+                                          static_cast<float>(u_max));
+                    }
+                }
+            });
+#if defined(__CUDACC__)
+    int frag_count = count[0].Item<int>();
+#else
+    int frag_count = (*count_ptr).load();
+#endif
+
+    // Pass 0.5: Fill in range map to prepare for atomic min/max
+    core::ParallelFor(block_keys.GetDevice(), h_down * w_down,
+                      [=] OPEN3D_DEVICE(int64_t workload_idx) {
+                          int v = workload_idx / w_down;
+                          int u = workload_idx % w_down;
+                          float* range_ptr =
+                                  range_map_indexer.GetDataPtr<float>(u, v);
+                          range_ptr[0] = depth_max;
+                          range_ptr[1] = depth_min;
+                      });
+
+    // Pass 1: iterate over rendering fragment array, fill-in range
+    core::ParallelFor(
+            block_keys.GetDevice(), frag_count * fragment_size * fragment_size,
+            [=] OPEN3D_DEVICE(int64_t workload_idx) {
+                int frag_idx = workload_idx / (fragment_size * fragment_size);
+                int local_idx = workload_idx % (fragment_size * fragment_size);
+                int dv = local_idx / fragment_size;
+                int du = local_idx % fragment_size;
+
+                float* frag_ptr =
+                        frag_buffer_indexer.GetDataPtr<float>(frag_idx);
+                int v_min = static_cast<int>(frag_ptr[2]);
+                int u_min = static_cast<int>(frag_ptr[3]);
+                int v_max = static_cast<int>(frag_ptr[4]);
+                int u_max = static_cast<int>(frag_ptr[5]);
+
+                int v = v_min + dv;
+                int u = u_min + du;
+                if (v > v_max || u > u_max) return;
+
+                float z_min = frag_ptr[0];
+                float z_max = frag_ptr[1];
+                float* range_ptr = range_map_indexer.GetDataPtr<float>(u, v);
+#ifdef __CUDACC__
+                atomicMinf(&(range_ptr[0]), z_min);
+                atomicMaxf(&(range_ptr[1]), z_max);
+#else
+#pragma omp critical(EstimateRangeCPU)
+                {
+                    range_ptr[0] = min(z_min, range_ptr[0]);
+                    range_ptr[1] = max(z_max, range_ptr[1]);
+                }
+#endif
+            });
 #if defined(__CUDACC__)
     core::cuda::Synchronize();
 #endif
@@ -305,20 +530,21 @@ void RayCastCUDA
 void RayCastCPU
 #endif
         (std::shared_ptr<core::HashMap>& hashmap,
-         const std::vector<core::Tensor>& block_values,
-         const core::Tensor& range_map,
-         std::unordered_map<std::string, core::Tensor>& renderings_map,
-         const core::Tensor& intrinsics,
+         const TensorMap& block_value_map,
+         const core::Tensor& range,
+         TensorMap& renderings_map,
+         const core::Tensor& intrinsic,
          const core::Tensor& extrinsics,
          index_t h,
          index_t w,
          index_t block_resolution,
          float voxel_size,
-         float sdf_trunc,
          float depth_scale,
          float depth_min,
          float depth_max,
-         float weight_threshold) {
+         float weight_threshold,
+         float trunc_voxel_multiplier,
+         int range_map_down_factor) {
     using Key = utility::MiniVec<index_t, 3>;
     using Hash = utility::MiniVecHash<index_t, 3>;
     using Eq = utility::MiniVecEq<index_t, 3>;
@@ -345,27 +571,92 @@ void RayCastCPU
 #endif
 
     core::Device device = hashmap->GetDevice();
-    ArrayIndexer range_map_indexer(range_map, 2);
 
-    ArrayIndexer vertex_map_indexer(renderings_map.at("vertex"), 2);
-    ArrayIndexer depth_map_indexer(renderings_map.at("depth"), 2);
-    ArrayIndexer color_map_indexer(renderings_map.at("color"), 2);
-    ArrayIndexer normal_map_indexer(renderings_map.at("normal"), 2);
+    ArrayIndexer range_indexer(range, 2);
 
-    ArrayIndexer index_map_indexer(renderings_map.at("index"), 2);
-    ArrayIndexer mask_map_indexer(renderings_map.at("mask"), 2);
-    ArrayIndexer ratio_map_indexer(renderings_map.at("ratio"), 2);
+    // Geometry
+    ArrayIndexer depth_indexer;
+    ArrayIndexer vertex_indexer;
+    ArrayIndexer normal_indexer;
 
-    ArrayIndexer grad_x_indexer(renderings_map.at("grad_ratio_x"), 2);
-    ArrayIndexer grad_y_indexer(renderings_map.at("grad_ratio_y"), 2);
-    ArrayIndexer grad_z_indexer(renderings_map.at("grad_ratio_z"), 2);
+    // Diff rendering
+    ArrayIndexer index_indexer;
+    ArrayIndexer mask_indexer;
+    ArrayIndexer interp_ratio_indexer;
+    ArrayIndexer interp_ratio_dx_indexer;
+    ArrayIndexer interp_ratio_dy_indexer;
+    ArrayIndexer interp_ratio_dz_indexer;
 
-    const tsdf_t* tsdf_base_ptr = block_values[0].GetDataPtr<tsdf_t>();
-    const weight_t* weight_base_ptr = block_values[1].GetDataPtr<weight_t>();
-    const color_t* color_base_ptr = block_values[2].GetDataPtr<color_t>();
+    // Color
+    ArrayIndexer color_indexer;
+
+    if (!block_value_map.Contains("tsdf") ||
+        !block_value_map.Contains("weight")) {
+        utility::LogError(
+                "TSDF and/or weight not allocated in blocks, please implement "
+                "customized integration.");
+    }
+    const tsdf_t* tsdf_base_ptr =
+            block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    const weight_t* weight_base_ptr =
+            block_value_map.at("weight").GetDataPtr<weight_t>();
+
+    // Geometry
+    if (renderings_map.Contains("depth")) {
+        depth_indexer = ArrayIndexer(renderings_map.at("depth"), 2);
+    }
+    if (renderings_map.Contains("vertex")) {
+        vertex_indexer = ArrayIndexer(renderings_map.at("vertex"), 2);
+    }
+    if (renderings_map.Contains("normal")) {
+        normal_indexer = ArrayIndexer(renderings_map.at("normal"), 2);
+    }
+
+    // Diff rendering
+    if (renderings_map.Contains("index")) {
+        index_indexer = ArrayIndexer(renderings_map.at("index"), 2);
+    }
+    if (renderings_map.Contains("mask")) {
+        mask_indexer = ArrayIndexer(renderings_map.at("mask"), 2);
+    }
+    if (renderings_map.Contains("interp_ratio")) {
+        interp_ratio_indexer =
+                ArrayIndexer(renderings_map.at("interp_ratio"), 2);
+    }
+    if (renderings_map.Contains("interp_ratio_dx")) {
+        interp_ratio_dx_indexer =
+                ArrayIndexer(renderings_map.at("interp_ratio_dx"), 2);
+    }
+    if (renderings_map.Contains("interp_ratio_dy")) {
+        interp_ratio_dy_indexer =
+                ArrayIndexer(renderings_map.at("interp_ratio_dy"), 2);
+    }
+    if (renderings_map.Contains("interp_ratio_dz")) {
+        interp_ratio_dz_indexer =
+                ArrayIndexer(renderings_map.at("interp_ratio_dz"), 2);
+    }
+
+    // Color
+    bool render_color = false;
+    if (block_value_map.Contains("color") && renderings_map.Contains("color")) {
+        render_color = true;
+        color_indexer = ArrayIndexer(renderings_map.at("color"), 2);
+    }
+    const color_t* color_base_ptr =
+            render_color ? block_value_map.at("color").GetDataPtr<color_t>()
+                         : nullptr;
+
+    bool visit_neighbors = render_color || normal_indexer.GetDataPtr() ||
+                           mask_indexer.GetDataPtr() ||
+                           index_indexer.GetDataPtr() ||
+                           interp_ratio_indexer.GetDataPtr() ||
+                           interp_ratio_dx_indexer.GetDataPtr() ||
+                           interp_ratio_dy_indexer.GetDataPtr() ||
+                           interp_ratio_dz_indexer.GetDataPtr();
+
     TransformIndexer c2w_transform_indexer(
-            intrinsics, t::geometry::InverseTransformation(extrinsics));
-    TransformIndexer w2c_transform_indexer(intrinsics, extrinsics);
+            intrinsic, t::geometry::InverseTransformation(extrinsics));
+    TransformIndexer w2c_transform_indexer(intrinsic, extrinsics);
 
     index_t rows = h;
     index_t cols = w;
@@ -447,36 +738,103 @@ void RayCastCPU
         index_t y = workload_idx / cols;
         index_t x = workload_idx % cols;
 
-        float *depth_ptr = nullptr, *vertex_ptr = nullptr, *color_ptr = nullptr,
-              *normal_ptr = nullptr;
+        const float* range = range_indexer.GetDataPtr<float>(
+                x / range_map_down_factor, y / range_map_down_factor);
 
-        depth_ptr = depth_map_indexer.GetDataPtr<float>(x, y);
-        depth_ptr[0] = 0;
+        float* depth_ptr = nullptr;
+        float* vertex_ptr = nullptr;
+        float* color_ptr = nullptr;
+        float* normal_ptr = nullptr;
 
-        vertex_ptr = vertex_map_indexer.GetDataPtr<float>(x, y);
-        vertex_ptr[0] = 0;
-        vertex_ptr[1] = 0;
-        vertex_ptr[2] = 0;
+        int64_t* index_ptr = nullptr;
+        bool* mask_ptr = nullptr;
+        float* interp_ratio_ptr = nullptr;
+        float* interp_ratio_dx_ptr = nullptr;
+        float* interp_ratio_dy_ptr = nullptr;
+        float* interp_ratio_dz_ptr = nullptr;
 
-        color_ptr = color_map_indexer.GetDataPtr<float>(x, y);
-        color_ptr[0] = 0;
-        color_ptr[1] = 0;
-        color_ptr[2] = 0;
+        if (vertex_indexer.GetDataPtr()) {
+            vertex_ptr = vertex_indexer.GetDataPtr<float>(x, y);
+            vertex_ptr[0] = 0;
+            vertex_ptr[1] = 0;
+            vertex_ptr[2] = 0;
+        }
+        if (depth_indexer.GetDataPtr()) {
+            depth_ptr = depth_indexer.GetDataPtr<float>(x, y);
+            depth_ptr[0] = 0;
+        }
+        if (normal_indexer.GetDataPtr()) {
+            normal_ptr = normal_indexer.GetDataPtr<float>(x, y);
+            normal_ptr[0] = 0;
+            normal_ptr[1] = 0;
+            normal_ptr[2] = 0;
+        }
 
-        normal_ptr = normal_map_indexer.GetDataPtr<float>(x, y);
-        normal_ptr[0] = 0;
-        normal_ptr[1] = 0;
-        normal_ptr[2] = 0;
+        if (mask_indexer.GetDataPtr()) {
+            mask_ptr = mask_indexer.GetDataPtr<bool>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                mask_ptr[i] = false;
+            }
+        }
+        if (index_indexer.GetDataPtr()) {
+            index_ptr = index_indexer.GetDataPtr<int64_t>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                index_ptr[i] = 0;
+            }
+        }
+        if (interp_ratio_indexer.GetDataPtr()) {
+            interp_ratio_ptr = interp_ratio_indexer.GetDataPtr<float>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                interp_ratio_ptr[i] = 0;
+            }
+        }
+        if (interp_ratio_dx_indexer.GetDataPtr()) {
+            interp_ratio_dx_ptr =
+                    interp_ratio_dx_indexer.GetDataPtr<float>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                interp_ratio_dx_ptr[i] = 0;
+            }
+        }
+        if (interp_ratio_dy_indexer.GetDataPtr()) {
+            interp_ratio_dy_ptr =
+                    interp_ratio_dy_indexer.GetDataPtr<float>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                interp_ratio_dy_ptr[i] = 0;
+            }
+        }
+        if (interp_ratio_dz_indexer.GetDataPtr()) {
+            interp_ratio_dz_ptr =
+                    interp_ratio_dz_indexer.GetDataPtr<float>(x, y);
+#ifdef __CUDACC__
+#pragma unroll
+#endif
+            for (int i = 0; i < 8; ++i) {
+                interp_ratio_dz_ptr[i] = 0;
+            }
+        }
 
-        bool* mask_ptr = mask_map_indexer.GetDataPtr<bool>(x, y);
-        float* ratio_ptr = ratio_map_indexer.GetDataPtr<float>(x, y);
-        int64_t* index_ptr = index_map_indexer.GetDataPtr<int64_t>(x, y);
+        if (color_indexer.GetDataPtr()) {
+            color_ptr = color_indexer.GetDataPtr<float>(x, y);
+            color_ptr[0] = 0;
+            color_ptr[1] = 0;
+            color_ptr[2] = 0;
+        }
 
-        float* grad_x_ptr = grad_x_indexer.GetDataPtr<float>(x, y);
-        float* grad_y_ptr = grad_y_indexer.GetDataPtr<float>(x, y);
-        float* grad_z_ptr = grad_z_indexer.GetDataPtr<float>(x, y);
-
-        const float* range = range_map_indexer.GetDataPtr<float>(x / 8, y / 8);
         float t = range[0];
         const float t_max = range[1];
         if (t >= t_max) return;
@@ -491,6 +849,7 @@ void RayCastCPU
 
         float tsdf_prev = -1.0f;
         float tsdf = 1.0;
+        float sdf_trunc = voxel_size * trunc_voxel_multiplier;
         float w = 0.0;
 
         // Camera origin
@@ -536,10 +895,15 @@ void RayCastCPU
             z_g = z_o + t_intersect * z_d;
 
             // Trivial vertex assignment
-            *depth_ptr = t_intersect * depth_scale;
-            w2c_transform_indexer.RigidTransform(x_g, y_g, z_g, vertex_ptr + 0,
-                                                 vertex_ptr + 1,
-                                                 vertex_ptr + 2);
+            if (depth_ptr) {
+                *depth_ptr = t_intersect * depth_scale;
+            }
+            if (vertex_ptr) {
+                w2c_transform_indexer.RigidTransform(
+                        x_g, y_g, z_g, vertex_ptr + 0, vertex_ptr + 1,
+                        vertex_ptr + 2);
+            }
+            if (!visit_neighbors) return;
 
             // Trilinear interpolation
             // TODO(wei): simplify the flow by splitting the
@@ -580,33 +944,51 @@ void RayCastCPU
                         z_v_floor + dz_v, block_buf_idx, cache);
 
                 if (linear_idx_k >= 0 && weight_base_ptr[linear_idx_k] > 0) {
-                    mask_ptr[k] = true;
-                    index_ptr[k] = linear_idx_k;
-
                     float rx = dx_v * (ratio_x) + (1 - dx_v) * (1 - ratio_x);
                     float ry = dy_v * (ratio_y) + (1 - dy_v) * (1 - ratio_y);
                     float rz = dz_v * (ratio_z) + (1 - dz_v) * (1 - ratio_z);
-
                     float r = rx * ry * rz;
-                    ratio_ptr[k] = r;
 
-                    index_t color_linear_idx = linear_idx_k * 3;
-                    color_ptr[0] += r * color_base_ptr[color_linear_idx + 0];
-                    color_ptr[1] += r * color_base_ptr[color_linear_idx + 1];
-                    color_ptr[2] += r * color_base_ptr[color_linear_idx + 2];
+                    if (interp_ratio_ptr) {
+                        interp_ratio_ptr[k] = r;
+                    }
+                    if (mask_ptr) {
+                        mask_ptr[k] = true;
+                    }
+                    if (index_ptr) {
+                        index_ptr[k] = linear_idx_k;
+                    }
 
                     float tsdf_k = tsdf_base_ptr[linear_idx_k];
-                    float grad_x_deriv = ry * rz * (2 * dx_v - 1);
-                    float grad_y_deriv = rx * rz * (2 * dy_v - 1);
-                    float grad_z_deriv = rx * ry * (2 * dz_v - 1);
+                    float interp_ratio_dx = ry * rz * (2 * dx_v - 1);
+                    float interp_ratio_dy = rx * rz * (2 * dy_v - 1);
+                    float interp_ratio_dz = rx * ry * (2 * dz_v - 1);
 
-                    grad_x_ptr[k] = grad_x_deriv;
-                    grad_y_ptr[k] = grad_y_deriv;
-                    grad_z_ptr[k] = grad_z_deriv;
+                    if (interp_ratio_dx_ptr) {
+                        interp_ratio_dx_ptr[k] = interp_ratio_dx;
+                    }
+                    if (interp_ratio_dy_ptr) {
+                        interp_ratio_dy_ptr[k] = interp_ratio_dy;
+                    }
+                    if (interp_ratio_dz_ptr) {
+                        interp_ratio_dz_ptr[k] = interp_ratio_dz;
+                    }
 
-                    normal_ptr[0] += grad_x_deriv * tsdf_k;
-                    normal_ptr[1] += grad_y_deriv * tsdf_k;
-                    normal_ptr[2] += grad_z_deriv * tsdf_k;
+                    if (normal_ptr) {
+                        normal_ptr[0] += interp_ratio_dx * tsdf_k;
+                        normal_ptr[1] += interp_ratio_dy * tsdf_k;
+                        normal_ptr[2] += interp_ratio_dz * tsdf_k;
+                    }
+
+                    if (color_ptr) {
+                        index_t color_linear_idx = linear_idx_k * 3;
+                        color_ptr[0] +=
+                                r * color_base_ptr[color_linear_idx + 0];
+                        color_ptr[1] +=
+                                r * color_base_ptr[color_linear_idx + 1];
+                        color_ptr[2] +=
+                                r * color_base_ptr[color_linear_idx + 2];
+                    }
 
                     sum_r += r;
                 }
@@ -614,17 +996,23 @@ void RayCastCPU
 
             if (sum_r > 0) {
                 sum_r *= 255.0;
-                color_ptr[0] /= sum_r;
-                color_ptr[1] /= sum_r;
-                color_ptr[2] /= sum_r;
+                if (color_ptr) {
+                    color_ptr[0] /= sum_r;
+                    color_ptr[1] /= sum_r;
+                    color_ptr[2] /= sum_r;
+                }
 
-                float norm = sqrt(normal_ptr[0] * normal_ptr[0] +
-                                  normal_ptr[1] * normal_ptr[1] +
-                                  normal_ptr[2] * normal_ptr[2]);
-                w2c_transform_indexer.Rotate(
-                        -normal_ptr[0] / norm, -normal_ptr[1] / norm,
-                        -normal_ptr[2] / norm, normal_ptr + 0, normal_ptr + 1,
-                        normal_ptr + 2);
+                if (normal_ptr) {
+                    constexpr float EPSILON = 1e-5f;
+                    float norm = sqrt(normal_ptr[0] * normal_ptr[0] +
+                                      normal_ptr[1] * normal_ptr[1] +
+                                      normal_ptr[2] * normal_ptr[2]);
+                    norm = std::max(norm, EPSILON);
+                    w2c_transform_indexer.Rotate(
+                            -normal_ptr[0] / norm, -normal_ptr[1] / norm,
+                            -normal_ptr[2] / norm, normal_ptr + 0,
+                            normal_ptr + 1, normal_ptr + 2);
+                }
             }
         }  // surface-found
     });
@@ -644,7 +1032,7 @@ void ExtractPointCloudCPU
          const core::Tensor& nb_indices,
          const core::Tensor& nb_masks,
          const core::Tensor& block_keys,
-         const std::vector<core::Tensor>& block_values,
+         const TensorMap& block_value_map,
          core::Tensor& points,
          core::Tensor& normals,
          core::Tensor& colors,
@@ -669,12 +1057,20 @@ void ExtractPointCloudCPU
     // Plain arrays that does not require indexers
     const index_t* indices_ptr = indices.GetDataPtr<index_t>();
 
-    const tsdf_t* tsdf_base_ptr = block_values[0].GetDataPtr<tsdf_t>();
-    const weight_t* weight_base_ptr = block_values[1].GetDataPtr<weight_t>();
-
-    const color_t* color_base_ptr =
-            block_values.size() < 3 ? nullptr
-                                    : block_values[2].GetDataPtr<color_t>();
+    if (!block_value_map.Contains("tsdf") ||
+        !block_value_map.Contains("weight")) {
+        utility::LogError(
+                "TSDF and/or weight not allocated in blocks, please implement "
+                "customized integration.");
+    }
+    const tsdf_t* tsdf_base_ptr =
+            block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    const weight_t* weight_base_ptr =
+            block_value_map.at("weight").GetDataPtr<weight_t>();
+    const color_t* color_base_ptr = nullptr;
+    if (block_value_map.Contains("color")) {
+        color_base_ptr = block_value_map.at("color").GetDataPtr<color_t>();
+    }
 
     index_t n_blocks = indices.GetLength();
     index_t n = n_blocks * resolution3;
@@ -682,7 +1078,7 @@ void ExtractPointCloudCPU
     // Output
 #if defined(__CUDACC__)
     core::Tensor count(std::vector<index_t>{0}, {1}, core::Int32,
-                       block_values[0].GetDevice());
+                       block_keys.GetDevice());
     index_t* count_ptr = count.GetDataPtr<index_t>();
 #else
     std::atomic<index_t> count_atomic(0);
@@ -690,7 +1086,7 @@ void ExtractPointCloudCPU
 #endif
 
     if (valid_size < 0) {
-        utility::LogWarning(
+        utility::LogDebug(
                 "No estimated max point cloud size provided, using a 2-pass "
                 "estimation. Surface extraction could be slow.");
         // This pass determines valid number of points.
@@ -894,7 +1290,7 @@ void ExtractTriangleMeshCPU
          const core::Tensor& nb_block_indices,
          const core::Tensor& nb_block_masks,
          const core::Tensor& block_keys,
-         const std::vector<core::Tensor>& block_values,
+         const TensorMap& block_value_map,
          core::Tensor& vertices,
          core::Tensor& triangles,
          core::Tensor& vertex_normals,
@@ -940,15 +1336,22 @@ void ExtractTriangleMeshCPU
     const index_t* indices_ptr = block_indices.GetDataPtr<index_t>();
     const index_t* inv_indices_ptr = inv_block_indices.GetDataPtr<index_t>();
 
-    const tsdf_t* tsdf_base_ptr = block_values[0].GetDataPtr<tsdf_t>();
-    const weight_t* weight_base_ptr = block_values[1].GetDataPtr<weight_t>();
-
-    const color_t* color_base_ptr =
-            block_values.size() < 3 ? nullptr
-                                    : block_values[2].GetDataPtr<color_t>();
+    if (!block_value_map.Contains("tsdf") ||
+        !block_value_map.Contains("weight")) {
+        utility::LogError(
+                "TSDF and/or weight not allocated in blocks, please implement "
+                "customized integration.");
+    }
+    const tsdf_t* tsdf_base_ptr =
+            block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    const weight_t* weight_base_ptr =
+            block_value_map.at("weight").GetDataPtr<weight_t>();
+    const color_t* color_base_ptr = nullptr;
+    if (block_value_map.Contains("color")) {
+        color_base_ptr = block_value_map.at("color").GetDataPtr<color_t>();
+    }
 
     index_t n = n_blocks * resolution3;
-
     // Pass 0: analyze mesh structure, set up one-on-one correspondences
     // from edges to vertices.
 
@@ -1273,7 +1676,7 @@ void ExtractTriangleMeshCPU
 #else
     triangle_count = (*count_ptr).load();
 #endif
-    utility::LogInfo("Total triangle count = {}", triangle_count);
+    utility::LogDebug("Total triangle count = {}", triangle_count);
     triangles = triangles.Slice(0, 0, triangle_count);
 }
 
