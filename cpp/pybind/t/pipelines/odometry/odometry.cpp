@@ -128,13 +128,14 @@ void pybind_odometry_classes(py::module &m) {
                         olp.intensity_huber_delta_);
             });
 
-    py::class_<LiDARCalib> lidar_calib(m, "LiDARCalib",
-                                       "Calibration for Ouster LiDAR, "
-                                       "providing projection and unprojection");
+    py::class_<LiDARIntrinsic> lidar_calib(
+            m, "LiDARIntrinsic",
+            "Calibration for Ouster LiDAR, "
+            "providing projection and unprojection");
     lidar_calib.def(py::init<const std::string &, const core::Device &>(),
                     "calib_npz_file"_a, "device"_a);
 
-    lidar_calib.def("unproject", &LiDARCalib::Unproject,
+    lidar_calib.def("unproject", &LiDARIntrinsic::Unproject,
                     "Unproject an range image to generate a point cloud "
                     "followed by a transformation.",
                     "range_image"_a,
@@ -142,7 +143,7 @@ void pybind_odometry_classes(py::module &m) {
                             4, core::Dtype::Float64, core::Device()),
                     "depth_min"_a = 0.65, "depth_max"_a = 10.0);
 
-    lidar_calib.def("project", &LiDARCalib::Project,
+    lidar_calib.def("project", &LiDARIntrinsic::Project,
                     "Project a point cloud to a specified-size image after a "
                     "transformation.",
                     "xyz"_a,
@@ -218,7 +219,7 @@ void pybind_odometry_methods(py::module &m) {
 
     m.def("lidar_odometry",
           py::overload_cast<const t::geometry::Image &,
-                            const t::geometry::Image &, const LiDARCalib &,
+                            const t::geometry::Image &, const LiDARIntrinsic &,
                             const core::Tensor &, const float, const float,
                             const float, const OdometryConvergenceCriteria &>(
                   &LiDAROdometry),
@@ -232,7 +233,7 @@ void pybind_odometry_methods(py::module &m) {
     m.def("lidar_odometry",
           py::overload_cast<const t::geometry::Image &,
                             const t::geometry::Image &, const core::Tensor &,
-                            const LiDARCalib &, const core::Tensor &,
+                            const LiDARIntrinsic &, const core::Tensor &,
                             const float, const float, const float,
                             const OdometryConvergenceCriteria &>(
                   &LiDAROdometry),

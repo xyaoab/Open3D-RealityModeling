@@ -45,7 +45,7 @@ namespace odometry {
 #define DEG2RAD (PI / 180)
 using t::geometry::kernel::NDArrayIndexer;
 using t::geometry::kernel::TransformIndexer;
-using t::pipelines::odometry::LiDARCalibConfig;
+using t::pipelines::odometry::LiDARIntrinsicPtrs;
 
 #ifndef __CUDACC__
 using std::abs;
@@ -57,7 +57,7 @@ using std::round;
 using std::sqrt;
 #endif
 
-inline OPEN3D_DEVICE int64_t LookUpV(const LiDARCalibConfig& config,
+inline OPEN3D_DEVICE int64_t LookUpV(const LiDARIntrinsicPtrs& config,
                                      float phi_deg) {
     int64_t phi_int = static_cast<int64_t>(
             round((phi_deg - config.altitude_lut_ptr[config.height - 1]) /
@@ -82,7 +82,7 @@ inline OPEN3D_DEVICE int64_t LookUpV(const LiDARCalibConfig& config,
 };
 
 inline OPEN3D_DEVICE bool DeviceProject(
-        const LiDARCalibConfig& config,
+        const LiDARIntrinsicPtrs& config,
         // this transform indexer should be nested:
         // sensor_to_lidar @ rigid_transformation
         const TransformIndexer& transform_indexer,
@@ -120,7 +120,7 @@ inline OPEN3D_DEVICE bool DeviceProject(
     }
 }
 
-inline OPEN3D_DEVICE void DeviceUnproject(const LiDARCalibConfig& config,
+inline OPEN3D_DEVICE void DeviceUnproject(const LiDARIntrinsicPtrs& config,
                                           int64_t workload_idx,
                                           float r,
                                           float* x_out,
@@ -135,7 +135,7 @@ inline OPEN3D_DEVICE void DeviceUnproject(const LiDARCalibConfig& config,
              config.offset_lut_ptr[workload_offset + 2];
 }
 
-inline OPEN3D_DEVICE void DeviceUnproject(const LiDARCalibConfig& config,
+inline OPEN3D_DEVICE void DeviceUnproject(const LiDARIntrinsicPtrs& config,
                                           int64_t u,
                                           int64_t v,
                                           float r,
@@ -153,7 +153,7 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
         const NDArrayIndexer& target_normal_indexer,
         const TransformIndexer& proj_transform,
         const TransformIndexer& src2dst_transform,
-        const LiDARCalibConfig& config,
+        const LiDARIntrinsicPtrs& config,
         float depth_diff,
         int x,
         int y,
@@ -211,7 +211,7 @@ void LiDARUnprojectCPU
 #endif
         (const core::Tensor& range_image,
          const core::Tensor& transformation,
-         const LiDARCalibConfig& config,
+         const LiDARIntrinsicPtrs& config,
          core::Tensor& xyz_im,
          core::Tensor& mask_im,
          float depth_scale,
@@ -260,7 +260,7 @@ void LiDARProjectCPU
 #endif
         (const core::Tensor& xyz,
          const core::Tensor& transformation,
-         const LiDARCalibConfig& config,
+         const LiDARIntrinsicPtrs& config,
          core::Tensor& us,
          core::Tensor& vs,
          core::Tensor& rs,

@@ -50,7 +50,7 @@ TEST_P(LiDAROdometryPermuteDevices, Unproject) {
 
     std::string calib_npz =
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
     t::geometry::Image src_depth = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
@@ -72,7 +72,7 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 
     std::string calib_npz =
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
     t::geometry::Image src_depth = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
@@ -116,7 +116,7 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 void VisualizeRegistration(const t::geometry::Image &src,
                            const t::geometry::Image &dst,
                            const core::Tensor &transformation,
-                           const t::pipelines::odometry::LiDARCalib &calib,
+                           const t::pipelines::odometry::LiDARIntrinsic &calib,
                            float depth_min,
                            float depth_max) {
     core::Tensor identity =
@@ -154,7 +154,7 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
 
     std::string calib_npz =
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
     t::geometry::Image src = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));
@@ -186,7 +186,7 @@ TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {
 
     std::string calib_npz =
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
-    t::pipelines::odometry::LiDARCalib calib(calib_npz, device);
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
     t::geometry::Image src = *t::io::CreateImageFromFile(
             utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"));

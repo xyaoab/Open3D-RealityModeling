@@ -36,7 +36,7 @@ namespace odometry {
 
 void LiDARUnproject(const core::Tensor& range_image,
                     const core::Tensor& transformation,
-                    const LiDARCalibConfig& config,
+                    const LiDARIntrinsicPtrs& config,
                     core::Tensor& xyz_im,
                     core::Tensor& mask_im,
                     float depth_scale,
@@ -57,7 +57,7 @@ void LiDARUnproject(const core::Tensor& range_image,
 
 void LiDARProject(const core::Tensor& xyz,
                   const core::Tensor& transformation,
-                  const LiDARCalibConfig& config,
+                  const LiDARIntrinsicPtrs& config,
                   core::Tensor& u,
                   core::Tensor& v,
                   core::Tensor& r,
@@ -85,7 +85,7 @@ void ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const LiDARCalibConfig& config,
+        const LiDARIntrinsicPtrs& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,

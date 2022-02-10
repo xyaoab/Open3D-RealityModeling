@@ -53,7 +53,7 @@ void ComputeLiDAROdometryPointToPlaneCPU(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const LiDARCalibConfig& config,
+        const LiDARIntrinsicPtrs& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,
@@ -130,7 +130,7 @@ void ComputeLiDAROdometryPointToPlaneCPU(
                 return result;
             });
 #endif
-    core::Tensor global_sum(A_1x29, {1, 29}, core::Float32, device);
+    core::Tensor global_sum(A_1x29, {29}, core::Float32, device);
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 

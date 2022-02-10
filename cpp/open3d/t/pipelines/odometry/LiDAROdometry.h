@@ -43,8 +43,8 @@ namespace odometry {
 
 using t::geometry::Image;
 
-// Struct to directly pass to kernels instead of the LiDARCalib itself
-struct LiDARCalibConfig {
+// Struct to directly pass to kernels instead of the LiDARIntrinsic itself
+struct LiDARIntrinsicPtrs {
     // Unprojection LUTs
     float* dir_lut_ptr;
     float* offset_lut_ptr;
@@ -64,9 +64,10 @@ struct LiDARCalibConfig {
     int64_t width;
 };
 
-class LiDARCalib {
+class LiDARIntrinsic {
 public:
-    LiDARCalib(const std::string& config_npz_file, const core::Device& device);
+    LiDARIntrinsic(const std::string& config_npz_file,
+                   const core::Device& device);
 
     /// Return xyz-image and mask_image, with transformation
     /// Input: range image in UInt16
@@ -97,15 +98,15 @@ public:
 
     float range_scale_ = 1000.0;
 
-    LiDARCalibConfig calib_config_;
+    LiDARIntrinsicPtrs calib_config_;
 };
 
 /// Currently from point cloud, could be slow.
-core::Tensor GetNormalMap(const Image& im, const LiDARCalib& calib);
+core::Tensor GetNormalMap(const Image& im, const LiDARIntrinsic& calib);
 
 OdometryResult LiDAROdometry(const Image& source,
                              const Image& target,
-                             const LiDARCalib& calib,
+                             const LiDARIntrinsic& calib,
                              const core::Tensor& init_source_to_target,
                              const float depth_min,
                              const float depth_max,
@@ -115,7 +116,7 @@ OdometryResult LiDAROdometry(const Image& source,
 OdometryResult LiDAROdometry(const Image& source,
                              const Image& target,
                              const core::Tensor& target_normal_map,
-                             const LiDARCalib& calib,
+                             const LiDARIntrinsic& calib,
                              const core::Tensor& init_source_to_target,
                              const float depth_min,
                              const float depth_max,
@@ -129,7 +130,7 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
         const core::Tensor& target_mask_map,
         // Note: currently target_normal_map is from point cloud
         const core::Tensor& target_normal_map,
-        const LiDARCalib& calib,
+        const LiDARIntrinsic& calib,
         const core::Tensor& init_source_to_target,
         const float depth_diff);
 

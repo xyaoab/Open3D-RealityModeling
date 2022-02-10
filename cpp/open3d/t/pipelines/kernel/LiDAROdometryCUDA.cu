@@ -53,7 +53,7 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         NDArrayIndexer target_normal_indexer,
         TransformIndexer proj_transform,
         TransformIndexer src2dst_transform,
-        LiDARCalibConfig config,
+        LiDARIntrinsicPtrs config,
         float* global_sum,
         float depth_diff) {
     // Find correspondence and obtain Jacobian at (x, y)
@@ -139,7 +139,7 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         const core::Tensor& init_source_to_target,
         const core::Tensor& sensor_to_lidar,
         // LiDAR calibration
-        const LiDARCalibConfig& config,
+        const LiDARIntrinsicPtrs& config,
         // Output linear system result
         core::Tensor& delta,
         float& inlier_residual,
