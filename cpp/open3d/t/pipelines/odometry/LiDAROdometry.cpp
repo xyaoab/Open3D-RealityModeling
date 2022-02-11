@@ -127,22 +127,18 @@ LiDARIntrinsic::Project(const core::Tensor& xyz,
 
 core::Tensor GetNormalMap(const t::geometry::Image& im,
                           const LiDARIntrinsic& calib) {
-    core::Device device = im.GetDevice();
     core::Tensor vertex_map, mask_map;
     std::tie(vertex_map, mask_map) = calib.Unproject(im.AsTensor());
 
-    core::Tensor normal_map;
-    t::geometry::PointCloud pcd(vertex_map.Reshape(core::SizeVector{-1, 3}));
+    t::geometry::PointCloud pcd(vertex_map.IndexGet({mask_map}));
 
-    if (device.GetType() == core::Device::DeviceType::CUDA) {
-        pcd.EstimateNormals();
-    } else {
-        /// CPU's tensor version is rediculously slow, use legacy
-        open3d::geometry::PointCloud pcd_l = pcd.ToLegacy();
-        pcd_l.EstimateNormals();
-        pcd = t::geometry::PointCloud::FromLegacy(pcd_l);
-    }
-    return pcd.GetPointNormals().Reshape(vertex_map.GetShape());
+    core::Tensor normal_map =
+            core::Tensor::Zeros(vertex_map.GetShape(), vertex_map.GetDtype(),
+                                vertex_map.GetDevice());
+
+    pcd.EstimateNormals();
+    normal_map.IndexSet({mask_map}, pcd.GetPointNormals());
+    return normal_map;
 }
 
 OdometryResult LiDAROdometry(const Image& source,
