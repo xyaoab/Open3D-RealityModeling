@@ -239,6 +239,9 @@ void LiDARUnprojectCPU
     core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
         float range = range_image_ptr[workload_idx];
         if (range > depth_max_scaled || range <= depth_min_scaled) {
+            xyz_im_ptr[workload_idx * 3 + 0] = 0;
+            xyz_im_ptr[workload_idx * 3 + 1] = 0;
+            xyz_im_ptr[workload_idx * 3 + 2] = 0;
             mask_im_ptr[workload_idx] = false;
             return;
         }

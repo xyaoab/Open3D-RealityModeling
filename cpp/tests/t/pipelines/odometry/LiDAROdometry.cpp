@@ -90,6 +90,8 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 
     /// (N, 3)
     core::Tensor xyz = xyz_im.IndexGet({mask_im});
+    utility::LogInfo("xyz_im max: {}", xyz_im.Max({0, 1, 2}).Item<float>());
+    utility::LogInfo("xyz_im min: {}", xyz_im.Min({0, 1, 2}).Item<float>());
 
     core::Tensor u, v, r, mask;
     std::tie(u, v, r, mask) = calib.Project(xyz);
@@ -110,6 +112,7 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
             t::geometry::PointCloud(xyz_im.IndexGet({v_mask, u_mask}))
                     .ToLegacy());
+    utility::LogInfo("pcd_ptr points: {}", pcd_ptr->points_.size());
     visualization::DrawGeometries({pcd_ptr});
 }
 
