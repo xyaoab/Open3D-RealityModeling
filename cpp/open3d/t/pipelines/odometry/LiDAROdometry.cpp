@@ -54,8 +54,8 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     sensor_to_lidar_ = lidar_to_sensor_.Inverse();
     auto key0 = core::TensorKey::Slice(0, 3, 1);
     auto key1 = core::TensorKey::Slice(3, 4, 1);
-    core::Tensor t = sensor_to_lidar_.GetItem({key0, key1}) / range_scale_;
-    sensor_to_lidar_.SetItem({key0, key1}, t);
+    core::Tensor tt = sensor_to_lidar_.GetItem({key0, key1}) / range_scale_;
+    sensor_to_lidar_.SetItem({key0, key1}, tt);
 
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
@@ -63,9 +63,68 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     inv_altitude_lut_ =
             result.at("inv_altitude_table").To(device, core::Dtype::Int64);
 
-    unproj_dir_lut_ = result.at("lut_dir").To(device, core::Dtype::Float32);
-    unproj_offset_lut_ =
-            result.at("lut_offset").To(device, core::Dtype::Float32);
+    // Basic rigid transform
+    using core::Dtype;
+    using core::None;
+    using core::TensorKey;
+
+    auto R = lidar_to_sensor_.GetItem(
+            {TensorKey::Slice(0, 3, 1), TensorKey::Slice(0, 3, 1)});
+    auto t = lidar_to_sensor_.GetItem(
+            {TensorKey::Slice(0, 3, 1), TensorKey::Slice(3, 4, 1)});
+
+    // Load azimuth and altitude LUT.
+    // TODO: (store config in the calib file)
+    int height = 128;
+    int width = 1024;
+    int n = 27.67;
+
+    // (1, w)
+    auto theta_encoder = core::Tensor::Arange(2 * M_PI, 0.0, -2 * M_PI / width,
+                                              Dtype::Float32, device)
+                                 .View({1, -1});
+
+    // (h, 1); deg2rad conversion
+    auto theta_azimuth = (-(M_PI / 180.0) * azimuth_lut_).View({-1, 1});
+    auto phi = ((M_PI / 180.0) * altitude_lut_).View({-1, 1});
+
+    // Broadcast and convert to spherica
+    auto theta = theta_encoder + theta_azimuth;
+    auto x_dir = theta.Cos() * phi.Cos();
+    auto y_dir = theta.Sin() * phi.Cos();
+    auto z_dir = phi.Sin();
+
+    auto dir_lut = core::Tensor({height, width, 3}, Dtype::Float32, device);
+
+    std::vector<TensorKey> tks = {TensorKey::Slice(None, None, None),
+                                  TensorKey::Slice(None, None, None),
+                                  TensorKey::Index(0)};
+    tks[2] = TensorKey::Index(0);
+    dir_lut.SetItem(tks, x_dir);
+    tks[2] = TensorKey::Index(1);
+    dir_lut.SetItem(tks, y_dir);
+    tks[2] = TensorKey::Index(2);
+    dir_lut.SetItem(tks, z_dir);
+    dir_lut /= range_scale_;
+    dir_lut = (dir_lut.View({-1, 3}).Matmul(R.To(device, core::Float32).T()))
+                      .View({height, width, 3})
+                      .Contiguous();
+
+    auto x_offset = n * (theta_encoder.Cos() - x_dir);
+    auto y_offset = n * (theta_encoder.Sin() - y_dir);
+    auto z_offset = (-n) * z_dir;
+    auto offset_lut = core::Tensor({height, width, 3}, Dtype::Float32, device);
+    tks[2] = TensorKey::Index(0);
+    offset_lut.SetItem(tks, x_offset);
+    tks[2] = TensorKey::Index(1);
+    offset_lut.SetItem(tks, y_offset);
+    tks[2] = TensorKey::Index(2);
+    offset_lut.SetItem(tks, z_offset);
+    offset_lut += t.To(device, core::Float32).T();
+    offset_lut /= range_scale_;
+
+    unproj_dir_lut_ = dir_lut.Clone();
+    unproj_offset_lut_ = offset_lut.Clone();
 
     // Specify config sent to kernels
     calib_config_.dir_lut_ptr = unproj_dir_lut_.GetDataPtr<float>();
