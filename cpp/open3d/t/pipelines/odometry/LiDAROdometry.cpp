@@ -49,17 +49,23 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                                const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
+    // TODO: (store config in the calib file)
+    int height = 128;
+    int width = 1024;
+    int n = 27.67;
+
     // Transformations always live on CPU
     lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);
-    sensor_to_lidar_ = lidar_to_sensor_.Inverse();
-    auto key0 = core::TensorKey::Slice(0, 3, 1);
-    auto key1 = core::TensorKey::Slice(3, 4, 1);
-    core::Tensor tt = sensor_to_lidar_.GetItem({key0, key1}) / range_scale_;
-    sensor_to_lidar_.SetItem({key0, key1}, tt);
-
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
+
+    auto key0 = core::TensorKey::Slice(0, 3, 1);
+    auto key1 = core::TensorKey::Slice(3, 4, 1);
+    core::Tensor tt = lidar_to_sensor_.GetItem({key0, key1}) / range_scale_;
+    lidar_to_sensor_.SetItem({key0, key1}, tt);
+
+    sensor_to_lidar_ = lidar_to_sensor_.Inverse();
 
     // Basic rigid transform
     using core::Dtype;
@@ -72,10 +78,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
             {TensorKey::Slice(0, 3, 1), TensorKey::Slice(3, 4, 1)});
 
     // Load azimuth and altitude LUT.
-    // TODO: (store config in the calib file)
-    int height = 128;
-    int width = 1024;
-    int n = 27.67;
 
     // (1, w)
     auto theta_encoder = core::Tensor::Arange(2 * M_PI, 0.0, -2 * M_PI / width,
@@ -118,17 +120,11 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     offset_lut.SetItem(tks, y_offset);
     tks[2] = TensorKey::Index(2);
     offset_lut.SetItem(tks, z_offset);
-    offset_lut += t.To(device, core::Float32).T();
     offset_lut /= range_scale_;
+    offset_lut += t.To(device, core::Float32).T();
 
     unproj_dir_lut_ = dir_lut.Clone();
     unproj_offset_lut_ = offset_lut.Clone();
-
-    // float inv_lut_resolution = 0.4;
-    // inv_altitude_lut_ =
-    //         result.at("inv_altitude_table").To(device, core::Dtype::Int64);
-
-    // utility::LogInfo("inv_altitude_lut {}", inv_altitude_lut_.ToString());
 
     // First map [0, inv_lut_size] to [min - padding, max + padding]
     // Then linear search the nearest neighbor in the altitude table
@@ -138,7 +134,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     float min_altitude = reversed_altitude_lut[0].Item<float>();
     int inv_table_size =
             int(std::ceil(max_altitude - min_altitude) / resolution);
-    utility::LogInfo("inv table size {}", inv_table_size);
     std::vector<int64_t> inv_lut_data(inv_table_size);
 
     int i = 0;
@@ -157,8 +152,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 
     core::Tensor inv_lut_table(inv_lut_data, {inv_table_size}, core::Int64,
                                device);
-    // utility::LogInfo("inv table {}", inv_lut_table.ToString());
-
     inv_altitude_lut_ = inv_lut_table.Clone();
 
     // Specify config sent to kernels
@@ -169,11 +162,11 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     calib_config_.inv_altitude_lut_ptr =
             inv_altitude_lut_.GetDataPtr<int64_t>();
 
-    calib_config_.width = 1024;
-    calib_config_.height = 128;
+    calib_config_.width = width;
+    calib_config_.height = height;
     calib_config_.azimuth_resolution = (2 * M_PI) / calib_config_.width;
     calib_config_.inv_altitude_lut_length = inv_altitude_lut_.GetLength();
-    calib_config_.inv_altitude_lut_resolution = 0.4;
+    calib_config_.inv_altitude_lut_resolution = resolution;
 }
 
 /// Return xyz-image and mask_image
