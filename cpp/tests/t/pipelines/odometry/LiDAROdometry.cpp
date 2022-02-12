@@ -59,6 +59,14 @@ TEST_P(LiDAROdometryPermuteDevices, Unproject) {
     core::Tensor depth = src_depth.AsTensor().To(device);
     core::Tensor transformation =
             core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+
+    core::Tensor vis = calib.Visualize(depth);
+    auto vis_ptr = std::make_shared<open3d::geometry::Image>(
+            t::geometry::Image(vis)
+                    .ColorizeDepth(1000.0, 0.0, 30.0)
+                    .ToLegacy());
+    visualization::DrawGeometries({vis_ptr});
+
     std::tie(xyz_im, mask_im) =
             calib.Unproject(depth, transformation, 0.0, 100.0);
 
@@ -90,8 +98,6 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
 
     /// (N, 3)
     core::Tensor xyz = xyz_im.IndexGet({mask_im});
-    utility::LogInfo("xyz_im max: {}", xyz_im.Max({0, 1, 2}).Item<float>());
-    utility::LogInfo("xyz_im min: {}", xyz_im.Min({0, 1, 2}).Item<float>());
 
     core::Tensor u, v, r, mask;
     std::tie(u, v, r, mask) = calib.Project(xyz);

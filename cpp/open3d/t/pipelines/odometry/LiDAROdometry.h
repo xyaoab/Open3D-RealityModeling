@@ -44,6 +44,8 @@ namespace odometry {
 using t::geometry::Image;
 
 // Struct to directly pass to kernels instead of the LiDARIntrinsic itself
+class LiDARIntrinsic;
+
 struct LiDARIntrinsicPtrs {
     // Unprojection LUTs
     float* dir_lut_ptr;
@@ -62,6 +64,8 @@ struct LiDARIntrinsicPtrs {
     // Other params
     int64_t height;
     int64_t width;
+
+    LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic);
 };
 
 class LiDARIntrinsic {
@@ -84,6 +88,8 @@ public:
             const core::Tensor& transformation = core::Tensor::Eye(
                     4, core::Dtype::Float64, core::Device())) const;
 
+    core::Tensor Visualize(const core::Tensor& range_image) const;
+
 public:
     core::Tensor lidar_to_sensor_;
     core::Tensor sensor_to_lidar_;
@@ -97,8 +103,8 @@ public:
     core::Tensor unproj_offset_lut_;
 
     float range_scale_ = 1000.0;
-
-    LiDARIntrinsicPtrs calib_config_;
+    float inv_lut_resolution_ = 0.4;
+    int width_ = 1024;
 };
 
 /// Currently from point cloud, could be slow.

@@ -149,6 +149,11 @@ void pybind_odometry_classes(py::module &m) {
                     "xyz"_a,
                     "transformation"_a = core::Tensor::Eye(
                             4, core::Dtype::Float64, core::Device()));
+
+    lidar_calib.def(
+            "visualize", &LiDARIntrinsic::Visualize,
+            "Visualize a range image after shifting pixels by azimuth bias."
+            "range"_a);
 }
 
 // Odometry functions have similar arguments, sharing arg docstrings.

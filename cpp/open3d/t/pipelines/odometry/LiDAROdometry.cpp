@@ -45,6 +45,26 @@ namespace t {
 namespace pipelines {
 namespace odometry {
 
+LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
+    // Specify config sent to kernels
+    dir_lut_ptr =
+            const_cast<float*>(intrinsic.unproj_dir_lut_.GetDataPtr<float>());
+    offset_lut_ptr = const_cast<float*>(
+            intrinsic.unproj_offset_lut_.GetDataPtr<float>());
+    azimuth_lut_ptr =
+            const_cast<float*>(intrinsic.azimuth_lut_.GetDataPtr<float>());
+    altitude_lut_ptr =
+            const_cast<float*>(intrinsic.altitude_lut_.GetDataPtr<float>());
+    inv_altitude_lut_ptr = const_cast<int64_t*>(
+            intrinsic.inv_altitude_lut_.GetDataPtr<int64_t>());
+
+    width = intrinsic.width_;
+    height = intrinsic.azimuth_lut_.GetLength();
+    azimuth_resolution = (2 * M_PI) / width;
+    inv_altitude_lut_length = intrinsic.inv_altitude_lut_.GetLength();
+    inv_altitude_lut_resolution = intrinsic.inv_lut_resolution_;
+}
+
 LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                                const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
@@ -128,12 +148,11 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 
     // First map [0, inv_lut_size] to [min - padding, max + padding]
     // Then linear search the nearest neighbor in the altitude table
-    float resolution = 0.4;
     auto reversed_altitude_lut = altitude_lut_.Reverse();
     float max_altitude = reversed_altitude_lut[-1].Item<float>();
     float min_altitude = reversed_altitude_lut[0].Item<float>();
     int inv_table_size =
-            int(std::ceil(max_altitude - min_altitude) / resolution);
+            int(std::ceil(max_altitude - min_altitude) / inv_lut_resolution_);
     std::vector<int64_t> inv_lut_data(inv_table_size);
 
     int i = 0;
@@ -141,7 +160,7 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
         float thr = (reversed_altitude_lut[j].Item<float>() +
                      reversed_altitude_lut[j + 1].Item<float>()) *
                     0.5f;
-        while (i * resolution + min_altitude < thr) {
+        while (i * inv_lut_resolution_ + min_altitude < thr) {
             inv_lut_data[i] = j;
             ++i;
         }
@@ -153,20 +172,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     core::Tensor inv_lut_table(inv_lut_data, {inv_table_size}, core::Int64,
                                device);
     inv_altitude_lut_ = inv_lut_table.Clone();
-
-    // Specify config sent to kernels
-    calib_config_.dir_lut_ptr = unproj_dir_lut_.GetDataPtr<float>();
-    calib_config_.offset_lut_ptr = unproj_offset_lut_.GetDataPtr<float>();
-    calib_config_.azimuth_lut_ptr = azimuth_lut_.GetDataPtr<float>();
-    calib_config_.altitude_lut_ptr = altitude_lut_.GetDataPtr<float>();
-    calib_config_.inv_altitude_lut_ptr =
-            inv_altitude_lut_.GetDataPtr<int64_t>();
-
-    calib_config_.width = width;
-    calib_config_.height = height;
-    calib_config_.azimuth_resolution = (2 * M_PI) / calib_config_.width;
-    calib_config_.inv_altitude_lut_length = inv_altitude_lut_.GetLength();
-    calib_config_.inv_altitude_lut_resolution = resolution;
 }
 
 /// Return xyz-image and mask_image
@@ -186,9 +191,9 @@ std::tuple<core::Tensor, core::Tensor> LiDARIntrinsic::Unproject(
                         device);
     core::Tensor mask_im(core::SizeVector{h, w}, core::Dtype::Bool, device);
 
-    kernel::odometry::LiDARUnproject(range_image, transformation, calib_config_,
-                                     xyz_im, mask_im, range_scale_, depth_min,
-                                     depth_max);
+    kernel::odometry::LiDARUnproject(range_image, transformation,
+                                     LiDARIntrinsicPtrs(*this), xyz_im, mask_im,
+                                     range_scale_, depth_min, depth_max);
 
     return std::make_tuple(xyz_im, mask_im);
 }
@@ -207,9 +212,44 @@ LiDARIntrinsic::Project(const core::Tensor& xyz,
 
     // sensor_to_lidar @ transformation @ xyz
     core::Tensor trans = sensor_to_lidar_.Matmul(transformation);
-    kernel::odometry::LiDARProject(xyz, trans, calib_config_, u, v, r, mask);
+    kernel::odometry::LiDARProject(xyz, trans, LiDARIntrinsicPtrs(*this), u, v,
+                                   r, mask);
 
     return std::make_tuple(u, v, r, mask);
+}
+
+// for i in range(h):
+//   s = np.round(self.azimuth_table[i * factor] * self.w /
+//                360.0).astype(int)
+//   if s < 0:
+//          s += self.w
+
+//          shifted[i, s:] = im[i, :(w - s)]
+//          shifted[i, :s] = im[i, (w - s):]
+core::Tensor LiDARIntrinsic::Visualize(const core::Tensor& range) const {
+    using core::None;
+    using core::TensorKey;
+    auto ans = core::Tensor::Empty(range.GetShape(), range.GetDtype(),
+                                   range.GetDevice());
+    auto shape = range.GetShape();
+    int h = shape[0];
+    int w = shape[1];
+
+    for (int i = 0; i < h; ++i) {
+        int s = std::round(azimuth_lut_[i].Item<float>() * w / 360.0);
+        s += (s < 0) * w;
+
+        auto rhs = range.GetItem(
+                {TensorKey::Index(i), TensorKey::Slice(None, w - s, None)});
+        ans.SetItem({TensorKey::Index(i), TensorKey::Slice(s, None, None)},
+                    rhs);
+
+        rhs = range.GetItem(
+                {TensorKey::Index(i), TensorKey::Slice(w - s, None, None)});
+        ans.SetItem({TensorKey::Index(i), TensorKey::Slice(None, s, None)},
+                    rhs);
+    }
+    return ans;
 }
 
 core::Tensor GetNormalMap(const t::geometry::Image& im,
@@ -294,7 +334,7 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
-            calib.sensor_to_lidar_, calib.calib_config_, se3_delta,
+            calib.sensor_to_lidar_, LiDARIntrinsicPtrs(calib), se3_delta,
             inlier_residual, inlier_count, depth_diff);
 
     // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
