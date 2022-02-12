@@ -69,6 +69,8 @@ inline OPEN3D_DEVICE int64_t LookUpV(const LiDARIntrinsicPtrs& config,
     int64_t v0 = config.height - 1 - config.inv_altitude_lut_ptr[phi_int];
     int64_t v1 = max(v0 - 1, 0l);
     int64_t v2 = min(v0 + 1, config.height - 1);
+    // printf("%f -> (%f, %f, %f)\n", phi_deg, config.altitude_lut_ptr[v0],
+    //        config.altitude_lut_ptr[v1], config.altitude_lut_ptr[v2]);
 
     float diff0 = abs(config.altitude_lut_ptr[v0] - phi_deg);
     float diff1 = abs(config.altitude_lut_ptr[v1] - phi_deg);

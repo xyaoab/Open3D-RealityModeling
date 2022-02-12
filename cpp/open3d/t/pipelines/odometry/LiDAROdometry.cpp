@@ -60,8 +60,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
-    inv_altitude_lut_ =
-            result.at("inv_altitude_table").To(device, core::Dtype::Int64);
 
     // Basic rigid transform
     using core::Dtype;
@@ -125,6 +123,43 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 
     unproj_dir_lut_ = dir_lut.Clone();
     unproj_offset_lut_ = offset_lut.Clone();
+
+    // float inv_lut_resolution = 0.4;
+    // inv_altitude_lut_ =
+    //         result.at("inv_altitude_table").To(device, core::Dtype::Int64);
+
+    // utility::LogInfo("inv_altitude_lut {}", inv_altitude_lut_.ToString());
+
+    // First map [0, inv_lut_size] to [min - padding, max + padding]
+    // Then linear search the nearest neighbor in the altitude table
+    float resolution = 0.4;
+    auto reversed_altitude_lut = altitude_lut_.Reverse();
+    float max_altitude = reversed_altitude_lut[-1].Item<float>();
+    float min_altitude = reversed_altitude_lut[0].Item<float>();
+    int inv_table_size =
+            int(std::ceil(max_altitude - min_altitude) / resolution);
+    utility::LogInfo("inv table size {}", inv_table_size);
+    std::vector<int64_t> inv_lut_data(inv_table_size);
+
+    int i = 0;
+    for (int j = 0; j < height - 1; ++j) {
+        float thr = (reversed_altitude_lut[j].Item<float>() +
+                     reversed_altitude_lut[j + 1].Item<float>()) *
+                    0.5f;
+        while (i * resolution + min_altitude < thr) {
+            inv_lut_data[i] = j;
+            ++i;
+        }
+    }
+    for (; i < inv_table_size; ++i) {
+        inv_lut_data[i] = height - 1;
+    }
+
+    core::Tensor inv_lut_table(inv_lut_data, {inv_table_size}, core::Int64,
+                               device);
+    // utility::LogInfo("inv table {}", inv_lut_table.ToString());
+
+    inv_altitude_lut_ = inv_lut_table.Clone();
 
     // Specify config sent to kernels
     calib_config_.dir_lut_ptr = unproj_dir_lut_.GetDataPtr<float>();
