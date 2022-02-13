@@ -43,9 +43,9 @@ namespace odometry {
 #define TWO_PI (2 * PI)
 #define RAD2DEG (180 / PI)
 #define DEG2RAD (PI / 180)
+using t::geometry::LiDARIntrinsicPtrs;
 using t::geometry::kernel::NDArrayIndexer;
 using t::geometry::kernel::TransformIndexer;
-using t::pipelines::odometry::LiDARIntrinsicPtrs;
 
 #ifndef __CUDACC__
 using std::abs;

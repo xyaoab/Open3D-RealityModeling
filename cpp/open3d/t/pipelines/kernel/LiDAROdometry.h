@@ -35,7 +35,7 @@ namespace pipelines {
 namespace kernel {
 namespace odometry {
 
-using t::pipelines::odometry::LiDARIntrinsicPtrs;
+using t::geometry::LiDARIntrinsicPtrs;
 
 void LiDARUnproject(const core::Tensor& range_image,
                     const core::Tensor& transformation,

@@ -32,86 +32,19 @@
 
 #include "open3d/core/Tensor.h"
 #include "open3d/t/geometry/Image.h"
+#include "open3d/t/geometry/LiDARImage.h"
 #include "open3d/t/pipelines/odometry/RGBDOdometry.h"
-
-class kernelTransformIndexer;
 
 namespace open3d {
 namespace t {
 namespace pipelines {
 namespace odometry {
 
-using t::geometry::Image;
+using t::geometry::LiDARImage;
+using t::geometry::LiDARIntrinsic;
 
-// Struct to directly pass to kernels instead of the LiDARIntrinsic itself
-class LiDARIntrinsic;
-
-struct LiDARIntrinsicPtrs {
-    // Unprojection LUTs
-    float* dir_lut_ptr;
-    float* offset_lut_ptr;
-
-    // Projection LUTs
-    float* azimuth_lut_ptr;
-    float* altitude_lut_ptr;
-    int64_t* inv_altitude_lut_ptr;
-
-    // LUT params
-    float azimuth_resolution;
-    int64_t inv_altitude_lut_length;
-    float inv_altitude_lut_resolution;
-
-    // Other params
-    int64_t height;
-    int64_t width;
-
-    LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic);
-};
-
-class LiDARIntrinsic {
-public:
-    LiDARIntrinsic(const std::string& config_npz_file,
-                   const core::Device& device);
-
-    /// Return xyz-image and mask_image, with transformation
-    /// Input: range image in UInt16
-    std::tuple<core::Tensor, core::Tensor> Unproject(
-            const core::Tensor& range_image,
-            const core::Tensor& transformation =
-                    core::Tensor::Eye(4, core::Dtype::Float64, core::Device()),
-            float depth_min = 0.65,
-            float detph_max = 10.0) const;
-
-    /// Return u, v, r, mask
-    std::tuple<core::Tensor, core::Tensor, core::Tensor, core::Tensor> Project(
-            const core::Tensor& xyz,
-            const core::Tensor& transformation = core::Tensor::Eye(
-                    4, core::Dtype::Float64, core::Device())) const;
-
-    core::Tensor Visualize(const core::Tensor& range_image) const;
-
-public:
-    core::Tensor lidar_to_sensor_;
-    core::Tensor sensor_to_lidar_;
-
-    core::Tensor azimuth_lut_;
-
-    core::Tensor altitude_lut_;
-    core::Tensor inv_altitude_lut_;
-
-    core::Tensor unproj_dir_lut_;
-    core::Tensor unproj_offset_lut_;
-
-    float range_scale_ = 1000.0;
-    float inv_lut_resolution_ = 0.4;
-    int width_ = 1024;
-};
-
-/// Currently from point cloud, could be slow.
-core::Tensor GetNormalMap(const Image& im, const LiDARIntrinsic& calib);
-
-OdometryResult LiDAROdometry(const Image& source,
-                             const Image& target,
+OdometryResult LiDAROdometry(const LiDARImage& source,
+                             const LiDARImage& target,
                              const LiDARIntrinsic& calib,
                              const core::Tensor& init_source_to_target,
                              const float depth_min,
@@ -119,8 +52,8 @@ OdometryResult LiDAROdometry(const Image& source,
                              const float dist_diff,
                              const OdometryConvergenceCriteria& criteria);
 
-OdometryResult LiDAROdometry(const Image& source,
-                             const Image& target,
+OdometryResult LiDAROdometry(const LiDARImage& source,
+                             const LiDARImage& target,
                              const core::Tensor& target_normal_map,
                              const LiDARIntrinsic& calib,
                              const core::Tensor& init_source_to_target,
