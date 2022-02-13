@@ -33,14 +33,20 @@ namespace open3d {
 namespace t {
 namespace geometry {
 
+LiDARIntrinsic::LiDARIntrinsic(int width,
+                               int height,
+                               float min_altitude,
+                               float max_altitude,
+                               const core::Device& device) {}
+
 LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                                const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
     // TODO: (store config in the calib file)
-    int height = 128;
-    int width = 1024;
-    int n = 27.67;
+    int height = result.at("height").To(core::Int32).Item<int>();
+    int width = result.at("width").To(core::Int32).Item<int>();
+    int n = result.at("n").To(core::Float32).Item<float>();
 
     // Transformations always live on CPU
     lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);

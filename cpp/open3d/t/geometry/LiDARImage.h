@@ -43,6 +43,15 @@ namespace geometry {
 /// \class LiDARIntrinsic
 class LiDARIntrinsic {
 public:
+    // Constructor without parameters -- vanilla cylindrical projection
+    LiDARIntrinsic(int width,
+                   int height,
+                   float min_altitude,
+                   float max_altitude,
+                   const core::Device& device);
+
+public:
+    // Constructor with calibrated parameters
     LiDARIntrinsic(const std::string& config_npz_file,
                    const core::Device& device);
 
@@ -60,7 +69,9 @@ public:
 
     float range_scale_ = 1000.0;
     float inv_lut_resolution_ = 0.4;
+
     int width_ = 1024;
+    int height_ = 128;
 };
 
 struct LiDARIntrinsicPtrs {
