@@ -33,25 +33,43 @@ namespace open3d {
 namespace t {
 namespace geometry {
 
+LiDARIntrinsic::LiDARIntrinsic(int width,
+                               int height,
+                               float min_altitude,
+                               float max_altitude,
+                               const core::Tensor& lidar_to_sensor)
+    : width_(width),
+      height_(height),
+      min_altitude_(min_altitude),
+      max_altitude_(max_altitude),
+      has_lut_(false) {
+    lidar_to_sensor_ = lidar_to_sensor;
+    auto key0 = core::TensorKey::Slice(0, 3, 1);
+    auto key1 = core::TensorKey::Slice(3, 4, 1);
+    core::Tensor tt = lidar_to_sensor_.GetItem({key0, key1}) / range_scale_;
+    lidar_to_sensor_.SetItem({key0, key1}, tt);
+
+    sensor_to_lidar_ = lidar_to_sensor_.Inverse();
+}
+
 LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                                const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
     has_lut_ = true;
 
-    // TODO: (store config in the calib file)
     height_ = result.at("height").To(core::Int32).Item<int>();
     width_ = result.at("width").To(core::Int32).Item<int>();
     float n = result.at("n").To(core::Float32).Item<float>();
 
     // Transformations always live on CPU
-    lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
     min_altitude_ = altitude_lut_[-1].Item<float>();
     max_altitude_ = altitude_lut_[0].Item<float>();
 
+    lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);
     auto key0 = core::TensorKey::Slice(0, 3, 1);
     auto key1 = core::TensorKey::Slice(3, 4, 1);
     core::Tensor tt = lidar_to_sensor_.GetItem({key0, key1}) / range_scale_;
@@ -70,7 +88,6 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
             {TensorKey::Slice(0, 3, 1), TensorKey::Slice(3, 4, 1)});
 
     // Load azimuth and altitude LUT.
-
     // (1, w)
     auto theta_encoder = core::Tensor::Arange(2 * M_PI, 0.0, -2 * M_PI / width_,
                                               Dtype::Float32, device)
@@ -217,14 +234,6 @@ LiDARImage::Project(const core::Tensor& xyz,
     return std::make_tuple(u, v, r, mask);
 }
 
-// for i in range(h):
-//   s = np.round(self.azimuth_table[i * factor] * self.w /
-//                360.0).astype(int)
-//   if s < 0:
-//          s += self.w
-
-//          shifted[i, s:] = im[i, :(w - s)]
-//          shifted[i, :s] = im[i, (w - s):]
 Image LiDARImage::Visualize(const LiDARIntrinsic& intrinsic) const {
     using core::None;
     using core::TensorKey;

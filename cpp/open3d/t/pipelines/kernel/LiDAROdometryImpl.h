@@ -224,9 +224,15 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
 
     int64_t ui, vi;
     float d;
-    bool mask_proj =
-            DeviceProjectSimple(config, proj_transform, source_v[0],
-                                source_v[1], source_v[2], &ui, &vi, &d);
+    bool mask_proj = false;
+    if (config.has_lut) {
+        mask_proj = DeviceProjectLUT(config, proj_transform, source_v[0],
+                                     source_v[1], source_v[2], &ui, &vi, &d);
+    } else {
+        mask_proj = DeviceProjectSimple(config, proj_transform, source_v[0],
+                                        source_v[1], source_v[2], &ui, &vi, &d);
+    }
+
     if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
         return false;
     }
@@ -311,6 +317,32 @@ void LiDARUnprojectCPU
             mask_im_ptr[workload_idx] = true;
 
             float x, y, z;
+
+            // Depth scale has already encoded in the LUT so no need to rescale.
+            DeviceUnprojectLUT(config, u, v, range, &x, &y, &z);
+
+            int64_t workload_offset = workload_idx * 3;
+            transform_indexer.RigidTransform(x, y, z,
+                                             &xyz_im_ptr[workload_offset + 0],
+                                             &xyz_im_ptr[workload_offset + 1],
+                                             &xyz_im_ptr[workload_offset + 2]);
+        });
+    } else {
+        core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+            float range = range_image_ptr[workload_idx];
+            int u = workload_idx % w;
+            int v = workload_idx / w;
+
+            if (range > depth_max_scaled || range <= depth_min_scaled) {
+                xyz_im_ptr[workload_idx * 3 + 0] = 0;
+                xyz_im_ptr[workload_idx * 3 + 1] = 0;
+                xyz_im_ptr[workload_idx * 3 + 2] = 0;
+                mask_im_ptr[workload_idx] = false;
+                return;
+            }
+            mask_im_ptr[workload_idx] = true;
+
+            float x, y, z;
             DeviceUnprojectSimple(config, u, v, range / depth_scale, &x, &y,
                                   &z);
 
@@ -320,8 +352,6 @@ void LiDARUnprojectCPU
                                              &xyz_im_ptr[workload_offset + 1],
                                              &xyz_im_ptr[workload_offset + 2]);
         });
-    } else {
-        utility::LogError("Unimplemented without a lut.");
     }
 }
 
@@ -354,7 +384,7 @@ void LiDARProjectCPU
     if (config.has_lut) {
         core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
             int64_t workload_offset = 3 * workload_idx;
-            mask_ptr[workload_idx] = DeviceProjectSimple(
+            mask_ptr[workload_idx] = DeviceProjectLUT(
                     config, transform_indexer, xyz_ptr[workload_offset + 0],
                     xyz_ptr[workload_offset + 1], xyz_ptr[workload_offset + 2],
                     &u_ptr[workload_idx], &v_ptr[workload_idx],

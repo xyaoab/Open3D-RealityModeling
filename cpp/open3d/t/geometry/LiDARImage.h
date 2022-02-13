@@ -41,36 +41,24 @@ namespace t {
 namespace geometry {
 
 /// \class LiDARIntrinsic
+/// LiDAR calibration parameters to map range data from/to 3D coordinates.
 class LiDARIntrinsic {
 public:
-    // Constructor without parameters -- vanilla cylindrical projection
+    // Constructor without parameters -- simple cylindrical projection.
     LiDARIntrinsic(int width,
                    int height,
                    float min_altitude,
-                   float max_altitude)
-        : width_(width),
-          height_(height),
-          min_altitude_(min_altitude),
-          max_altitude_(max_altitude),
-          has_lut_(false){};
+                   float max_altitude,
+                   const core::Tensor& lidar_to_sensor);
 
 public:
-    // Constructor with calibrated parameters
+    // Constructor with calibrated parameters -- advanced matching with lookup
+    // tables.
     LiDARIntrinsic(const std::string& config_npz_file,
                    const core::Device& device);
 
 public:
-    core::Tensor lidar_to_sensor_;
-    core::Tensor sensor_to_lidar_;
-
-    core::Tensor azimuth_lut_;
-
-    core::Tensor altitude_lut_;
-    core::Tensor inv_altitude_lut_;
-
-    core::Tensor unproj_dir_lut_;
-    core::Tensor unproj_offset_lut_;
-
+    // Shared parameters for both simple and lut.
     int width_;
     int height_;
 
@@ -78,14 +66,36 @@ public:
     float max_altitude_;
 
     float range_scale_ = 1000.0;
-    float inv_lut_resolution_ = 0.4;
-
     bool has_lut_;
+
+    // Local coordinate transform
+    core::Tensor lidar_to_sensor_;
+    core::Tensor sensor_to_lidar_;
+
+    // Parameters for lut only.
+    core::Tensor azimuth_lut_;
+    core::Tensor altitude_lut_;
+
+    core::Tensor inv_altitude_lut_;
+
+    core::Tensor unproj_dir_lut_;
+    core::Tensor unproj_offset_lut_;
+
+    float inv_lut_resolution_ = 0.4;
 };
 
 struct LiDARIntrinsicPtrs {
 public:
     LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic);
+
+public:
+    // Shared params
+    int64_t height;
+    int64_t width;
+
+    float min_altitude;
+    float max_altitude;
+    bool has_lut;
 
     // Unprojection LUTs
     float* dir_lut_ptr;
@@ -94,20 +104,12 @@ public:
     // Projection LUTs
     float* azimuth_lut_ptr;
     float* altitude_lut_ptr;
-    int64_t* inv_altitude_lut_ptr;
 
-    // LUT params
+    // Inv LUT params
     float azimuth_resolution;
     int64_t inv_altitude_lut_length;
     float inv_altitude_lut_resolution;
-
-    // Other params
-    int64_t height;
-    int64_t width;
-
-    float min_altitude;
-    float max_altitude;
-    bool has_lut;
+    int64_t* inv_altitude_lut_ptr;
 };
 
 /// \class LiDARImage
