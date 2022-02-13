@@ -69,8 +69,6 @@ inline OPEN3D_DEVICE int64_t LookUpV(const LiDARIntrinsicPtrs& config,
     int64_t v0 = config.height - 1 - config.inv_altitude_lut_ptr[phi_int];
     int64_t v1 = max(v0 - 1, 0l);
     int64_t v2 = min(v0 + 1, config.height - 1);
-    // printf("%f -> (%f, %f, %f)\n", phi_deg, config.altitude_lut_ptr[v0],
-    //        config.altitude_lut_ptr[v1], config.altitude_lut_ptr[v2]);
 
     float diff0 = abs(config.altitude_lut_ptr[v0] - phi_deg);
     float diff1 = abs(config.altitude_lut_ptr[v1] - phi_deg);
@@ -83,7 +81,7 @@ inline OPEN3D_DEVICE int64_t LookUpV(const LiDARIntrinsicPtrs& config,
     return diff < diff2 ? v : v2;
 };
 
-inline OPEN3D_DEVICE bool DeviceProject(
+inline OPEN3D_DEVICE bool DeviceProjectLUT(
         const LiDARIntrinsicPtrs& config,
         // this transform indexer should be nested:
         // sensor_to_lidar @ rigid_transformation
@@ -103,7 +101,7 @@ inline OPEN3D_DEVICE bool DeviceProject(
     u = (u < 0) ? TWO_PI + u : u;
     u = TWO_PI - u;
 
-    // Estimate v
+    // Estimapte v
     float phi = asin(z / *r);
     int64_t v = LookUpV(config, phi * RAD2DEG);
 
@@ -112,8 +110,8 @@ inline OPEN3D_DEVICE bool DeviceProject(
             config.azimuth_resolution;
         u = (u < 0) ? u + config.width : u;
         u = (u >= config.width) ? u - config.width : u;
-        *ui = static_cast<int64_t>(u);
-        *vi = static_cast<int64_t>(v);
+        *ui = static_cast<int64_t>(round(u));
+        *vi = static_cast<int64_t>(round(v));
         return true;
     } else {
         *ui = -1;
@@ -122,12 +120,51 @@ inline OPEN3D_DEVICE bool DeviceProject(
     }
 }
 
-inline OPEN3D_DEVICE void DeviceUnproject(const LiDARIntrinsicPtrs& config,
-                                          int64_t workload_idx,
-                                          float r,
-                                          float* x_out,
-                                          float* y_out,
-                                          float* z_out) {
+inline OPEN3D_DEVICE bool DeviceProjectSimple(
+        const LiDARIntrinsicPtrs& config,
+        // this transform indexer should be nested:
+        // sensor_to_lidar @ rigid_transformation
+        const TransformIndexer& transform_indexer,
+        float x_in,
+        float y_in,
+        float z_in,
+        int64_t* ui,
+        int64_t* vi,
+        float* r) {
+    float x, y, z;
+    transform_indexer.RigidTransform(x_in, y_in, z_in, &x, &y, &z);
+    *r = sqrt(x * x + y * y + z * z);
+
+    // Estimate u
+    float u = atan2(y, x);
+    u = (u < 0) ? TWO_PI + u : u;
+    u = (TWO_PI - u) / config.azimuth_resolution;
+    u = (u < 0) ? u + config.width : u;
+    u = (u >= config.width) ? u - config.width : u;
+
+    // Estimate v
+    float phi = asin(z / *r);
+    float v = 1 - (phi / DEG2RAD - config.min_altitude) /
+                          (config.max_altitude - config.min_altitude);
+    v *= config.height;
+
+    if (v >= 0 && v <= config.height - 1) {
+        *ui = static_cast<int64_t>(round(u));
+        *vi = static_cast<int64_t>(round(v));
+        return true;
+    } else {
+        *ui = -1;
+        *vi = -1;
+        return false;
+    }
+}
+
+inline OPEN3D_DEVICE void DeviceUnprojectLUT(const LiDARIntrinsicPtrs& config,
+                                             int64_t workload_idx,
+                                             float r,
+                                             float* x_out,
+                                             float* y_out,
+                                             float* z_out) {
     int64_t workload_offset = workload_idx * 3;
     *x_out = config.dir_lut_ptr[workload_offset + 0] * r +
              config.offset_lut_ptr[workload_offset + 0];
@@ -137,14 +174,34 @@ inline OPEN3D_DEVICE void DeviceUnproject(const LiDARIntrinsicPtrs& config,
              config.offset_lut_ptr[workload_offset + 2];
 }
 
-inline OPEN3D_DEVICE void DeviceUnproject(const LiDARIntrinsicPtrs& config,
-                                          int64_t u,
-                                          int64_t v,
-                                          float r,
-                                          float* x_out,
-                                          float* y_out,
-                                          float* z_out) {
-    DeviceUnproject(config, v * config.width + u, r, x_out, y_out, z_out);
+inline OPEN3D_DEVICE void DeviceUnprojectLUT(const LiDARIntrinsicPtrs& config,
+                                             int64_t u,
+                                             int64_t v,
+                                             float r,
+                                             float* x_out,
+                                             float* y_out,
+                                             float* z_out) {
+    DeviceUnprojectLUT(config, v * config.width + u, r, x_out, y_out, z_out);
+}
+
+inline OPEN3D_DEVICE void DeviceUnprojectSimple(
+        const LiDARIntrinsicPtrs& config,
+        int64_t u,
+        int64_t v,
+        float r,
+        float* x_out,
+        float* y_out,
+        float* z_out) {
+    float theta = -(2 * float(u) / config.width - 1) * M_PI;
+
+    float phi = float(v) / config.height;
+    phi = (1 - phi) * (config.max_altitude - config.min_altitude) +
+          config.min_altitude;
+    phi = M_PI / 2 - phi * DEG2RAD;
+
+    *x_out = r * sin(phi) * cos(theta);
+    *y_out = r * sin(phi) * sin(theta);
+    *z_out = r * cos(phi);
 }
 
 inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
@@ -167,8 +224,9 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
 
     int64_t ui, vi;
     float d;
-    bool mask_proj = DeviceProject(config, proj_transform, source_v[0],
-                                   source_v[1], source_v[2], &ui, &vi, &d);
+    bool mask_proj =
+            DeviceProjectSimple(config, proj_transform, source_v[0],
+                                source_v[1], source_v[2], &ui, &vi, &d);
     if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
         return false;
     }
@@ -236,26 +294,35 @@ void LiDARUnprojectCPU
 
     float depth_max_scaled = depth_max * depth_scale;
     float depth_min_scaled = depth_min * depth_scale;
-    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
-        float range = range_image_ptr[workload_idx];
-        if (range > depth_max_scaled || range <= depth_min_scaled) {
-            xyz_im_ptr[workload_idx * 3 + 0] = 0;
-            xyz_im_ptr[workload_idx * 3 + 1] = 0;
-            xyz_im_ptr[workload_idx * 3 + 2] = 0;
-            mask_im_ptr[workload_idx] = false;
-            return;
-        }
-        mask_im_ptr[workload_idx] = true;
 
-        float x, y, z;
-        DeviceUnproject(config, workload_idx, range, &x, &y, &z);
+    if (config.has_lut) {
+        core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+            float range = range_image_ptr[workload_idx];
+            int u = workload_idx % w;
+            int v = workload_idx / w;
 
-        int64_t workload_offset = workload_idx * 3;
-        transform_indexer.RigidTransform(x, y, z,
-                                         &xyz_im_ptr[workload_offset + 0],
-                                         &xyz_im_ptr[workload_offset + 1],
-                                         &xyz_im_ptr[workload_offset + 2]);
-    });
+            if (range > depth_max_scaled || range <= depth_min_scaled) {
+                xyz_im_ptr[workload_idx * 3 + 0] = 0;
+                xyz_im_ptr[workload_idx * 3 + 1] = 0;
+                xyz_im_ptr[workload_idx * 3 + 2] = 0;
+                mask_im_ptr[workload_idx] = false;
+                return;
+            }
+            mask_im_ptr[workload_idx] = true;
+
+            float x, y, z;
+            DeviceUnprojectSimple(config, u, v, range / depth_scale, &x, &y,
+                                  &z);
+
+            int64_t workload_offset = workload_idx * 3;
+            transform_indexer.RigidTransform(x, y, z,
+                                             &xyz_im_ptr[workload_offset + 0],
+                                             &xyz_im_ptr[workload_offset + 1],
+                                             &xyz_im_ptr[workload_offset + 2]);
+        });
+    } else {
+        utility::LogError("Unimplemented without a lut.");
+    }
 }
 
 #ifdef __CUDACC__
@@ -284,14 +351,25 @@ void LiDARProjectCPU
     float* r_ptr = rs.GetDataPtr<float>();
     bool* mask_ptr = masks.GetDataPtr<bool>();
 
-    core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
-        int64_t workload_offset = 3 * workload_idx;
-        mask_ptr[workload_idx] = DeviceProject(
-                config, transform_indexer, xyz_ptr[workload_offset + 0],
-                xyz_ptr[workload_offset + 1], xyz_ptr[workload_offset + 2],
-                &u_ptr[workload_idx], &v_ptr[workload_idx],
-                &r_ptr[workload_idx]);
-    });
+    if (config.has_lut) {
+        core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+            int64_t workload_offset = 3 * workload_idx;
+            mask_ptr[workload_idx] = DeviceProjectSimple(
+                    config, transform_indexer, xyz_ptr[workload_offset + 0],
+                    xyz_ptr[workload_offset + 1], xyz_ptr[workload_offset + 2],
+                    &u_ptr[workload_idx], &v_ptr[workload_idx],
+                    &r_ptr[workload_idx]);
+        });
+    } else {
+        core::ParallelFor(device, n, [=] OPEN3D_DEVICE(int64_t workload_idx) {
+            int64_t workload_offset = 3 * workload_idx;
+            mask_ptr[workload_idx] = DeviceProjectSimple(
+                    config, transform_indexer, xyz_ptr[workload_offset + 0],
+                    xyz_ptr[workload_offset + 1], xyz_ptr[workload_offset + 2],
+                    &u_ptr[workload_idx], &v_ptr[workload_idx],
+                    &r_ptr[workload_idx]);
+        });
+    }
 }
 
 }  // namespace odometry
