@@ -33,26 +33,24 @@ namespace open3d {
 namespace t {
 namespace geometry {
 
-LiDARIntrinsic::LiDARIntrinsic(int width,
-                               int height,
-                               float min_altitude,
-                               float max_altitude,
-                               const core::Device& device) {}
-
 LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                                const core::Device& device) {
     auto result = t::io::ReadNpz(config_npz_file);
 
+    has_lut_ = true;
+
     // TODO: (store config in the calib file)
-    int height = result.at("height").To(core::Int32).Item<int>();
-    int width = result.at("width").To(core::Int32).Item<int>();
-    int n = result.at("n").To(core::Float32).Item<float>();
+    height_ = result.at("height").To(core::Int32).Item<int>();
+    width_ = result.at("width").To(core::Int32).Item<int>();
+    float n = result.at("n").To(core::Float32).Item<float>();
 
     // Transformations always live on CPU
     lidar_to_sensor_ = result.at("lidar_to_sensor").To(core::Dtype::Float64);
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
     altitude_lut_ =
             result.at("altitude_table").To(device, core::Dtype::Float32);
+    min_altitude_ = altitude_lut_[-1].Item<float>();
+    max_altitude_ = altitude_lut_[0].Item<float>();
 
     auto key0 = core::TensorKey::Slice(0, 3, 1);
     auto key1 = core::TensorKey::Slice(3, 4, 1);
@@ -74,7 +72,7 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     // Load azimuth and altitude LUT.
 
     // (1, w)
-    auto theta_encoder = core::Tensor::Arange(2 * M_PI, 0.0, -2 * M_PI / width,
+    auto theta_encoder = core::Tensor::Arange(2 * M_PI, 0.0, -2 * M_PI / width_,
                                               Dtype::Float32, device)
                                  .View({1, -1});
 
@@ -88,7 +86,7 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     auto y_dir = theta.Sin() * phi.Cos();
     auto z_dir = phi.Sin();
 
-    auto dir_lut = core::Tensor({height, width, 3}, Dtype::Float32, device);
+    auto dir_lut = core::Tensor({height_, width_, 3}, Dtype::Float32, device);
 
     std::vector<TensorKey> tks = {TensorKey::Slice(None, None, None),
                                   TensorKey::Slice(None, None, None),
@@ -101,13 +99,14 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     dir_lut.SetItem(tks, z_dir);
     dir_lut /= range_scale_;
     dir_lut = (dir_lut.View({-1, 3}).Matmul(R.To(device, core::Float32).T()))
-                      .View({height, width, 3})
+                      .View({height_, width_, 3})
                       .Contiguous();
 
     auto x_offset = n * (theta_encoder.Cos() - x_dir);
     auto y_offset = n * (theta_encoder.Sin() - y_dir);
     auto z_offset = (-n) * z_dir;
-    auto offset_lut = core::Tensor({height, width, 3}, Dtype::Float32, device);
+    auto offset_lut =
+            core::Tensor({height_, width_, 3}, Dtype::Float32, device);
     tks[2] = TensorKey::Index(0);
     offset_lut.SetItem(tks, x_offset);
     tks[2] = TensorKey::Index(1);
@@ -123,24 +122,22 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
     // First map [0, inv_lut_size] to [min - padding, max + padding]
     // Then linear search the nearest neighbor in the altitude table
     auto reversed_altitude_lut = altitude_lut_.Reverse();
-    float max_altitude = reversed_altitude_lut[-1].Item<float>();
-    float min_altitude = reversed_altitude_lut[0].Item<float>();
     int inv_table_size =
-            int(std::ceil(max_altitude - min_altitude) / inv_lut_resolution_);
+            int(std::ceil(max_altitude_ - min_altitude_) / inv_lut_resolution_);
     std::vector<int64_t> inv_lut_data(inv_table_size);
 
     int i = 0;
-    for (int j = 0; j < height - 1; ++j) {
+    for (int j = 0; j < height_ - 1; ++j) {
         float thr = (reversed_altitude_lut[j].Item<float>() +
                      reversed_altitude_lut[j + 1].Item<float>()) *
                     0.5f;
-        while (i * inv_lut_resolution_ + min_altitude < thr) {
+        while (i * inv_lut_resolution_ + min_altitude_ < thr) {
             inv_lut_data[i] = j;
             ++i;
         }
     }
     for (; i < inv_table_size; ++i) {
-        inv_lut_data[i] = height - 1;
+        inv_lut_data[i] = height_ - 1;
     }
 
     core::Tensor inv_lut_table(inv_lut_data, {inv_table_size}, core::Int64,
@@ -149,23 +146,30 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 }
 
 LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
-    // Specify config sent to kernels
-    dir_lut_ptr =
-            const_cast<float*>(intrinsic.unproj_dir_lut_.GetDataPtr<float>());
-    offset_lut_ptr = const_cast<float*>(
-            intrinsic.unproj_offset_lut_.GetDataPtr<float>());
-    azimuth_lut_ptr =
-            const_cast<float*>(intrinsic.azimuth_lut_.GetDataPtr<float>());
-    altitude_lut_ptr =
-            const_cast<float*>(intrinsic.altitude_lut_.GetDataPtr<float>());
-    inv_altitude_lut_ptr = const_cast<int64_t*>(
-            intrinsic.inv_altitude_lut_.GetDataPtr<int64_t>());
-
     width = intrinsic.width_;
-    height = intrinsic.azimuth_lut_.GetLength();
-    azimuth_resolution = (2 * M_PI) / width;
-    inv_altitude_lut_length = intrinsic.inv_altitude_lut_.GetLength();
-    inv_altitude_lut_resolution = intrinsic.inv_lut_resolution_;
+    height = intrinsic.height_;
+    min_altitude = intrinsic.min_altitude_;
+    max_altitude = intrinsic.max_altitude_;
+
+    has_lut = intrinsic.has_lut_;
+
+    if (has_lut) {
+        // Specify config sent to kernels
+        dir_lut_ptr = const_cast<float*>(
+                intrinsic.unproj_dir_lut_.GetDataPtr<float>());
+        offset_lut_ptr = const_cast<float*>(
+                intrinsic.unproj_offset_lut_.GetDataPtr<float>());
+        azimuth_lut_ptr =
+                const_cast<float*>(intrinsic.azimuth_lut_.GetDataPtr<float>());
+        altitude_lut_ptr =
+                const_cast<float*>(intrinsic.altitude_lut_.GetDataPtr<float>());
+        inv_altitude_lut_ptr = const_cast<int64_t*>(
+                intrinsic.inv_altitude_lut_.GetDataPtr<int64_t>());
+
+        azimuth_resolution = (2 * M_PI) / width;
+        inv_altitude_lut_length = intrinsic.inv_altitude_lut_.GetLength();
+        inv_altitude_lut_resolution = intrinsic.inv_lut_resolution_;
+    }
 }
 
 /// Return xyz-image and mask_image

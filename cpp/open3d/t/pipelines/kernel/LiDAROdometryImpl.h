@@ -59,9 +59,9 @@ using std::sqrt;
 
 inline OPEN3D_DEVICE int64_t LookUpV(const LiDARIntrinsicPtrs& config,
                                      float phi_deg) {
-    int64_t phi_int = static_cast<int64_t>(
-            round((phi_deg - config.altitude_lut_ptr[config.height - 1]) /
-                  config.inv_altitude_lut_resolution));
+    int64_t phi_int =
+            static_cast<int64_t>(round((phi_deg - config.min_altitude) /
+                                       config.inv_altitude_lut_resolution));
     if (phi_int < 0 || phi_int >= config.inv_altitude_lut_length) {
         return -1;
     }

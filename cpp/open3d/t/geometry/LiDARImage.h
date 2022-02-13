@@ -47,8 +47,12 @@ public:
     LiDARIntrinsic(int width,
                    int height,
                    float min_altitude,
-                   float max_altitude,
-                   const core::Device& device);
+                   float max_altitude)
+        : width_(width),
+          height_(height),
+          min_altitude_(min_altitude),
+          max_altitude_(max_altitude),
+          has_lut_(false){};
 
 public:
     // Constructor with calibrated parameters
@@ -67,11 +71,16 @@ public:
     core::Tensor unproj_dir_lut_;
     core::Tensor unproj_offset_lut_;
 
+    int width_;
+    int height_;
+
+    float min_altitude_;
+    float max_altitude_;
+
     float range_scale_ = 1000.0;
     float inv_lut_resolution_ = 0.4;
 
-    int width_ = 1024;
-    int height_ = 128;
+    bool has_lut_;
 };
 
 struct LiDARIntrinsicPtrs {
@@ -95,6 +104,10 @@ public:
     // Other params
     int64_t height;
     int64_t width;
+
+    float min_altitude;
+    float max_altitude;
+    bool has_lut;
 };
 
 /// \class LiDARImage
