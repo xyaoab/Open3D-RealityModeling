@@ -97,7 +97,7 @@ public:
     ///
     /// \param tensor: Tensor of the image. The tensor must be contiguous. The
     /// tensor must be 2D (rows, cols) or 3D (rows, cols, channels).
-    LiDARImage(const core::Tensor& tensor);
+    LiDARImage(const core::Tensor& tensor) : Image(tensor){};
 
     /// \brief Construct from a image, using the default copy constructor.
     LiDARImage(const Image& image) : Image(image){};

@@ -127,33 +127,6 @@ void pybind_odometry_classes(py::module &m) {
                         olp.depth_outlier_trunc_, olp.depth_huber_delta_,
                         olp.intensity_huber_delta_);
             });
-
-    py::class_<LiDARIntrinsic> lidar_calib(
-            m, "LiDARIntrinsic",
-            "Calibration for Ouster LiDAR, "
-            "providing projection and unprojection");
-    lidar_calib.def(py::init<const std::string &, const core::Device &>(),
-                    "calib_npz_file"_a, "device"_a);
-
-    lidar_calib.def("unproject", &LiDARIntrinsic::Unproject,
-                    "Unproject an range image to generate a point cloud "
-                    "followed by a transformation.",
-                    "range_image"_a,
-                    "transformation"_a = core::Tensor::Eye(
-                            4, core::Dtype::Float64, core::Device()),
-                    "depth_min"_a = 0.65, "depth_max"_a = 10.0);
-
-    lidar_calib.def("project", &LiDARIntrinsic::Project,
-                    "Project a point cloud to a specified-size image after a "
-                    "transformation.",
-                    "xyz"_a,
-                    "transformation"_a = core::Tensor::Eye(
-                            4, core::Dtype::Float64, core::Device()));
-
-    lidar_calib.def(
-            "visualize", &LiDARIntrinsic::Visualize,
-            "Visualize a range image after shifting pixels by azimuth bias."
-            "range"_a);
 }
 
 // Odometry functions have similar arguments, sharing arg docstrings.
@@ -219,32 +192,30 @@ static const std::unordered_map<std::string, std::string>
                  "by CreateVertexMap before calling this function."}};
 
 void pybind_odometry_methods(py::module &m) {
-    m.def("lidar_normal_map", &GetNormalMap, "Get 2D normal map via 3D NNS.",
-          "image"_a, "calib"_a);
-
     m.def("lidar_odometry",
-          py::overload_cast<const t::geometry::Image &,
-                            const t::geometry::Image &, const LiDARIntrinsic &,
-                            const core::Tensor &, const float, const float,
-                            const float, const OdometryConvergenceCriteria &>(
+          py::overload_cast<const t::geometry::LiDARImage &,
+                            const t::geometry::LiDARImage &,
+                            const LiDARIntrinsic &, const core::Tensor &,
+                            const float, const float, const float,
+                            const OdometryConvergenceCriteria &>(
                   &LiDAROdometry),
           py::call_guard<py::gil_scoped_release>(),
-          "Function for LiDAR odometry.", "source"_a, "target"_a, "calib"_a,
+          "Function for LiDAR odometry.", "source"_a, "target"_a, "intrinsic"_a,
           "init_source_to_target"_a =
                   core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
           "depth_min"_a = 0.0f, "depth_max"_a = 20.0f, "dist_diff"_a = 0.2f,
           "criteria"_a = OdometryConvergenceCriteria(20));
 
     m.def("lidar_odometry",
-          py::overload_cast<const t::geometry::Image &,
-                            const t::geometry::Image &, const core::Tensor &,
-                            const LiDARIntrinsic &, const core::Tensor &,
-                            const float, const float, const float,
-                            const OdometryConvergenceCriteria &>(
+          py::overload_cast<const t::geometry::LiDARImage &,
+                            const t::geometry::LiDARImage &,
+                            const core::Tensor &, const LiDARIntrinsic &,
+                            const core::Tensor &, const float, const float,
+                            const float, const OdometryConvergenceCriteria &>(
                   &LiDAROdometry),
           py::call_guard<py::gil_scoped_release>(),
           "Function for LiDAR odometry.", "source"_a, "target"_a,
-          "target_normal_map"_a, "calib"_a,
+          "target_normal_map"_a, "intrinsic"_a,
           "init_source_to_target"_a =
                   core::Tensor::Eye(4, core::Float64, core::Device("CPU:0")),
           "depth_min"_a = 0.0f, "depth_max"_a = 20.0f, "dist_diff"_a = 0.2f,

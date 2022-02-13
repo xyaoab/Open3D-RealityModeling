@@ -30,6 +30,7 @@
 #include <unordered_map>
 
 #include "open3d/core/CUDAUtils.h"
+#include "open3d/t/geometry/LiDARImage.h"
 #include "open3d/t/geometry/RGBDImage.h"
 #include "pybind/docstring.h"
 #include "pybind/pybind_utils.h"
@@ -336,6 +337,47 @@ void pybind_image(py::module &m) {
     docstring::ClassMethodDocInject(m, "RGBDImage", "to_legacy");
     docstring::ClassMethodDocInject(m, "RGBDImage", "__init__",
                                     map_shared_argument_docstrings);
+
+    py::class_<LiDARIntrinsic> lidar_intrinsic(
+            m, "LiDARIntrinsic",
+            "Calibration for Ouster LiDAR, "
+            "providing projection and unprojection");
+    lidar_intrinsic.def(py::init<const std::string &, const core::Device &>(),
+                        "calib_npz_file"_a, "device"_a);
+
+    py::class_<LiDARImage, PyGeometry<LiDARImage>, std::shared_ptr<LiDARImage>>
+            lidar_image(m, "LiDARImage", image, "LiDAR image wrapper");
+    lidar_image.def(py::init<core::Tensor &>(),
+                    "Construct from a tensor. The tensor won't be copied and "
+                    "memory will be shared.",
+                    "tensor"_a);
+    lidar_image.def(py::init<t::geometry::Image &>(), "Construct from a image.",
+                    "image"_a);
+    lidar_image.def("unproject", &LiDARImage::Unproject,
+                    "Unproject an range image to generate a point cloud "
+                    "followed by a transformation.",
+                    "intrinsic"_a,
+                    "transformation"_a = core::Tensor::Eye(
+                            4, core::Dtype::Float64, core::Device()),
+
+                    "depth_min"_a = 0.65, "depth_max"_a = 10.0);
+
+    lidar_image.def_static(
+            "project", &LiDARImage::Project,
+            "Project a point cloud to a specified-size image after a "
+            "transformation.",
+            "xyz"_a, "intrinsic"_a,
+            "transformation"_a =
+                    core::Tensor::Eye(4, core::Dtype::Float64, core::Device()));
+
+    lidar_image.def(
+            "visualize", &LiDARImage::Visualize,
+            "Visualize a range image after shifting pixels by azimuth bias."
+            "intrinsic"_a);
+
+    lidar_image.def("get_normal_map", &LiDARImage::GetNormalMap,
+                    "Compute the normal map from a LiDAR image.",
+                    "intrinsic"_a);
 }
 
 }  // namespace geometry
