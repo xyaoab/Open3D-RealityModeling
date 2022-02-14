@@ -43,7 +43,7 @@ LiDARIntrinsic::LiDARIntrinsic(int width,
       min_altitude_(min_altitude),
       max_altitude_(max_altitude),
       has_lut_(false) {
-    lidar_to_sensor_ = lidar_to_sensor;
+    lidar_to_sensor_ = lidar_to_sensor.Clone();
     auto key0 = core::TensorKey::Slice(0, 3, 1);
     auto key1 = core::TensorKey::Slice(3, 4, 1);
     core::Tensor tt = lidar_to_sensor_.GetItem({key0, key1}) / range_scale_;
@@ -167,6 +167,7 @@ LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
     height = intrinsic.height_;
     min_altitude = intrinsic.min_altitude_;
     max_altitude = intrinsic.max_altitude_;
+    azimuth_resolution = (2 * M_PI) / width;
 
     has_lut = intrinsic.has_lut_;
 
@@ -183,7 +184,6 @@ LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
         inv_altitude_lut_ptr = const_cast<int64_t*>(
                 intrinsic.inv_altitude_lut_.GetDataPtr<int64_t>());
 
-        azimuth_resolution = (2 * M_PI) / width;
         inv_altitude_lut_length = intrinsic.inv_altitude_lut_.GetLength();
         inv_altitude_lut_resolution = intrinsic.inv_lut_resolution_;
     }
@@ -235,6 +235,10 @@ LiDARImage::Project(const core::Tensor& xyz,
 }
 
 Image LiDARImage::Visualize(const LiDARIntrinsic& intrinsic) const {
+    if (!intrinsic.has_lut_) {
+        return data_;
+    }
+
     using core::None;
     using core::TensorKey;
     auto ans = core::Tensor::Empty(data_.GetShape(), data_.GetDtype(),
@@ -264,6 +268,12 @@ core::Tensor LiDARImage::GetNormalMap(const LiDARIntrinsic& calib) const {
     core::Tensor vertex_map, mask_map;
     std::tie(vertex_map, mask_map) = Unproject(calib);
 
+    return GetNormalMap(vertex_map, mask_map, calib);
+}
+
+core::Tensor LiDARImage::GetNormalMap(const core::Tensor& vertex_map,
+                                      const core::Tensor& mask_map,
+                                      const LiDARIntrinsic& calib) {
     t::geometry::PointCloud pcd(vertex_map.IndexGet({mask_map}));
 
     core::Tensor normal_map =

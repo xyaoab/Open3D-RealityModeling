@@ -120,6 +120,60 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
     visualization::DrawGeometries({pcd_ptr});
 }
 
+t::geometry::LiDARImage Simulate(const core::Tensor &xyz,
+                                 const t::geometry::LiDARIntrinsic &calib) {
+    core::Tensor u, v, r, mask;
+    std::tie(u, v, r, mask) = t::geometry::LiDARImage::Project(xyz, calib);
+
+    core::Tensor simulated_r = core::Tensor::Zeros(
+            core::SizeVector{128, 1024}, core::Dtype::Float32, xyz.GetDevice());
+    auto u_mask = u.IndexGet({mask});
+    auto v_mask = v.IndexGet({mask});
+    auto r_mask = r.IndexGet({mask});
+    simulated_r.IndexSet({v_mask, u_mask}, r_mask);
+
+    return t::geometry::LiDARImage(
+            t::geometry::Image(simulated_r).To(core::UInt16, false, 1000, 0));
+}
+
+TEST_P(LiDAROdometryPermuteDevices, SimulateSimple) {
+    core::Device device = GetParam();
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
+
+    t::geometry::LiDARImage src =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
+                    ->To(device);
+
+    core::Tensor xyz_im, mask_im;
+    core::Tensor transformation =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    std::tie(xyz_im, mask_im) =
+            src.Unproject(calib, transformation, 0.0, 100.0);
+
+    /// (N, 3): unprojected from true intrinsic
+    core::Tensor xyz = xyz_im.IndexGet({mask_im});
+
+    /// Now project by approximation
+    core::Tensor lidar_to_sensor(
+            std::vector<double>{-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 36.18, 0, 0,
+                                0, 1},
+            {4, 4}, core::Float64);
+    t::pipelines::odometry::LiDARIntrinsic calib_simple(1024, 128, -45.68,
+                                                        45.92, lidar_to_sensor);
+
+    auto src_simulated = Simulate(xyz, calib_simple);
+    std::tie(xyz_im, mask_im) =
+            src_simulated.Unproject(calib_simple, transformation, 0.0, 100.0);
+    core::Tensor xyz_simulated = xyz_im.IndexGet({mask_im});
+    auto pcd_simulated = std::make_shared<open3d::geometry::PointCloud>(
+            t::geometry::PointCloud(xyz_simulated).ToLegacy());
+    visualization::DrawGeometries({pcd_simulated});
+}
+
 void VisualizeRegistration(const t::geometry::LiDARImage &src,
                            const t::geometry::LiDARImage &dst,
                            const core::Tensor &transformation,
@@ -180,6 +234,57 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
                                 depth_diff, criteria);
     VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
                           depth_max);
+}
+
+TEST_P(LiDAROdometryPermuteDevices, OdometrySimple) {
+    core::Device device = GetParam();
+
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+    const float depth_diff = 0.3;
+
+    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
+                                                                       1e-6);
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
+
+    core::Tensor lidar_to_sensor(
+            std::vector<double>{-1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 36.18, 0, 0,
+                                0, 1},
+            {4, 4}, core::Float64);
+    t::pipelines::odometry::LiDARIntrinsic calib_simple(1024, 128, -45.68,
+                                                        45.92, lidar_to_sensor);
+
+    t::geometry::LiDARImage src =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
+                    ->To(device);
+    t::geometry::LiDARImage dst =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000010.png"))
+                    ->To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    core::Tensor xyz_im, mask_im, xyz;
+
+    std::tie(xyz_im, mask_im) = src.Unproject(calib, identity, 0.0, 100.0);
+    xyz = xyz_im.IndexGet({mask_im});
+    auto src_simulated = Simulate(xyz, calib_simple);
+
+    std::tie(xyz_im, mask_im) = dst.Unproject(calib, identity, 0.0, 100.0);
+    xyz = xyz_im.IndexGet({mask_im});
+    auto dst_simulated = Simulate(xyz, calib_simple);
+
+    VisualizeRegistration(src_simulated, dst_simulated, identity, calib_simple,
+                          depth_min, depth_max);
+    auto result =
+            LiDAROdometry(src_simulated, dst_simulated, calib_simple, identity,
+                          depth_min, depth_max, depth_diff, criteria);
+    VisualizeRegistration(src_simulated, dst_simulated, result.transformation_,
+                          calib_simple, depth_min, depth_max);
 }
 
 TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {

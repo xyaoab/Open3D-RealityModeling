@@ -95,6 +95,8 @@ public:
 
     float min_altitude;
     float max_altitude;
+    float azimuth_resolution;
+
     bool has_lut;
 
     // Unprojection LUTs
@@ -106,7 +108,6 @@ public:
     float* altitude_lut_ptr;
 
     // Inv LUT params
-    float azimuth_resolution;
     int64_t inv_altitude_lut_length;
     float inv_altitude_lut_resolution;
     int64_t* inv_altitude_lut_ptr;
@@ -146,6 +147,11 @@ public:
 
     /// Currently from point cloud, could be slow.
     core::Tensor GetNormalMap(const LiDARIntrinsic& intrinsic) const;
+
+    // Specify xyz/mask im from potentially customized projection
+    static core::Tensor GetNormalMap(const core::Tensor& xyz_im,
+                                     const core::Tensor& mask_im,
+                                     const LiDARIntrinsic& intrinsic);
 
     /// Return
     Image Visualize(const LiDARIntrinsic& intrinsic) const;

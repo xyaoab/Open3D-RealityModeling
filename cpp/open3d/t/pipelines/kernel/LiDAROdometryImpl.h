@@ -110,6 +110,7 @@ inline OPEN3D_DEVICE bool DeviceProjectLUT(
             config.azimuth_resolution;
         u = (u < 0) ? u + config.width : u;
         u = (u >= config.width) ? u - config.width : u;
+
         *ui = static_cast<int64_t>(round(u));
         *vi = static_cast<int64_t>(round(v));
         return true;
@@ -374,6 +375,7 @@ void LiDARProjectCPU
     TransformIndexer transform_indexer(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             transformation.Contiguous());
+    utility::LogInfo("transformation: {}", transformation.ToString());
 
     const float* xyz_ptr = xyz.GetDataPtr<float>();
     int64_t* u_ptr = us.GetDataPtr<int64_t>();
