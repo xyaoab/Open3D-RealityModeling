@@ -375,7 +375,6 @@ void LiDARProjectCPU
     TransformIndexer transform_indexer(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             transformation.Contiguous());
-    utility::LogInfo("transformation: {}", transformation.ToString());
 
     const float* xyz_ptr = xyz.GetDataPtr<float>();
     int64_t* u_ptr = us.GetDataPtr<int64_t>();
