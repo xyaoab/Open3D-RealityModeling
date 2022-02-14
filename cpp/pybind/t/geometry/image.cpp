@@ -342,8 +342,17 @@ void pybind_image(py::module &m) {
             m, "LiDARIntrinsic",
             "Calibration for Ouster LiDAR, "
             "providing projection and unprojection");
-    lidar_intrinsic.def(py::init<const std::string &, const core::Device &>(),
-                        "calib_npz_file"_a, "device"_a);
+    lidar_intrinsic
+            .def(py::init<const std::string &, const core::Device &>(),
+                 "calib_npz_file"_a, "device"_a)
+            .def(py::init<int, int, float, float, const core::Tensor &>(),
+                 "width"_a, "height"_a, "min_altitude"_a, "max_altitude"_a,
+                 "lidar_to_tensor"_a)
+            .def_readonly("width", &LiDARIntrinsic::width_)
+            .def_readonly("height", &LiDARIntrinsic::height_)
+            .def_readonly("min_altitude", &LiDARIntrinsic::min_altitude_)
+            .def_readonly("max_altitude", &LiDARIntrinsic::max_altitude_)
+            .def_readonly("lidar_to_sensor", &LiDARIntrinsic::lidar_to_sensor_);
 
     py::class_<LiDARImage, PyGeometry<LiDARImage>, std::shared_ptr<LiDARImage>>
             lidar_image(m, "LiDARImage", image, "LiDAR image wrapper");
@@ -355,7 +364,8 @@ void pybind_image(py::module &m) {
                     "image"_a);
     lidar_image.def("unproject", &LiDARImage::Unproject,
                     "Unproject an range image to generate a point cloud "
-                    "followed by a transformation.",
+                    "followed by a transformation. Returns a 2D vertex map and "
+                    "a corresponding mask map.",
                     "intrinsic"_a,
                     "transformation"_a = core::Tensor::Eye(
                             4, core::Dtype::Float64, core::Device()),
@@ -365,7 +375,8 @@ void pybind_image(py::module &m) {
     lidar_image.def_static(
             "project", &LiDARImage::Project,
             "Project a point cloud to a specified-size image after a "
-            "transformation.",
+            "transformation. Returns a tuple of 1D tensors: u, v, r, mask. You "
+            "may build a projected range map using advanced indexing.",
             "xyz"_a, "intrinsic"_a,
             "transformation"_a =
                     core::Tensor::Eye(4, core::Dtype::Float64, core::Device()));

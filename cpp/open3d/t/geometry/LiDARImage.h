@@ -148,11 +148,6 @@ public:
     /// Currently from point cloud, could be slow.
     core::Tensor GetNormalMap(const LiDARIntrinsic& intrinsic) const;
 
-    // Specify xyz/mask im from potentially customized projection
-    static core::Tensor GetNormalMap(const core::Tensor& xyz_im,
-                                     const core::Tensor& mask_im,
-                                     const LiDARIntrinsic& intrinsic);
-
     /// Return
     Image Visualize(const LiDARIntrinsic& intrinsic) const;
 };

@@ -268,12 +268,6 @@ core::Tensor LiDARImage::GetNormalMap(const LiDARIntrinsic& calib) const {
     core::Tensor vertex_map, mask_map;
     std::tie(vertex_map, mask_map) = Unproject(calib);
 
-    return GetNormalMap(vertex_map, mask_map, calib);
-}
-
-core::Tensor LiDARImage::GetNormalMap(const core::Tensor& vertex_map,
-                                      const core::Tensor& mask_map,
-                                      const LiDARIntrinsic& calib) {
     t::geometry::PointCloud pcd(vertex_map.IndexGet({mask_map}));
 
     core::Tensor normal_map =
@@ -284,6 +278,7 @@ core::Tensor LiDARImage::GetNormalMap(const core::Tensor& vertex_map,
     normal_map.IndexSet({mask_map}, pcd.GetPointNormals());
     return normal_map;
 }
+
 }  // namespace geometry
 }  // namespace t
 }  // namespace open3d
