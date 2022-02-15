@@ -106,13 +106,14 @@ inline OPEN3D_DEVICE bool DeviceProjectLUT(
     int64_t v = LookUpV(config, phi * RAD2DEG);
 
     if (v >= 0) {
-        u = (u - config.azimuth_lut_ptr[v] * DEG2RAD) /
-            config.azimuth_resolution;
-        u = (u < 0) ? u + config.width : u;
-        u = (u >= config.width) ? u - config.width : u;
+        int width = config.width / config.down_factor;
+
+        u = width * (u - config.azimuth_lut_ptr[v] * DEG2RAD) / (2 * M_PI);
+        u = (u < 0) ? u + width : u;
+        u = (u >= width) ? u - width : u;
 
         *ui = static_cast<int64_t>(round(u));
-        *vi = static_cast<int64_t>(round(v));
+        *vi = static_cast<int64_t>(v / config.down_factor);
         return true;
     } else {
         *ui = -1;
@@ -137,17 +138,18 @@ inline OPEN3D_DEVICE bool DeviceProjectSimple(
     *r = sqrt(x * x + y * y + z * z);
 
     // Estimate u
+    int width = config.width / config.down_factor;
     float u = atan2(y, x);
     u = (u < 0) ? TWO_PI + u : u;
-    u = (TWO_PI - u) / config.azimuth_resolution;
-    u = (u < 0) ? u + config.width : u;
-    u = (u >= config.width) ? u - config.width : u;
+    u = width * (TWO_PI - u) / (TWO_PI);
+    u = (u < 0) ? u + width : u;
+    u = (u >= width) ? u - width : u;
 
     // Estimate v
     float phi = asin(z / *r);
     float v = 1 - (phi / DEG2RAD - config.min_altitude) /
                           (config.max_altitude - config.min_altitude);
-    v *= config.height;
+    v *= (config.height / config.down_factor);
 
     if (v >= 0 && v <= config.height - 1) {
         *ui = static_cast<int64_t>(round(u));
@@ -182,7 +184,11 @@ inline OPEN3D_DEVICE void DeviceUnprojectLUT(const LiDARIntrinsicPtrs& config,
                                              float* x_out,
                                              float* y_out,
                                              float* z_out) {
-    DeviceUnprojectLUT(config, v * config.width + u, r, x_out, y_out, z_out);
+    DeviceUnprojectLUT(
+            config,
+            // Map v, u to the original LUT
+            (v * config.down_factor) * config.width + u * config.down_factor, r,
+            x_out, y_out, z_out);
 }
 
 inline OPEN3D_DEVICE void DeviceUnprojectSimple(
@@ -193,9 +199,10 @@ inline OPEN3D_DEVICE void DeviceUnprojectSimple(
         float* x_out,
         float* y_out,
         float* z_out) {
-    float theta = -(2 * float(u) / config.width - 1) * M_PI;
+    float theta =
+            -(2 * float(u) / (config.width / config.down_factor) - 1) * M_PI;
 
-    float phi = float(v) / config.height;
+    float phi = float(v) / (config.height / config.down_factor);
     phi = (1 - phi) * (config.max_altitude - config.min_altitude) +
           config.min_altitude;
     phi = M_PI / 2 - phi * DEG2RAD;
@@ -290,6 +297,15 @@ void LiDARUnprojectCPU
     int64_t h = sv[0];
     int64_t w = sv[1];
     int64_t n = h * w;
+
+    if (w != config.width / config.down_factor ||
+        h != config.height / config.down_factor) {
+        utility::LogError(
+                "Range image size mismatch: expected ({}, {}), but got ({} "
+                "{})",
+                config.height / config.down_factor,
+                config.width / config.down_factor, h, w);
+    }
 
     TransformIndexer transform_indexer(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),

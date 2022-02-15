@@ -52,26 +52,31 @@ TEST_P(LiDAROdometryPermuteDevices, Unproject) {
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
     t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
-    t::geometry::LiDARImage src =
-            t::io::CreateImageFromFile(
-                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
-                    ->To(device);
+    for (auto down_factor : std::vector<int>{1, 2, 4}) {
+        t::geometry::LiDARImage src =
+                t::io::CreateImageFromFile(
+                        utility::GetDataPathCommon(
+                                "LiDARICP/outdoor/000000.png"))
+                        ->To(device)
+                        .Resize(1.0 / down_factor);
+        calib.SetDownsampleFactor(down_factor);
 
-    core::Tensor xyz_im, mask_im;
-    core::Tensor transformation =
-            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+        core::Tensor xyz_im, mask_im;
+        core::Tensor transformation =
+                core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
 
-    auto vis = src.Visualize(calib);
-    auto vis_ptr = std::make_shared<open3d::geometry::Image>(
-            vis.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
-    visualization::DrawGeometries({vis_ptr});
+        auto vis = src.Visualize(calib);
+        auto vis_ptr = std::make_shared<open3d::geometry::Image>(
+                vis.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
+        visualization::DrawGeometries({vis_ptr});
 
-    std::tie(xyz_im, mask_im) =
-            src.Unproject(calib, transformation, 0.0, 100.0);
+        std::tie(xyz_im, mask_im) =
+                src.Unproject(calib, transformation, 0.0, 100.0);
 
-    auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
-            t::geometry::PointCloud(xyz_im.IndexGet({mask_im})).ToLegacy());
-    visualization::DrawGeometries({pcd_ptr});
+        auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
+                t::geometry::PointCloud(xyz_im.IndexGet({mask_im})).ToLegacy());
+        visualization::DrawGeometries({pcd_ptr});
+    }
 }
 
 TEST_P(LiDAROdometryPermuteDevices, Project) {
@@ -81,43 +86,50 @@ TEST_P(LiDAROdometryPermuteDevices, Project) {
             utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
     t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
 
-    t::geometry::LiDARImage src =
-            t::io::CreateImageFromFile(
-                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
-                    ->To(device);
-    auto raw_im_ptr = std::make_shared<open3d::geometry::Image>(
-            src.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
-    visualization::DrawGeometries({raw_im_ptr});
+    for (auto down_factor : std::vector<int>{1, 2, 4}) {
+        t::geometry::LiDARImage src =
+                t::io::CreateImageFromFile(
+                        utility::GetDataPathCommon(
+                                "LiDARICP/outdoor/000000.png"))
+                        ->To(device)
+                        .Resize(1.0 / down_factor);
+        calib.SetDownsampleFactor(down_factor);
 
-    core::Tensor xyz_im, mask_im;
-    core::Tensor transformation =
-            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
-    std::tie(xyz_im, mask_im) =
-            src.Unproject(calib, transformation, 0.0, 100.0);
+        auto raw_im_ptr = std::make_shared<open3d::geometry::Image>(
+                src.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
+        visualization::DrawGeometries({raw_im_ptr});
 
-    /// (N, 3)
-    core::Tensor xyz = xyz_im.IndexGet({mask_im});
+        core::Tensor xyz_im, mask_im;
+        core::Tensor transformation =
+                core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+        std::tie(xyz_im, mask_im) =
+                src.Unproject(calib, transformation, 0.0, 100.0);
 
-    core::Tensor u, v, r, mask;
-    std::tie(u, v, r, mask) = src.Project(xyz, calib);
+        /// (N, 3)
+        core::Tensor xyz = xyz_im.IndexGet({mask_im});
 
-    core::Tensor rendered = core::Tensor::Zeros(
-            core::SizeVector{128, 1024}, core::Dtype::Float32, src.GetDevice());
-    auto u_mask = u.IndexGet({mask});
-    auto v_mask = v.IndexGet({mask});
-    auto r_mask = r.IndexGet({mask});
-    rendered.IndexSet({v_mask, u_mask}, r_mask);
+        core::Tensor u, v, r, mask;
+        std::tie(u, v, r, mask) = src.Project(xyz, calib);
 
-    t::geometry::Image rendered_im(rendered);
-    auto colorized_im_ptr = std::make_shared<open3d::geometry::Image>(
-            rendered_im.ColorizeDepth(1.0, 0.0, 30.0).ToLegacy());
-    visualization::DrawGeometries({colorized_im_ptr});
+        core::Tensor rendered = core::Tensor::Zeros(
+                core::SizeVector{src.GetRows(), src.GetCols()},
+                core::Dtype::Float32, src.GetDevice());
+        auto u_mask = u.IndexGet({mask});
+        auto v_mask = v.IndexGet({mask});
+        auto r_mask = r.IndexGet({mask});
+        rendered.IndexSet({v_mask, u_mask}, r_mask);
 
-    auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
-            t::geometry::PointCloud(xyz_im.IndexGet({v_mask, u_mask}))
-                    .ToLegacy());
-    utility::LogInfo("pcd_ptr points: {}", pcd_ptr->points_.size());
-    visualization::DrawGeometries({pcd_ptr});
+        t::geometry::Image rendered_im(rendered);
+        auto colorized_im_ptr = std::make_shared<open3d::geometry::Image>(
+                rendered_im.ColorizeDepth(1.0, 0.0, 30.0).ToLegacy());
+        visualization::DrawGeometries({colorized_im_ptr});
+
+        auto pcd_ptr = std::make_shared<open3d::geometry::PointCloud>(
+                t::geometry::PointCloud(xyz_im.IndexGet({v_mask, u_mask}))
+                        .ToLegacy());
+        utility::LogInfo("pcd_ptr points: {}", pcd_ptr->points_.size());
+        visualization::DrawGeometries({pcd_ptr});
+    }
 }
 
 t::geometry::LiDARImage Simulate(const core::Tensor &xyz,
@@ -126,7 +138,9 @@ t::geometry::LiDARImage Simulate(const core::Tensor &xyz,
     std::tie(u, v, r, mask) = t::geometry::LiDARImage::Project(xyz, calib);
 
     core::Tensor simulated_r = core::Tensor::Zeros(
-            core::SizeVector{128, 1024}, core::Dtype::Float32, xyz.GetDevice());
+            core::SizeVector{calib.height_ / calib.down_factor_,
+                             calib.width_ / calib.down_factor_},
+            core::Dtype::Float32, xyz.GetDevice());
     auto u_mask = u.IndexGet({mask});
     auto v_mask = v.IndexGet({mask});
     auto r_mask = r.IndexGet({mask});
@@ -165,13 +179,22 @@ TEST_P(LiDAROdometryPermuteDevices, SimulateSimple) {
     t::pipelines::odometry::LiDARIntrinsic calib_simple(1024, 128, -45.68,
                                                         45.92, lidar_to_sensor);
 
-    auto src_simulated = Simulate(xyz, calib_simple);
-    std::tie(xyz_im, mask_im) =
-            src_simulated.Unproject(calib_simple, transformation, 0.0, 100.0);
-    core::Tensor xyz_simulated = xyz_im.IndexGet({mask_im});
-    auto pcd_simulated = std::make_shared<open3d::geometry::PointCloud>(
-            t::geometry::PointCloud(xyz_simulated).ToLegacy());
-    visualization::DrawGeometries({pcd_simulated});
+    for (int down_factor : std::vector<int>{1, 2, 4}) {
+        calib_simple.SetDownsampleFactor(down_factor);
+        auto src_simulated = Simulate(xyz, calib_simple);
+
+        auto vis = src_simulated.Visualize(calib_simple);
+        auto vis_ptr = std::make_shared<open3d::geometry::Image>(
+                vis.ColorizeDepth(1000.0, 0.0, 30.0).ToLegacy());
+        visualization::DrawGeometries({vis_ptr});
+
+        std::tie(xyz_im, mask_im) = src_simulated.Unproject(
+                calib_simple, transformation, 0.0, 100.0);
+        core::Tensor xyz_simulated = xyz_im.IndexGet({mask_im});
+        auto pcd_simulated = std::make_shared<open3d::geometry::PointCloud>(
+                t::geometry::PointCloud(xyz_simulated).ToLegacy());
+        visualization::DrawGeometries({pcd_simulated});
+    }
 }
 
 void VisualizeRegistration(const t::geometry::LiDARImage &src,
@@ -320,5 +343,55 @@ TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {
     VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
                           depth_max);
 }
+
+TEST_P(LiDAROdometryPermuteDevices, OdometryMultiScale) {
+    core::Device device = GetParam();
+
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+    const float depth_diff = 0.3;
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
+
+    t::geometry::LiDARImage src =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
+                    ->To(device);
+    t::geometry::LiDARImage dst =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000010.png"))
+                    ->To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    core::Tensor dst_normal_map = dst.GetNormalMap(calib);
+
+    auto init = identity;
+    for (int down_factor : std::vector<int>{4, 2, 1}) {
+        float rescale_ratio = 1.0 / down_factor;
+
+        const t::pipelines::odometry::OdometryConvergenceCriteria criteria(
+                20, 1e-6, 1e-6);
+
+        auto src_down = t::geometry::LiDARImage(src.Resize(rescale_ratio));
+        auto dst_down = t::geometry::LiDARImage(dst.Resize(rescale_ratio));
+        auto dst_normal_map_down = t::geometry::Image(dst_normal_map)
+                                           .Resize(rescale_ratio)
+                                           .AsTensor();
+
+        calib.SetDownsampleFactor(down_factor);
+
+        auto result =
+                LiDAROdometry(src_down, dst_down, dst_normal_map_down, calib,
+                              init, depth_min, depth_max, depth_diff, criteria);
+
+        VisualizeRegistration(src_down, dst_down, result.transformation_, calib,
+                              depth_min, depth_max);
+        init = result.transformation_;
+    }
+}
+
 }  // namespace tests
 }  // namespace open3d

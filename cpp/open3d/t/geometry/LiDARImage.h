@@ -51,11 +51,12 @@ public:
                    float max_altitude,
                    const core::Tensor& lidar_to_sensor);
 
-public:
     // Constructor with calibrated parameters -- advanced matching with lookup
     // tables.
     LiDARIntrinsic(const std::string& config_npz_file,
                    const core::Device& device);
+
+    void SetDownsampleFactor(int down_factor) { down_factor_ = down_factor; }
 
 public:
     // Shared parameters for both simple and lut.
@@ -67,6 +68,8 @@ public:
 
     float range_scale_ = 1000.0;
     bool has_lut_;
+
+    int down_factor_ = 1;
 
     // Local coordinate transform
     core::Tensor lidar_to_sensor_;
@@ -95,8 +98,8 @@ public:
 
     float min_altitude;
     float max_altitude;
-    float azimuth_resolution;
 
+    int down_factor;
     bool has_lut;
 
     // Unprojection LUTs

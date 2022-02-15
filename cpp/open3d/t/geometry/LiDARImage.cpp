@@ -167,8 +167,8 @@ LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
     height = intrinsic.height_;
     min_altitude = intrinsic.min_altitude_;
     max_altitude = intrinsic.max_altitude_;
-    azimuth_resolution = (2 * M_PI) / width;
 
+    down_factor = intrinsic.down_factor_;
     has_lut = intrinsic.has_lut_;
 
     if (has_lut) {
@@ -200,6 +200,15 @@ std::tuple<core::Tensor, core::Tensor> LiDARImage::Unproject(
     auto sv = data_.GetShape();
     int64_t h = sv[0];
     int64_t w = sv[1];
+
+    if (h != intrinsic.height_ / intrinsic.down_factor_ ||
+        w != intrinsic.width_ / intrinsic.down_factor_) {
+        utility::LogError(
+                "Data and intrinsic dim mismatch, expected ({}, {}), but got "
+                "({} {})",
+                h, w, intrinsic.height_ / intrinsic.down_factor_,
+                intrinsic.width_ / intrinsic.down_factor_);
+    }
 
     core::Device device = data_.GetDevice();
     core::Tensor xyz_im(core::SizeVector{h, w, 3}, core::Dtype::Float32,
@@ -246,9 +255,20 @@ Image LiDARImage::Visualize(const LiDARIntrinsic& intrinsic) const {
     auto shape = data_.GetShape();
     int h = shape[0];
     int w = shape[1];
+    if (h != intrinsic.height_ / intrinsic.down_factor_ ||
+        w != intrinsic.width_ / intrinsic.down_factor_) {
+        utility::LogError(
+                "Data and intrinsic dim mismatch, expected ({}, {}), but got "
+                "({} {})",
+                h, w, intrinsic.height_ / intrinsic.down_factor_,
+                intrinsic.width_ / intrinsic.down_factor_);
+    }
 
     for (int i = 0; i < h; ++i) {
-        int s = std::round(intrinsic.azimuth_lut_[i].Item<float>() * w / 360.0);
+        // LUT resolution remains the same.
+        int s = std::round(intrinsic.azimuth_lut_[i * intrinsic.down_factor_]
+                                   .Item<float>() *
+                           w / 360.0);
         s += (s < 0) * w;
 
         auto rhs = data_.GetItem(
