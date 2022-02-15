@@ -373,7 +373,7 @@ TEST_P(LiDAROdometryPermuteDevices, OdometryMultiScale) {
         float rescale_ratio = 1.0 / down_factor;
 
         const t::pipelines::odometry::OdometryConvergenceCriteria criteria(
-                20, 1e-6, 1e-6);
+                10, 1e-6, 1e-6);
 
         auto src_down = t::geometry::LiDARImage(src.Resize(rescale_ratio));
         auto dst_down = t::geometry::LiDARImage(dst.Resize(rescale_ratio));

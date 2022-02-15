@@ -78,7 +78,21 @@ OdometryResult LiDAROdometry(const LiDARImage& source,
     std::tie(target_vertex_map, target_mask_map) =
             target.Unproject(calib, identity, depth_min, depth_max);
 
-    OdometryResult result(init_source_to_target);
+    auto init_trans = init_source_to_target.Clone();
+
+    // Offset translation
+    if (init_trans.AllClose(
+                core::Tensor::Eye(4, core::Dtype::Float64, core::Device()))) {
+        auto source_mean =
+                source_vertex_map.IndexGet({source_mask_map}).Mean({0});
+        auto target_mean =
+                target_vertex_map.IndexGet({target_mask_map}).Mean({0});
+        init_trans.SetItem({core::TensorKey::Slice(0, 3, 1),
+                            core::TensorKey::Slice(3, 4, 1)},
+                           (target_mean - source_mean).View({3, 1}));
+    }
+
+    OdometryResult result(init_trans);
     for (int i = 0; i < criteria.max_iteration_; ++i) {
         OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
