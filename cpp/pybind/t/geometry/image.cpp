@@ -348,6 +348,7 @@ void pybind_image(py::module &m) {
             .def(py::init<int, int, float, float, const core::Tensor &>(),
                  "width"_a, "height"_a, "min_altitude"_a, "max_altitude"_a,
                  "lidar_to_tensor"_a)
+            .def("set_downsample_factor", &LiDARIntrinsic::SetDownsampleFactor)
             .def_readonly("width", &LiDARIntrinsic::width_)
             .def_readonly("height", &LiDARIntrinsic::height_)
             .def_readonly("min_altitude", &LiDARIntrinsic::min_altitude_)

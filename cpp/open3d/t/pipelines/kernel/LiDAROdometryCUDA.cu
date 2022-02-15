@@ -172,8 +172,8 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
 
     // Launcher config
     const int kThreadSize = 16;
-    const dim3 blocks((config.width + kThreadSize - 1) / kThreadSize,
-                      (config.height + kThreadSize - 1) / kThreadSize);
+    const dim3 blocks((config.width / config.down_factor + kThreadSize - 1) / kThreadSize,
+                      (config.height / config.down_factor + kThreadSize - 1) / kThreadSize);
     const dim3 threads(kThreadSize, kThreadSize);
     ComputeLiDAROdometryPointToPlaneCUDAKernel<<<blocks, threads, 0,
                                                  core::cuda::GetStream()>>>(

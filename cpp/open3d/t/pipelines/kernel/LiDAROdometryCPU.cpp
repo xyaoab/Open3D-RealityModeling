@@ -80,7 +80,9 @@ void ComputeLiDAROdometryPointToPlaneCPU(
             core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
             init_source_to_target.Contiguous());
 
-    int64_t n = config.width * config.height;
+    int width = config.width / config.down_factor;
+    int height = config.height / config.down_factor;
+    int64_t n = width * height;
     std::vector<float> A_1x29(29, 0.0);
 #ifdef _MSC_VER
     std::vector<float> zeros_29(29, 0.0);
@@ -94,8 +96,8 @@ void ComputeLiDAROdometryPointToPlaneCPU(
 #pragma omp parallel for reduction(+ : A_reduction[:29]) schedule(static) num_threads(utility::EstimateMaxThreads())
     for (int workload_idx = 0; workload_idx < n; workload_idx++) {
 #endif
-                    int y = workload_idx / config.width;
-                    int x = workload_idx % config.width;
+                    int y = workload_idx / width;
+                    int x = workload_idx % width;
 
                     float J_ij[6];
                     float r;
