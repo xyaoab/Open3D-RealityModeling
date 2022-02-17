@@ -370,7 +370,6 @@ void pybind_image(py::module &m) {
                     "intrinsic"_a,
                     "transformation"_a = core::Tensor::Eye(
                             4, core::Dtype::Float64, core::Device()),
-
                     "depth_min"_a = 0.65, "depth_max"_a = 10.0);
 
     lidar_image.def_static(
@@ -388,8 +387,8 @@ void pybind_image(py::module &m) {
             "intrinsic"_a);
 
     lidar_image.def("get_normal_map", &LiDARImage::GetNormalMap,
-                    "Compute the normal map from a LiDAR image.",
-                    "intrinsic"_a);
+                    "Compute the normal map from a LiDAR image.", "intrinsic"_a,
+                    "depth_min"_a = 0.65, "depth_max"_a = 10.0);
 }
 
 }  // namespace geometry

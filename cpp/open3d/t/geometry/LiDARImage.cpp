@@ -284,9 +284,13 @@ Image LiDARImage::Visualize(const LiDARIntrinsic& intrinsic) const {
     return t::geometry::Image(ans);
 }
 
-core::Tensor LiDARImage::GetNormalMap(const LiDARIntrinsic& calib) const {
+core::Tensor LiDARImage::GetNormalMap(const LiDARIntrinsic& calib,
+                                      float depth_min,
+                                      float depth_max) const {
     core::Tensor vertex_map, mask_map;
-    std::tie(vertex_map, mask_map) = Unproject(calib);
+    std::tie(vertex_map, mask_map) = Unproject(
+            calib, core::Tensor::Eye(4, core::Dtype::Float64, core::Device()),
+            depth_min, depth_max);
 
     t::geometry::PointCloud pcd(vertex_map.IndexGet({mask_map}));
 

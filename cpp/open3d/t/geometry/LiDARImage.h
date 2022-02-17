@@ -149,7 +149,9 @@ public:
                     core::Tensor::Eye(4, core::Dtype::Float64, core::Device()));
 
     /// Currently from point cloud, could be slow.
-    core::Tensor GetNormalMap(const LiDARIntrinsic& intrinsic) const;
+    core::Tensor GetNormalMap(const LiDARIntrinsic& intrinsic,
+                              float depth_min = 0.65,
+                              float depth_max = 10.0) const;
 
     /// Return
     Image Visualize(const LiDARIntrinsic& intrinsic) const;
