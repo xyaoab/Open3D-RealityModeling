@@ -147,8 +147,8 @@ inline OPEN3D_DEVICE bool DeviceProjectSimple(
 
     // Estimate v
     float phi = asin(z / *r);
-    float v = 1 - (phi / DEG2RAD - config.min_altitude) /
-                          (config.max_altitude - config.min_altitude);
+    float v = (phi / DEG2RAD - config.min_altitude) /
+              (config.max_altitude - config.min_altitude);
     v *= (config.height / config.down_factor);
 
     if (v >= 0 && v <= config.height - 1) {
@@ -203,7 +203,7 @@ inline OPEN3D_DEVICE void DeviceUnprojectSimple(
             -(2 * float(u) / (config.width / config.down_factor) - 1) * M_PI;
 
     float phi = float(v) / (config.height / config.down_factor);
-    phi = (1 - phi) * (config.max_altitude - config.min_altitude) +
+    phi = phi * (config.max_altitude - config.min_altitude) +
           config.min_altitude;
     phi = M_PI / 2 - phi * DEG2RAD;
 
