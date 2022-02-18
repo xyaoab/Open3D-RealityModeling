@@ -66,6 +66,19 @@ public:
                    const core::HashBackendType &backend =
                            core::HashBackendType::Default);
 
+    /// Clear the hashmap and reset the underlying buffers to 0.
+    /// Performance unoptimized as it is only occasionally called.
+    void Reset();
+
+    /// Prune voxel blocks whose values are below the threshold
+    /// with a certain percentage.
+    /// Example: prune voxel blocks where more than
+    /// percentage=0.9 voxels have "weight" < threshold=3. Useful for pruning
+    /// non-surface blocks in large scenes.
+    void Prune(const std::string &attr_name = "weight",
+               float threshold = 3,
+               float percentage = 0.9);
+
     /// Get the underlying hash map that stores values in structure of arrays
     /// (SoA).
     core::HashMap GetHashMap() { return *block_hashmap_; }

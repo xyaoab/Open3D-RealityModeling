@@ -80,6 +80,13 @@ if __name__ == '__main__':
     intrinsic = load_intrinsic(config)
     extrinsics = load_extrinsics(config.path_trajectory, config)
 
+    vbg = integrate(depth_file_names, color_file_names, depth_intrinsic,
+                    color_intrinsic, extrinsics, config)
+    o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Debug)
+    vbg.prune()
+    o3d.utility.set_verbosity_level(o3d.utility.VerbosityLevel.Info)
+
+
     vbg = integrate(depth_file_names, color_file_names, intrinsic, extrinsics,
                     config)
 
