@@ -60,7 +60,7 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 
     height_ = result.at("height").To(core::Int32).Item<int>();
     width_ = result.at("width").To(core::Int32).Item<int>();
-    float n = result.at("n").To(core::Float32).Item<float>();
+    n_ = result.at("n").To(core::Float32).Item<float>();
 
     // Transformations always live on CPU
     azimuth_lut_ = result.at("azimuth_table").To(device, core::Dtype::Float32);
@@ -119,9 +119,9 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
                       .View({height_, width_, 3})
                       .Contiguous();
 
-    auto x_offset = n * (theta_encoder.Cos() - x_dir);
-    auto y_offset = n * (theta_encoder.Sin() - y_dir);
-    auto z_offset = (-n) * z_dir;
+    auto x_offset = n_ * (theta_encoder.Cos() - x_dir);
+    auto y_offset = n_ * (theta_encoder.Sin() - y_dir);
+    auto z_offset = (-n_) * z_dir;
     auto offset_lut =
             core::Tensor({height_, width_, 3}, Dtype::Float32, device);
     tks[2] = TensorKey::Index(0);
@@ -165,6 +165,7 @@ LiDARIntrinsic::LiDARIntrinsic(const std::string& config_npz_file,
 LiDARIntrinsicPtrs::LiDARIntrinsicPtrs(const LiDARIntrinsic& intrinsic) {
     width = intrinsic.width_;
     height = intrinsic.height_;
+    n = intrinsic.n_ / intrinsic.range_scale_;
     min_altitude = intrinsic.min_altitude_;
     max_altitude = intrinsic.max_altitude_;
 

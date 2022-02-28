@@ -51,9 +51,11 @@ using t::geometry::kernel::TransformIndexer;
 using std::abs;
 using std::asin;
 using std::atan2;
+using std::cos;
 using std::max;
 using std::min;
 using std::round;
+using std::sin;
 using std::sqrt;
 #endif
 
@@ -98,15 +100,33 @@ inline OPEN3D_DEVICE bool DeviceProjectLUT(
 
     // Estimate u
     float u = atan2(y, x);
-    u = (u < 0) ? TWO_PI + u : u;
-    u = TWO_PI - u;
+    u = (u < 0) ? -u : TWO_PI - u;
 
-    // Estimapte v
+    // Estimate v
     float phi = asin(z / *r);
     int64_t v = LookUpV(config, phi * RAD2DEG);
 
     if (v >= 0) {
         int width = config.width / config.down_factor;
+
+        u = width * u / (2 * M_PI);
+        u = (u < 0) ? u + width : u;
+        u = (u >= width) ? u - width : u;
+
+        // Refine for near points?
+        x -= config.n * cos(2 * M_PI * (width - u) / width);
+        y -= config.n * sin(2 * M_PI * (width - u) / width);
+        *r = sqrt(x * x + y * y + z * z);
+        u = atan2(y, x);
+        u = (u < 0) ? -u : TWO_PI - u;
+
+        phi = asin(z / *r);
+
+        int64_t v_prev = v;
+        v = LookUpV(config, phi * RAD2DEG);
+        if (v < 0 || v >= config.height) {
+            v = v_prev;
+        }
 
         u = width * (u - config.azimuth_lut_ptr[v] * DEG2RAD) / (2 * M_PI);
         u = (u < 0) ? u + width : u;

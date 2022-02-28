@@ -62,6 +62,7 @@ public:
     // Shared parameters for both simple and lut.
     int width_;
     int height_;
+    float n_;
 
     float min_altitude_;
     float max_altitude_;
@@ -95,6 +96,7 @@ public:
     // Shared params
     int64_t height;
     int64_t width;
+    float n;
 
     float min_altitude;
     float max_altitude;
