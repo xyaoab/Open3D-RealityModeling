@@ -150,6 +150,125 @@ std::pair<OdometryResult, core::Tensor> ComputeLiDAROdometryPointToPlane(
     return std::make_pair(result, correspondences);
 }
 
+std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float mu,
+        const float dist_diff,
+        const float division_factor,
+        const OdometryConvergenceCriteria& criteria) {
+    core::Tensor target_normal_map = target.GetNormalMap(calib);
+    return LiDAROdometryGNC(source, target, target_normal_map, calib,
+                            init_source_to_target, depth_min, depth_max, mu,
+                            dist_diff, division_factor, criteria);
+}
+
+std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const core::Tensor& target_normal_map,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float mu,
+        const float dist_diff,
+        const float division_factor,
+        const OdometryConvergenceCriteria& criteria) {
+    core::Tensor source_vertex_map, source_mask_map;
+    core::Tensor target_vertex_map, target_mask_map;
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+    std::tie(source_vertex_map, source_mask_map) =
+            source.Unproject(calib, identity, depth_min, depth_max);
+    std::tie(target_vertex_map, target_mask_map) =
+            target.Unproject(calib, identity, depth_min, depth_max);
+
+    auto init_trans = init_source_to_target.Clone();
+
+    // Offset translation
+    if (init_trans.AllClose(
+                core::Tensor::Eye(4, core::Dtype::Float64, core::Device()))) {
+        auto source_mean =
+                source_vertex_map.IndexGet({source_mask_map}).Mean({0});
+        auto target_mean =
+                target_vertex_map.IndexGet({target_mask_map}).Mean({0});
+        init_trans.SetItem({core::TensorKey::Slice(0, 3, 1),
+                            core::TensorKey::Slice(3, 4, 1)},
+                           (target_mean - source_mean).View({3, 1}));
+    }
+
+    OdometryResult result(init_trans);
+    core::Tensor correspondences;
+    auto delta_result = ComputeLiDAROdometryPointToPlaneGNC(
+            source_vertex_map, source_mask_map, target_vertex_map,
+            target_mask_map, target_normal_map, correspondences, calib,
+            result.transformation_, mu, /*is_init=*/true);
+    result.transformation_ =
+            (delta_result.transformation_.Matmul(result.transformation_))
+                    .Contiguous();
+
+    float mu_curr = mu;
+    for (int i = 0; i < criteria.max_iteration_; ++i) {
+        delta_result = ComputeLiDAROdometryPointToPlaneGNC(
+                source_vertex_map, source_mask_map, target_vertex_map,
+                target_mask_map, target_normal_map, correspondences, calib,
+                result.transformation_, mu, /*is_init=*/false);
+        result.transformation_ =
+                (delta_result.transformation_.Matmul(result.transformation_))
+                        .Contiguous();
+        if (i % 4 == 0 && mu_curr > dist_diff) {
+            mu_curr /= division_factor;
+        }
+        utility::LogDebug("iter {}: rmse = {}, fitness = {}", i,
+                          delta_result.inlier_rmse_, delta_result.fitness_);
+    }
+
+    return std::make_pair(result, correspondences);
+}
+
+OdometryResult ComputeLiDAROdometryPointToPlaneGNC(
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        // Note: currently target_normal_map is from point cloud
+        const core::Tensor& target_normal_map,
+        core::Tensor& correspondences,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float mu,
+        bool is_init) {
+    core::Tensor se3_delta;
+    float inlier_residual;
+    int inlier_count;
+
+    kernel::odometry::ComputeLiDAROdometryPointToPlaneGNC(
+            source_vertex_map, source_mask_map, target_vertex_map,
+            target_mask_map, target_normal_map, correspondences,
+            init_source_to_target, calib.sensor_to_lidar_,
+            geometry::LiDARIntrinsicPtrs(calib), se3_delta, inlier_residual,
+            inlier_count, mu, is_init);
+
+    // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
+    if (inlier_count <= 0) {
+        utility::LogError("Invalid inlier_count value {}, must be > 0.",
+                          inlier_count);
+    }
+
+    auto result = OdometryResult(
+            pipelines::kernel::PoseToTransformation(se3_delta),
+            inlier_residual / inlier_count,
+            double(inlier_count) / double(source_vertex_map.GetShape(0) *
+                                          source_vertex_map.GetShape(1)));
+    return result;
+}
+
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t

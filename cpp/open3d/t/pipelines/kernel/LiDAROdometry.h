@@ -75,6 +75,31 @@ void ComputeLiDAROdometryPointToPlane(
         float depth_diff,
         core::Tensor& correspondences);
 
+// In the correspondence finding step (update_corres = true), fill-in
+// correspondences.
+// In the refinement step (update_corres = true), reuse correspondences.
+void ComputeLiDAROdometryPointToPlaneGNC(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        core::Tensor& correspondences,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
+        // LiDAR calibration
+        const LiDARIntrinsicPtrs& config,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float mu,
+        bool is_init);
+
 void LiDARUnprojectCPU(const core::Tensor& range_image,
                        const core::Tensor& transformation,
                        const LiDARIntrinsicPtrs& config,

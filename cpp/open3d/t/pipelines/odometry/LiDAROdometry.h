@@ -75,6 +75,47 @@ std::pair<OdometryResult, core::Tensor> ComputeLiDAROdometryPointToPlane(
         const core::Tensor& init_source_to_target,
         const float depth_diff);
 
+std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float mu,
+        const float depth_diff,
+        const float division_factor,
+        const OdometryConvergenceCriteria& criteria);
+
+std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const core::Tensor& target_normal_map,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float mu,
+        const float depth_diff,
+        const float division_factor,
+        const OdometryConvergenceCriteria& criteria);
+
+// In is_init=true, compute correspondences as initialization.
+// In is_init=false, fix correspondences and update weights.
+// The change of mu should be handled in the caller.
+OdometryResult ComputeLiDAROdometryPointToPlaneGNC(
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        // Note: currently target_normal_map is from point cloud
+        const core::Tensor& target_normal_map,
+        core::Tensor& correspondences,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float mu,
+        bool is_init);
+
 }  // namespace odometry
 }  // namespace pipelines
 }  // namespace t
