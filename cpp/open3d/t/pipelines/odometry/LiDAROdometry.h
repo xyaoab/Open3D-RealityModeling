@@ -43,26 +43,28 @@ namespace odometry {
 using t::geometry::LiDARImage;
 using t::geometry::LiDARIntrinsic;
 
-OdometryResult LiDAROdometry(const LiDARImage& source,
-                             const LiDARImage& target,
-                             const LiDARIntrinsic& calib,
-                             const core::Tensor& init_source_to_target,
-                             const float depth_min,
-                             const float depth_max,
-                             const float dist_diff,
-                             const OdometryConvergenceCriteria& criteria);
+std::pair<OdometryResult, core::Tensor> LiDAROdometry(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float dist_diff,
+        const OdometryConvergenceCriteria& criteria);
 
-OdometryResult LiDAROdometry(const LiDARImage& source,
-                             const LiDARImage& target,
-                             const core::Tensor& target_normal_map,
-                             const LiDARIntrinsic& calib,
-                             const core::Tensor& init_source_to_target,
-                             const float depth_min,
-                             const float depth_max,
-                             const float dist_diff,
-                             const OdometryConvergenceCriteria& criteria);
+std::pair<OdometryResult, core::Tensor> LiDAROdometry(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const core::Tensor& target_normal_map,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float dist_diff,
+        const OdometryConvergenceCriteria& criteria);
 
-OdometryResult ComputeLiDAROdometryPointToPlane(
+std::pair<OdometryResult, core::Tensor> ComputeLiDAROdometryPointToPlane(
         const core::Tensor& source_vertex_map,
         const core::Tensor& source_mask_map,
         const core::Tensor& target_vertex_map,

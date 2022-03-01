@@ -59,7 +59,8 @@ void ComputeLiDAROdometryPointToPlaneCPU(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff) {
+        float depth_diff,
+        core::Tensor& correspondences) {
     core::Device device = source_vertex_map.GetDevice();
 
     // Index source data
@@ -84,6 +85,9 @@ void ComputeLiDAROdometryPointToPlaneCPU(
     int height = config.height / config.down_factor;
     int64_t n = width * height;
     std::vector<float> A_1x29(29, 0.0);
+    std::vector<int64_t> corres_vec(n * 4);
+    int corres_cnt = 0;
+
 #ifdef _MSC_VER
     std::vector<float> zeros_29(29, 0.0);
     A_1x29 = tbb::parallel_reduce(
@@ -99,16 +103,24 @@ void ComputeLiDAROdometryPointToPlaneCPU(
                     int y = workload_idx / width;
                     int x = workload_idx % width;
 
+                    int64_t x_corres, y_corres;
                     float J_ij[6];
                     float r;
                     bool valid = GetJacobianPointToPlane(
                             source_vertex_indexer, source_mask_indexer,
                             target_vertex_indexer, target_mask_indexer,
                             target_normal_indexer, proj_transform,
-                            src2dst_transform, config, depth_diff, x, y, J_ij,
-                            r);
+                            src2dst_transform, config, depth_diff, x, y,
+                            &x_corres, &y_corres, J_ij, r);
 
                     if (valid) {
+                        int offset = corres_cnt * 4;
+                        corres_cnt++;
+                        corres_vec[offset + 0] = x;
+                        corres_vec[offset + 1] = y;
+                        corres_vec[offset + 2] = x_corres;
+                        corres_vec[offset + 3] = y_corres;
+
                         for (int i = 0, j = 0; j < 6; j++) {
                             for (int k = 0; k <= j; k++) {
                                 A_reduction[i] += J_ij[j] * J_ij[k];
@@ -133,6 +145,7 @@ void ComputeLiDAROdometryPointToPlaneCPU(
             });
 #endif
     core::Tensor global_sum(A_1x29, {29}, core::Float32, device);
+    correspondences = core::Tensor(corres_vec, core::Dtype::Int64, device);
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 

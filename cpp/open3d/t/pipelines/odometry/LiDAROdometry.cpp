@@ -45,29 +45,31 @@ namespace t {
 namespace pipelines {
 namespace odometry {
 
-OdometryResult LiDAROdometry(const LiDARImage& source,
-                             const LiDARImage& target,
-                             const LiDARIntrinsic& calib,
-                             const core::Tensor& init_source_to_target,
-                             const float depth_min,
-                             const float depth_max,
-                             const float dist_diff,
-                             const OdometryConvergenceCriteria& criteria) {
+std::pair<OdometryResult, core::Tensor> LiDAROdometry(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float dist_diff,
+        const OdometryConvergenceCriteria& criteria) {
     core::Tensor target_normal_map = target.GetNormalMap(calib);
     return LiDAROdometry(source, target, target_normal_map, calib,
                          init_source_to_target, depth_min, depth_max, dist_diff,
                          criteria);
 }
 
-OdometryResult LiDAROdometry(const LiDARImage& source,
-                             const LiDARImage& target,
-                             const core::Tensor& target_normal_map,
-                             const LiDARIntrinsic& calib,
-                             const core::Tensor& init_source_to_target,
-                             const float depth_min,
-                             const float depth_max,
-                             const float dist_diff,
-                             const OdometryConvergenceCriteria& criteria) {
+std::pair<OdometryResult, core::Tensor> LiDAROdometry(
+        const LiDARImage& source,
+        const LiDARImage& target,
+        const core::Tensor& target_normal_map,
+        const LiDARIntrinsic& calib,
+        const core::Tensor& init_source_to_target,
+        const float depth_min,
+        const float depth_max,
+        const float dist_diff,
+        const OdometryConvergenceCriteria& criteria) {
     core::Tensor source_vertex_map, source_mask_map;
     core::Tensor target_vertex_map, target_mask_map;
 
@@ -93,11 +95,15 @@ OdometryResult LiDAROdometry(const LiDARImage& source,
     }
 
     OdometryResult result(init_trans);
+    core::Tensor correspondences;
     for (int i = 0; i < criteria.max_iteration_; ++i) {
-        OdometryResult delta_result = ComputeLiDAROdometryPointToPlane(
+        auto res = ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, calib,
                 result.transformation_, dist_diff);
+        auto delta_result = res.first;
+        correspondences = res.second;
+
         result.transformation_ =
                 (delta_result.transformation_.Matmul(result.transformation_))
                         .Contiguous();
@@ -105,10 +111,10 @@ OdometryResult LiDAROdometry(const LiDARImage& source,
                           delta_result.inlier_rmse_, delta_result.fitness_);
     }
 
-    return result;
+    return std::make_pair(result, correspondences);
 }
 
-OdometryResult ComputeLiDAROdometryPointToPlane(
+std::pair<OdometryResult, core::Tensor> ComputeLiDAROdometryPointToPlane(
         const core::Tensor& source_vertex_map,
         const core::Tensor& source_mask_map,
         const core::Tensor& target_vertex_map,
@@ -122,11 +128,13 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
     float inlier_residual;
     int inlier_count;
 
+    core::Tensor correspondences;
     kernel::odometry::ComputeLiDAROdometryPointToPlane(
             source_vertex_map, source_mask_map, target_vertex_map,
             target_mask_map, target_normal_map, init_source_to_target,
             calib.sensor_to_lidar_, geometry::LiDARIntrinsicPtrs(calib),
-            se3_delta, inlier_residual, inlier_count, depth_diff);
+            se3_delta, inlier_residual, inlier_count, depth_diff,
+            correspondences);
 
     // Check inlier_count, source_vertex_map's shape is non-zero guaranteed.
     if (inlier_count <= 0) {
@@ -134,11 +142,12 @@ OdometryResult ComputeLiDAROdometryPointToPlane(
                           inlier_count);
     }
 
-    return OdometryResult(
+    auto result = OdometryResult(
             pipelines::kernel::PoseToTransformation(se3_delta),
             inlier_residual / inlier_count,
             double(inlier_count) / double(source_vertex_map.GetShape(0) *
                                           source_vertex_map.GetShape(1)));
+    return std::make_pair(result, correspondences);
 }
 
 }  // namespace odometry

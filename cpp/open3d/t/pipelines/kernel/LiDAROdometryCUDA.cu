@@ -55,6 +55,8 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
         TransformIndexer src2dst_transform,
         LiDARIntrinsicPtrs config,
         float* global_sum,
+        int64_t* corres,
+        int* corres_cnt,
         float depth_diff) {
     // Find correspondence and obtain Jacobian at (x, y)
     // Note the built-in indexer uses (x, y) and (u, v) convention.
@@ -76,10 +78,21 @@ __global__ void ComputeLiDAROdometryPointToPlaneCUDAKernel(
 
     float J[6] = {0}, reduction[21 + 6 + 2];
     float r = 0;
+    int64_t x_corres, y_corres;
     bool valid = GetJacobianPointToPlane(
             source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
             target_mask_indexer, target_normal_indexer, proj_transform,
-            src2dst_transform, config, depth_diff, x, y, J, r);
+            src2dst_transform, config, depth_diff, x, y, &x_corres, &y_corres,
+            J, r);
+
+    if (valid) {
+        int corres_idx = atomicAdd(corres_cnt, 1);
+        int offset = 4 * corres_idx;
+        corres[offset + 0] = x;
+        corres[offset + 1] = y;
+        corres[offset + 2] = x_corres;
+        corres[offset + 3] = y_corres;
+    }
 
     // Dump J, r into JtJ and Jtr
     int offset = 0;
@@ -145,7 +158,8 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff) {
+        float depth_diff,
+        core::Tensor& correspondences) {
     core::Device device = source_vertex_map.GetDevice();
 
     // Index source data
@@ -170,10 +184,19 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
     core::Tensor global_sum = core::Tensor::Zeros({29}, core::Float32, device);
     float* global_sum_ptr = global_sum.GetDataPtr<float>();
 
+    correspondences =
+            core::Tensor({(config.width / config.down_factor) *
+                                  (config.height / config.down_factor),
+                          4},
+                         core::Dtype::Int64, device);
+    core::Tensor corres_cnt({}, core::Dtype::Int32, device);
+
     // Launcher config
     const int kThreadSize = 16;
-    const dim3 blocks((config.width / config.down_factor + kThreadSize - 1) / kThreadSize,
-                      (config.height / config.down_factor + kThreadSize - 1) / kThreadSize);
+    const dim3 blocks(
+            (config.width / config.down_factor + kThreadSize - 1) / kThreadSize,
+            (config.height / config.down_factor + kThreadSize - 1) /
+                    kThreadSize);
     const dim3 threads(kThreadSize, kThreadSize);
     ComputeLiDAROdometryPointToPlaneCUDAKernel<<<blocks, threads, 0,
                                                  core::cuda::GetStream()>>>(
@@ -185,11 +208,13 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
             // LiDAR calib LUTs
             config,
             // Output
-            global_sum_ptr,
+            global_sum_ptr, correspondences.GetDataPtr<int64_t>(),
+            corres_cnt.GetDataPtr<int>(),
             // Params
             depth_diff);
     core::cuda::Synchronize();
 
+    correspondences = correspondences.Slice(0, 0, corres_cnt.Item<int>());
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 

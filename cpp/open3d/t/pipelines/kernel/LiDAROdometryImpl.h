@@ -244,6 +244,8 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
         float depth_diff,
         int x,
         int y,
+        int64_t* x_corres,
+        int64_t* y_corres,
         float* J_ij,
         float& r) {
     float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
@@ -266,6 +268,9 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
     }
 
     // Transform source points to the target camera's coordinate space.
+    *x_corres = ui;
+    *y_corres = vi;
+
     float T_source_to_target_v[3];
     src2dst_transform.RigidTransform(
             source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],

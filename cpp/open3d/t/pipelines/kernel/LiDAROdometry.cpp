@@ -91,7 +91,8 @@ void ComputeLiDAROdometryPointToPlane(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff) {
+        float depth_diff,
+        core::Tensor& correspondences) {
     core::Device device = source_vertex_map.GetDevice();
 
     if (device.GetType() == core::Device::DeviceType::CPU) {
@@ -99,13 +100,13 @@ void ComputeLiDAROdometryPointToPlane(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, init_source_to_target,
                 sensor_to_lidar, config, delta, inlier_residual, inlier_count,
-                depth_diff);
+                depth_diff, correspondences);
     } else if (device.GetType() == core::Device::DeviceType::CUDA) {
         ComputeLiDAROdometryPointToPlaneCUDA(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, init_source_to_target,
                 sensor_to_lidar, config, delta, inlier_residual, inlier_count,
-                depth_diff);
+                depth_diff, correspondences);
     } else {
         utility::LogError("Unimplemented device {}", device.ToString());
     }

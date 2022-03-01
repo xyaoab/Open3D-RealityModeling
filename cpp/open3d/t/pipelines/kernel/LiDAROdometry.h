@@ -72,7 +72,8 @@ void ComputeLiDAROdometryPointToPlane(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff);
+        float depth_diff,
+        core::Tensor& correspondences);
 
 void LiDARUnprojectCPU(const core::Tensor& range_image,
                        const core::Tensor& transformation,
@@ -109,7 +110,8 @@ void ComputeLiDAROdometryPointToPlaneCPU(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff);
+        float depth_diff,
+        core::Tensor& correspondences);
 
 #ifdef BUILD_CUDA_MODULE
 void LiDARUnprojectCUDA(const core::Tensor& range_image,
@@ -147,7 +149,8 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
         float& inlier_residual,
         int& inlier_count,
         // Other params
-        float depth_diff);
+        float depth_diff,
+        core::Tensor& correspondences);
 
 #endif
 
