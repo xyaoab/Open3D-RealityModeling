@@ -255,8 +255,8 @@ TEST_P(LiDAROdometryPermuteDevices, Odometry) {
     VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
     auto result = LiDAROdometry(src, dst, calib, identity, depth_min, depth_max,
                                 depth_diff, criteria);
-    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
-                          depth_max);
+    VisualizeRegistration(src, dst, result.first.transformation_, calib,
+                          depth_min, depth_max);
 }
 
 TEST_P(LiDAROdometryPermuteDevices, OdometrySimple) {
@@ -306,8 +306,9 @@ TEST_P(LiDAROdometryPermuteDevices, OdometrySimple) {
     auto result =
             LiDAROdometry(src_simulated, dst_simulated, calib_simple, identity,
                           depth_min, depth_max, depth_diff, criteria);
-    VisualizeRegistration(src_simulated, dst_simulated, result.transformation_,
-                          calib_simple, depth_min, depth_max);
+    VisualizeRegistration(src_simulated, dst_simulated,
+                          result.first.transformation_, calib_simple, depth_min,
+                          depth_max);
 }
 
 TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {
@@ -340,8 +341,8 @@ TEST_P(LiDAROdometryPermuteDevices, OdometryNormalDecoupled) {
     VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
     auto result = LiDAROdometry(src, dst, dst_normal_map, calib, identity,
                                 depth_min, depth_max, depth_diff, criteria);
-    VisualizeRegistration(src, dst, result.transformation_, calib, depth_min,
-                          depth_max);
+    VisualizeRegistration(src, dst, result.first.transformation_, calib,
+                          depth_min, depth_max);
 }
 
 TEST_P(LiDAROdometryPermuteDevices, OdometryMultiScale) {
@@ -387,10 +388,49 @@ TEST_P(LiDAROdometryPermuteDevices, OdometryMultiScale) {
                 LiDAROdometry(src_down, dst_down, dst_normal_map_down, calib,
                               init, depth_min, depth_max, depth_diff, criteria);
 
-        VisualizeRegistration(src_down, dst_down, result.transformation_, calib,
-                              depth_min, depth_max);
-        init = result.transformation_;
+        VisualizeRegistration(src_down, dst_down, result.first.transformation_,
+                              calib, depth_min, depth_max);
+        init = result.first.transformation_;
     }
+}
+
+TEST_P(LiDAROdometryPermuteDevices, OdometryGNC) {
+    core::Device device = GetParam();
+
+    const float depth_min = 0.0;
+    const float depth_max = 100.0;
+
+    const float mu = 1.0;
+    const float division_factor = 1.4;
+    const float depth_diff = 0.2;
+    const int gnc_iterations = 8;
+
+    const t::pipelines::odometry::OdometryConvergenceCriteria criteria(20, 1e-6,
+                                                                       1e-6);
+
+    std::string calib_npz =
+            utility::GetDataPathCommon("LiDARICP/ouster_calib.npz");
+    t::pipelines::odometry::LiDARIntrinsic calib(calib_npz, device);
+
+    t::geometry::LiDARImage src =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000000.png"))
+                    ->To(device);
+    t::geometry::LiDARImage dst =
+            t::io::CreateImageFromFile(
+                    utility::GetDataPathCommon("LiDARICP/outdoor/000010.png"))
+                    ->To(device);
+
+    core::Tensor identity =
+            core::Tensor::Eye(4, core::Dtype::Float64, core::Device());
+
+    core::Tensor dst_normal_map = dst.GetNormalMap(calib);
+    VisualizeRegistration(src, dst, identity, calib, depth_min, depth_max);
+    auto result = LiDAROdometryGNC(src, dst, dst_normal_map, calib, identity,
+                                   depth_min, depth_max, mu, depth_diff,
+                                   division_factor, gnc_iterations, criteria);
+    VisualizeRegistration(src, dst, result.first.transformation_, calib,
+                          depth_min, depth_max);
 }
 
 }  // namespace tests

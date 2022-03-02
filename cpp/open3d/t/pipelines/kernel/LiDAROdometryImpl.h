@@ -301,7 +301,80 @@ inline OPEN3D_DEVICE bool GetJacobianPointToPlane(
     r = w * r;
 
     return true;
-};
+}
+
+inline OPEN3D_DEVICE bool GetJacobianPointToPlaneGNC(
+        const NDArrayIndexer& source_vertex_indexer,
+        const NDArrayIndexer& source_mask_indexer,
+        const NDArrayIndexer& target_vertex_indexer,
+        const NDArrayIndexer& target_mask_indexer,
+        const NDArrayIndexer& target_normal_indexer,
+        const TransformIndexer& proj_transform,
+        const TransformIndexer& src2dst_transform,
+        const LiDARIntrinsicPtrs& config,
+        float mu,
+        int x,
+        int y,
+        int* x_corres,
+        int* y_corres,
+        float* J_ij,
+        float& r,
+        bool update_corres) {
+    float* source_v = source_vertex_indexer.GetDataPtr<float>(x, y);
+    bool mask_v = *source_mask_indexer.GetDataPtr<bool>(x, y);
+    if (!mask_v) return false;
+
+    int64_t ui = *x_corres;
+    int64_t vi = *y_corres;
+
+    if (update_corres) {
+        float d;
+        bool mask_proj = false;
+        if (config.has_lut) {
+            mask_proj =
+                    DeviceProjectLUT(config, proj_transform, source_v[0],
+                                     source_v[1], source_v[2], &ui, &vi, &d);
+        } else {
+            mask_proj =
+                    DeviceProjectSimple(config, proj_transform, source_v[0],
+                                        source_v[1], source_v[2], &ui, &vi, &d);
+        }
+
+        if (!mask_proj || !(*target_mask_indexer.GetDataPtr<bool>(ui, vi))) {
+            return false;
+        }
+
+        // Transform source points to the target camera's coordinate space.
+        *x_corres = ui;
+        *y_corres = vi;
+    }
+
+    float T_source_to_target_v[3];
+    src2dst_transform.RigidTransform(
+            source_v[0], source_v[1], source_v[2], &T_source_to_target_v[0],
+            &T_source_to_target_v[1], &T_source_to_target_v[2]);
+
+    float* target_v = target_vertex_indexer.GetDataPtr<float>(ui, vi);
+    float* target_n = target_normal_indexer.GetDataPtr<float>(ui, vi);
+    r = (T_source_to_target_v[0] - target_v[0]) * target_n[0] +
+        (T_source_to_target_v[1] - target_v[1]) * target_n[1] +
+        (T_source_to_target_v[2] - target_v[2]) * target_n[2];
+
+    // GM-McClure loss
+    float sqrt_l = mu / (r * r + mu);
+    J_ij[0] = sqrt_l * (-T_source_to_target_v[2] * target_n[1] +
+                        T_source_to_target_v[1] * target_n[2]);
+    J_ij[1] = sqrt_l * (T_source_to_target_v[2] * target_n[0] -
+                        T_source_to_target_v[0] * target_n[2]);
+    J_ij[2] = sqrt_l * (-T_source_to_target_v[1] * target_n[0] +
+                        T_source_to_target_v[0] * target_n[1]);
+    J_ij[3] = sqrt_l * target_n[0];
+    J_ij[4] = sqrt_l * target_n[1];
+    J_ij[5] = sqrt_l * target_n[2];
+    r = sqrt_l * r;  // + mu * (sqrt_l - 1) * (sqrt_l - 1));
+
+    return true;
+}
 
 #ifdef __CUDACC__
 void LiDARUnprojectCUDA

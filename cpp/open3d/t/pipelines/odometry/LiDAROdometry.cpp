@@ -160,11 +160,13 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
         const float mu,
         const float dist_diff,
         const float division_factor,
+        const int gnc_iterations,
         const OdometryConvergenceCriteria& criteria) {
     core::Tensor target_normal_map = target.GetNormalMap(calib);
     return LiDAROdometryGNC(source, target, target_normal_map, calib,
                             init_source_to_target, depth_min, depth_max, mu,
-                            dist_diff, division_factor, criteria);
+                            dist_diff, division_factor, gnc_iterations,
+                            criteria);
 }
 
 std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
@@ -178,6 +180,7 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
         const float mu,
         const float dist_diff,
         const float division_factor,
+        const int gnc_iterations,
         const OdometryConvergenceCriteria& criteria) {
     core::Tensor source_vertex_map, source_mask_map;
     core::Tensor target_vertex_map, target_mask_map;
@@ -205,28 +208,37 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
 
     OdometryResult result(init_trans);
     core::Tensor correspondences;
-    auto delta_result = ComputeLiDAROdometryPointToPlaneGNC(
-            source_vertex_map, source_mask_map, target_vertex_map,
-            target_mask_map, target_normal_map, correspondences, calib,
-            result.transformation_, mu, /*is_init=*/true);
-    result.transformation_ =
-            (delta_result.transformation_.Matmul(result.transformation_))
-                    .Contiguous();
 
     float mu_curr = mu;
     for (int i = 0; i < criteria.max_iteration_; ++i) {
-        delta_result = ComputeLiDAROdometryPointToPlaneGNC(
+        // Internal GNC iterations
+        auto delta_result = ComputeLiDAROdometryPointToPlaneGNC(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, correspondences, calib,
-                result.transformation_, mu, /*is_init=*/false);
+                result.transformation_, mu, /*is_init=*/true);
         result.transformation_ =
                 (delta_result.transformation_.Matmul(result.transformation_))
                         .Contiguous();
-        if (i % 4 == 0 && mu_curr > dist_diff) {
-            mu_curr /= division_factor;
-        }
-        utility::LogDebug("iter {}: rmse = {}, fitness = {}", i,
+
+        utility::LogDebug("init {}: rmse = {}, fitness = {}", i,
                           delta_result.inlier_rmse_, delta_result.fitness_);
+
+        for (int j = 0; j < gnc_iterations; ++j) {
+            delta_result = ComputeLiDAROdometryPointToPlaneGNC(
+                    source_vertex_map, source_mask_map, target_vertex_map,
+                    target_mask_map, target_normal_map, correspondences, calib,
+                    result.transformation_, mu, /*is_init=*/false);
+            result.transformation_ = (delta_result.transformation_.Matmul(
+                                              result.transformation_))
+                                             .Contiguous();
+            if (j % 4 == 0 && mu_curr > dist_diff) {
+                mu_curr /= division_factor;
+                utility::LogDebug("mu: {} -> {}", mu_curr * division_factor,
+                                  mu_curr);
+            }
+            utility::LogDebug("iter {}/{}: rmse = {}, fitness = {}", i, j,
+                              delta_result.inlier_rmse_, delta_result.fitness_);
+        }
     }
 
     return std::make_pair(result, correspondences);

@@ -85,6 +85,7 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
         const float mu,
         const float depth_diff,
         const float division_factor,
+        const int gnc_iterations,
         const OdometryConvergenceCriteria& criteria);
 
 std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
@@ -98,6 +99,7 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
         const float mu,
         const float depth_diff,
         const float division_factor,
+        const int gnc_iterations,
         const OdometryConvergenceCriteria& criteria);
 
 // In is_init=true, compute correspondences as initialization.

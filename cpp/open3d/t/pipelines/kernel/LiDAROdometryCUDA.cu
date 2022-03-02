@@ -230,7 +230,88 @@ __global__ void ComputeLiDAROdometryPointToPlaneGNCInitCUDAKernel(
         LiDARIntrinsicPtrs config,
         float* global_sum,
         int* corres_cnt,
-        float mu) {}
+        float mu) {
+    // Find correspondence and obtain Jacobian at (x, y)
+    // Note the built-in indexer uses (x, y) and (u, v) convention.
+
+    const int kBlockSize = 256;
+    __shared__ float local_sum0[kBlockSize];
+    __shared__ float local_sum1[kBlockSize];
+    __shared__ float local_sum2[kBlockSize];
+
+    const int x = threadIdx.x + blockIdx.x * blockDim.x;
+    const int y = threadIdx.y + blockIdx.y * blockDim.y;
+    const int tid = threadIdx.x + threadIdx.y * blockDim.x;
+
+    local_sum0[tid] = 0;
+    local_sum1[tid] = 0;
+    local_sum2[tid] = 0;
+
+    if (y >= config.height || x >= config.width) return;
+
+    float J[6] = {0}, reduction[21 + 6 + 2];
+    float r = 0;
+    int x_corres, y_corres;
+    bool valid = GetJacobianPointToPlaneGNC(
+            source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
+            target_mask_indexer, target_normal_indexer, proj_transform,
+            src2dst_transform, config, mu, x, y, &x_corres, &y_corres, J, r,
+            true);
+
+    if (valid) {
+        int corres_idx = atomicAdd(corres_cnt, 1);
+        auto corres_i = corres_indexer.GetDataPtr<int>(corres_idx);
+        corres_i[0] = x;
+        corres_i[1] = y;
+        corres_i[2] = x_corres;
+        corres_i[3] = y_corres;
+    }
+
+    // Dump J, r into JtJ and Jtr
+    int offset = 0;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j <= i; ++j) {
+            reduction[offset++] = J[i] * J[j];
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        reduction[offset++] = J[i] * r;
+    }
+    reduction[offset++] = r * r;
+    reduction[offset++] = valid;
+
+    // Sum reduction: JtJ(21) and Jtr(6)
+    for (size_t i = 0; i < 27; i += 3) {
+        local_sum0[tid] = valid ? reduction[i + 0] : 0;
+        local_sum1[tid] = valid ? reduction[i + 1] : 0;
+        local_sum2[tid] = valid ? reduction[i + 2] : 0;
+        __syncthreads();
+
+        BlockReduceSum<float, kBlockSize>(tid, local_sum0, local_sum1,
+                                          local_sum2);
+
+        if (tid == 0) {
+            atomicAdd(&global_sum[i + 0], local_sum0[0]);
+            atomicAdd(&global_sum[i + 1], local_sum1[0]);
+            atomicAdd(&global_sum[i + 2], local_sum2[0]);
+        }
+        __syncthreads();
+    }
+
+    // Sum reduction: residual(1) and inlier(1)
+    {
+        local_sum0[tid] = valid ? reduction[27] : 0;
+        local_sum1[tid] = valid ? reduction[28] : 0;
+        __syncthreads();
+
+        BlockReduceSum<float, kBlockSize>(tid, local_sum0, local_sum1);
+        if (tid == 0) {
+            atomicAdd(&global_sum[27], local_sum0[0]);
+            atomicAdd(&global_sum[28], local_sum1[0]);
+        }
+        __syncthreads();
+    }
+}
 
 __global__ void ComputeLiDAROdometryPointToPlaneGNCUpdateCUDAKernel(
         NDArrayIndexer source_vertex_indexer,
@@ -244,7 +325,84 @@ __global__ void ComputeLiDAROdometryPointToPlaneGNCUpdateCUDAKernel(
         LiDARIntrinsicPtrs config,
         float* global_sum,
         int corres_cnt,
-        float mu) {}
+        float mu) {
+    // Find correspondence and obtain Jacobian at (x, y)
+    // Note the built-in indexer uses (x, y) and (u, v) convention.
+
+    const int kBlockSize = 256;
+    __shared__ float local_sum0[kBlockSize];
+    __shared__ float local_sum1[kBlockSize];
+    __shared__ float local_sum2[kBlockSize];
+
+    const int i = threadIdx.x + blockIdx.x * blockDim.x;
+    const int tid = threadIdx.x;
+
+    local_sum0[tid] = 0;
+    local_sum1[tid] = 0;
+    local_sum2[tid] = 0;
+
+    if (i >= corres_cnt) return;
+
+    float J[6] = {0}, reduction[21 + 6 + 2];
+    float r = 0;
+
+    auto corres_i = corres_indexer.GetDataPtr<int>(i);
+    int x = corres_i[0];
+    int y = corres_i[1];
+    int x_corres = corres_i[2];
+    int y_corres = corres_i[3];
+
+    bool valid = GetJacobianPointToPlaneGNC(
+            source_vertex_indexer, source_mask_indexer, target_vertex_indexer,
+            target_mask_indexer, target_normal_indexer, proj_transform,
+            src2dst_transform, config, mu, x, y, &x_corres, &y_corres, J, r,
+            false);
+
+    // Dump J, r into JtJ and Jtr
+    int offset = 0;
+    for (int i = 0; i < 6; ++i) {
+        for (int j = 0; j <= i; ++j) {
+            reduction[offset++] = J[i] * J[j];
+        }
+    }
+    for (int i = 0; i < 6; ++i) {
+        reduction[offset++] = J[i] * r;
+    }
+    reduction[offset++] = r * r;
+    reduction[offset++] = valid;
+
+    // Sum reduction: JtJ(21) and Jtr(6)
+    for (size_t i = 0; i < 27; i += 3) {
+        local_sum0[tid] = valid ? reduction[i + 0] : 0;
+        local_sum1[tid] = valid ? reduction[i + 1] : 0;
+        local_sum2[tid] = valid ? reduction[i + 2] : 0;
+        __syncthreads();
+
+        BlockReduceSum<float, kBlockSize>(tid, local_sum0, local_sum1,
+                                          local_sum2);
+
+        if (tid == 0) {
+            atomicAdd(&global_sum[i + 0], local_sum0[0]);
+            atomicAdd(&global_sum[i + 1], local_sum1[0]);
+            atomicAdd(&global_sum[i + 2], local_sum2[0]);
+        }
+        __syncthreads();
+    }
+
+    // Sum reduction: residual(1) and inlier(1)
+    {
+        local_sum0[tid] = valid ? reduction[27] : 0;
+        local_sum1[tid] = valid ? reduction[28] : 0;
+        __syncthreads();
+
+        BlockReduceSum<float, kBlockSize>(tid, local_sum0, local_sum1);
+        if (tid == 0) {
+            atomicAdd(&global_sum[27], local_sum0[0]);
+            atomicAdd(&global_sum[28], local_sum1[0]);
+        }
+        __syncthreads();
+    }
+}
 
 void ComputeLiDAROdometryPointToPlaneGNCCUDA(
         // source input
@@ -305,7 +463,9 @@ void ComputeLiDAROdometryPointToPlaneGNCCUDA(
                 core::Tensor({(config.width / config.down_factor) *
                                       (config.height / config.down_factor),
                               4},
-                             core::Dtype::Int64, device);
+                             core::Dtype::Int32, device);
+        correspondence_indexer = NDArrayIndexer(correspondences, 1);
+
         core::Tensor corres_cnt({}, core::Dtype::Int32, device);
         int* corres_cnt_ptr = corres_cnt.GetDataPtr<int>();
 
@@ -332,7 +492,9 @@ void ComputeLiDAROdometryPointToPlaneGNCCUDA(
                 mu);
         core::cuda::Synchronize();
 
-        correspondences = correspondences.Slice(0, 0, corres_cnt.Item<int>());
+        utility::LogInfo("corre_cnt = {}", corres_cnt.Item<int>());
+        correspondences =
+                correspondences.Slice(0, 0, corres_cnt.Item<int>()).Clone();
     } else {
         // Launcher config
         int n_corres = correspondences.GetLength();
