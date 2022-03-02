@@ -209,9 +209,9 @@ std::pair<OdometryResult, core::Tensor> LiDAROdometryGNC(
     OdometryResult result(init_trans);
     core::Tensor correspondences;
 
-    float mu_curr = mu;
     for (int i = 0; i < criteria.max_iteration_; ++i) {
         // Internal GNC iterations
+        float mu_curr = mu;
         auto delta_result = ComputeLiDAROdometryPointToPlaneGNC(
                 source_vertex_map, source_mask_map, target_vertex_map,
                 target_mask_map, target_normal_map, correspondences, calib,
