@@ -218,6 +218,146 @@ void ComputeLiDAROdometryPointToPlaneCUDA(
     DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
 }
 
+__global__ void ComputeLiDAROdometryPointToPlaneGNCInitCUDAKernel(
+        NDArrayIndexer source_vertex_indexer,
+        NDArrayIndexer source_mask_indexer,
+        NDArrayIndexer target_vertex_indexer,
+        NDArrayIndexer target_mask_indexer,
+        NDArrayIndexer target_normal_indexer,
+        NDArrayIndexer corres_indexer,
+        TransformIndexer proj_transform,
+        TransformIndexer src2dst_transform,
+        LiDARIntrinsicPtrs config,
+        float* global_sum,
+        int* corres_cnt,
+        float mu) {}
+
+__global__ void ComputeLiDAROdometryPointToPlaneGNCUpdateCUDAKernel(
+        NDArrayIndexer source_vertex_indexer,
+        NDArrayIndexer source_mask_indexer,
+        NDArrayIndexer target_vertex_indexer,
+        NDArrayIndexer target_mask_indexer,
+        NDArrayIndexer target_normal_indexer,
+        NDArrayIndexer corres_indexer,
+        TransformIndexer proj_transform,
+        TransformIndexer src2dst_transform,
+        LiDARIntrinsicPtrs config,
+        float* global_sum,
+        int corres_cnt,
+        float mu) {}
+
+void ComputeLiDAROdometryPointToPlaneGNCCUDA(
+        // source input
+        const core::Tensor& source_vertex_map,
+        const core::Tensor& source_mask_map,
+        // target input
+        const core::Tensor& target_vertex_map,
+        const core::Tensor& target_mask_map,
+        const core::Tensor& target_normal_map,
+        core::Tensor& correspondences,
+        // init transformation
+        const core::Tensor& init_source_to_target,
+        const core::Tensor& sensor_to_lidar,
+        // LiDAR calibration
+        const LiDARIntrinsicPtrs& config,
+        // Output linear system result
+        core::Tensor& delta,
+        float& inlier_residual,
+        int& inlier_count,
+        // Other params
+        float mu,
+        bool is_init) {
+    core::Device device = source_vertex_map.GetDevice();
+    if (is_init) {
+        correspondences =
+                core::Tensor({(config.width / config.down_factor) *
+                                      (config.height / config.down_factor),
+                              4},
+                             core::Dtype::Int64, device);
+    }
+
+    // Index source data
+    NDArrayIndexer source_vertex_indexer(source_vertex_map, 2);
+    NDArrayIndexer source_mask_indexer(source_mask_map, 2);
+
+    // Index target data
+    NDArrayIndexer target_vertex_indexer(target_vertex_map, 2);
+    NDArrayIndexer target_mask_indexer(target_mask_map, 2);
+    NDArrayIndexer target_normal_indexer(target_normal_map, 2);
+
+    NDArrayIndexer correspondence_indexer(correspondences, 1);
+
+    // Wrap transformation
+    t::geometry::kernel::TransformIndexer proj_transform(
+            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
+            (sensor_to_lidar.Matmul(init_source_to_target)).Contiguous());
+
+    t::geometry::kernel::TransformIndexer src2dst_transform(
+            core::Tensor::Eye(3, core::Dtype::Float64, core::Device()),
+            init_source_to_target.Contiguous());
+
+    // Result
+    core::Tensor global_sum = core::Tensor::Zeros({29}, core::Float32, device);
+    float* global_sum_ptr = global_sum.GetDataPtr<float>();
+
+    if (is_init) {
+        correspondences =
+                core::Tensor({(config.width / config.down_factor) *
+                                      (config.height / config.down_factor),
+                              4},
+                             core::Dtype::Int64, device);
+        core::Tensor corres_cnt({}, core::Dtype::Int32, device);
+        int* corres_cnt_ptr = corres_cnt.GetDataPtr<int>();
+
+        // Launcher config
+        const int kThreadSize = 16;
+        const dim3 blocks((config.width / config.down_factor + kThreadSize -
+                           1) / kThreadSize,
+                          (config.height / config.down_factor + kThreadSize -
+                           1) / kThreadSize);
+        const dim3 threads(kThreadSize, kThreadSize);
+        ComputeLiDAROdometryPointToPlaneGNCInitCUDAKernel<<<
+                blocks, threads, 0, core::cuda::GetStream()>>>(
+                // Input
+                source_vertex_indexer, source_mask_indexer,
+                target_vertex_indexer, target_mask_indexer,
+                target_normal_indexer, correspondence_indexer,
+                // Transform
+                proj_transform, src2dst_transform,
+                // LiDAR calib LUTs
+                config,
+                // Output
+                global_sum_ptr, corres_cnt_ptr,
+                // Params
+                mu);
+        core::cuda::Synchronize();
+
+        correspondences = correspondences.Slice(0, 0, corres_cnt.Item<int>());
+    } else {
+        // Launcher config
+        int n_corres = correspondences.GetLength();
+        const int kThreadSize = 256;
+        const dim3 blocks((n_corres + kThreadSize - 1) / kThreadSize);
+        const dim3 threads(kThreadSize);
+        ComputeLiDAROdometryPointToPlaneGNCUpdateCUDAKernel<<<
+                blocks, threads, 0, core::cuda::GetStream()>>>(
+                // Input
+                source_vertex_indexer, source_mask_indexer,
+                target_vertex_indexer, target_mask_indexer,
+                target_normal_indexer, correspondence_indexer,
+                // Transform
+                proj_transform, src2dst_transform,
+                // LiDAR calib LUTs
+                config,
+                // Output
+                global_sum_ptr, n_corres,
+                // Params
+                mu);
+        core::cuda::Synchronize();
+    }
+    DecodeAndSolve6x6(global_sum, delta, inlier_residual, inlier_count);
+}
+
 }  // namespace odometry
 }  // namespace kernel
 }  // namespace pipelines

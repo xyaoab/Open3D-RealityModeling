@@ -133,7 +133,18 @@ void ComputeLiDAROdometryPointToPlaneGNC(
         // Other params
         float mu,
         bool is_init) {
-    utility::LogError("Unimplemented!");
+    core::Device device = source_vertex_map.GetDevice();
+
+    // TODO: CPU but later
+    if (device.GetType() == core::Device::DeviceType::CUDA) {
+        ComputeLiDAROdometryPointToPlaneGNCCUDA(
+                source_vertex_map, source_mask_map, target_vertex_map,
+                target_mask_map, target_normal_map, correspondences,
+                init_source_to_target, sensor_to_lidar, config, delta,
+                inlier_residual, inlier_count, mu, is_init);
+    } else {
+        utility::LogError("Unimplemented device {}", device.ToString());
+    }
 }
 
 }  // namespace odometry
