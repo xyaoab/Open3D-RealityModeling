@@ -249,7 +249,18 @@ template void IntegrateCPU<float, float, float, float, float>(FN_ARGUMENTS);
 
 template void RayCastCPU<float, uint16_t, uint16_t>(FN_ARGUMENTS);
 template void RayCastCPU<float, float, float>(FN_ARGUMENTS);
+#undef FN_ARGUMENTS
 
+#define FN_ARGUMENTS                                                           \
+    std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \
+            TensorMap &renderings_map, const core::Tensor &intrinsic,          \
+            const core::Tensor &extrinsic, index_t h, index_t w,               \
+            index_t samples, index_t block_resolution, float voxel_size,       \
+            float depth_scale, float depth_min, float depth_max,               \
+            float weight_threshold, float trunc_voxel_multiplier
+
+template void RayMarchCPU<float, uint16_t, uint16_t>(FN_ARGUMENTS);
+template void RayMarchCPU<float, float, float>(FN_ARGUMENTS);
 #undef FN_ARGUMENTS
 
 #define FN_ARGUMENTS                                                           \

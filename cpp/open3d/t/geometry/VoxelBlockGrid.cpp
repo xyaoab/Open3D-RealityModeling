@@ -440,14 +440,10 @@ TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
 
     static const std::unordered_map<std::string, int> kAttrChannelMap = {
             // Conventional rendering
-            {"vertex", 3},
-            {"normal", 3},
             {"depth", 1},
-            {"color", 3},
             // Diff rendering
             // Each pixel corresponds to info at 8 neighbor grid points
             {"index", 8},
-            {"mask", 8},
             {"interp_ratio", 8},
             {"interp_ratio_dx", 8},
             {"interp_ratio_dy", 8},
@@ -463,17 +459,17 @@ TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
         }
     };
 
-    TensorMap renderings_map;
+    TensorMap renderings_map("depth");
     for (const auto &attr : attrs) {
         if (kAttrChannelMap.count(attr) == 0) {
             utility::LogError(
-                    "Unsupported attribute {}, please implement customized ray "
+                    "Unsupported attribute {}, please implement customized "
                     "casting.");
         }
         int channel = kAttrChannelMap.at(attr);
         core::Dtype dtype = get_dtype(attr);
-        renderings_map[attr] =
-                core::Tensor({samples, height, width, channel}, dtype, device);
+        renderings_map[attr] = core::Tensor::Zeros(
+                {samples, height, width, channel}, dtype, device);
     }
 
     TensorMap block_value_map =

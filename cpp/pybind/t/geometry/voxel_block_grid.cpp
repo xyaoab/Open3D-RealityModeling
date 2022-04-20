@@ -193,6 +193,15 @@ void pybind_voxel_block_grid(py::module& m) {
             "depth_max"_a = 3.0f, "weight_threshold"_a = 3.0f,
             "trunc_voxel_multiplier"_a = 8.0f, "range_map_down_factor"_a = 8);
 
+    vbg.def("ray_march", &VoxelBlockGrid::RayMarch,
+            "Specific operation for TSDF volumes."
+            "Perform volumetric ray marching in the selected block "
+            "coordinates.",
+            "intrinsic"_a, "extrinsic"_a, "width"_a, "height"_a,
+            "render_attributes"_a, "samples"_a = 10, "depth_scale"_a = 1000.0f,
+            "depth_min"_a = 0.1f, "depth_max"_a = 3.0f,
+            "weight_threshold"_a = 3.0f, "trunc_voxel_multiplier"_a = 8.0f);
+
     vbg.def("extract_point_cloud", &VoxelBlockGrid::ExtractPointCloud,
             "Specific operation for TSDF volumes."
             "Extract point cloud at isosurface points.",

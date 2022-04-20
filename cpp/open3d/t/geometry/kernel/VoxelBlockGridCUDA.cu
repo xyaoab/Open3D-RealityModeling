@@ -279,6 +279,18 @@ template void RayCastCUDA<float, float, float>(FN_ARGUMENTS);
 #undef FN_ARGUMENTS
 
 #define FN_ARGUMENTS                                                           \
+    std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \
+            TensorMap &renderings_map, const core::Tensor &intrinsic,          \
+            const core::Tensor &extrinsic, index_t h, index_t w,               \
+            index_t samples, index_t block_resolution, float voxel_size,       \
+            float depth_scale, float depth_min, float depth_max,               \
+            float weight_threshold, float trunc_voxel_multiplier
+
+template void RayMarchCUDA<float, uint16_t, uint16_t>(FN_ARGUMENTS);
+template void RayMarchCUDA<float, float, float>(FN_ARGUMENTS);
+#undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                           \
     const core::Tensor &block_indices, const core::Tensor &nb_block_indices,   \
             const core::Tensor &nb_block_masks,                                \
             const core::Tensor &block_keys, const TensorMap &block_value_map,  \
