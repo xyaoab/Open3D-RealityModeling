@@ -75,7 +75,7 @@ core::HashMap ReadHashMap(const std::string& file_name) {
     core::SizeVector shape_key = keys.GetShape();
     core::SizeVector key_element_shape(shape_key.begin() + 1, shape_key.end());
 
-    int64_t init_capacity = keys.GetLength();
+    int64_t init_capacity = keys.GetLength() * 2;
 
     // Value(s)
     int64_t n_values = tensor_map.at("n_values")[0].Item<int64_t>();

@@ -570,6 +570,11 @@ void RayCastCPU
     auto hashmap_impl = *cpu_hashmap->GetImpl();
 #endif
 
+#ifndef __CUDACC__
+    using std::max;
+    using std::min;
+#endif
+
     core::Device device = hashmap->GetDevice();
 
     ArrayIndexer range_indexer(range, 2);
@@ -835,8 +840,8 @@ void RayCastCPU
             color_ptr[2] = 0;
         }
 
-        float t = range[0];
-        const float t_max = range[1];
+        float t = min(0.1f, range[0]);
+        const float t_max = max(range[1], 80.0f);
         if (t >= t_max) return;
 
         // Coordinates in camera and global
@@ -1020,6 +1025,29 @@ void RayCastCPU
 #if defined(__CUDACC__)
     core::cuda::Synchronize();
 #endif
+}
+
+template <typename tsdf_t, typename weight_t, typename color_t>
+#if defined(__CUDACC__)
+void RayMarchCUDA
+#else
+void RayMarchCPU
+#endif
+        (std::shared_ptr<core::HashMap>& hashmap,
+         const TensorMap& block_value_map,
+         TensorMap& renderings_map,
+         const core::Tensor& intrinsic,
+         const core::Tensor& extrinsics,
+         index_t h,
+         index_t w,
+         index_t samples,
+         index_t block_resolution,
+         float voxel_size,
+         float depth_scale,
+         float depth_min,
+         float depth_max,
+         float weight_threshold,
+         float trunc_voxel_multiplier) {
 }
 
 template <typename tsdf_t, typename weight_t, typename color_t>

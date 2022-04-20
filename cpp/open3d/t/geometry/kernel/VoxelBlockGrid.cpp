@@ -307,6 +307,60 @@ void RayCast(std::shared_ptr<core::HashMap>& hashmap,
     }
 }
 
+void RayMarch(std::shared_ptr<core::HashMap>& hashmap,
+              const TensorMap& block_value_map,
+              TensorMap& renderings_map,
+              const core::Tensor& intrinsic,
+              const core::Tensor& extrinsic,
+              index_t h,
+              index_t w,
+              index_t samples,
+              index_t block_resolution,
+              float voxel_size,
+              float depth_scale,
+              float depth_min,
+              float depth_max,
+              float weight_threshold,
+              float trunc_voxel_multiplier) {
+    using tsdf_t = float;
+    core::Dtype block_weight_dtype = core::Dtype::Float32;
+    core::Dtype block_color_dtype = core::Dtype::Float32;
+    if (block_value_map.Contains("weight")) {
+        block_weight_dtype = block_value_map.at("weight").GetDtype();
+    }
+    if (block_value_map.Contains("color")) {
+        block_color_dtype = block_value_map.at("color").GetDtype();
+    }
+
+    core::Device::DeviceType device_type = hashmap->GetDevice().GetType();
+    if (device_type == core::Device::DeviceType::CPU) {
+        DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                block_weight_dtype, block_color_dtype, [&] {
+                    RayMarchCPU<tsdf_t, weight_t, color_t>(
+                            hashmap, block_value_map, renderings_map, intrinsic,
+                            extrinsic, h, w, samples, block_resolution,
+                            voxel_size, depth_scale, depth_min, depth_max,
+                            weight_threshold, trunc_voxel_multiplier);
+                });
+
+    } else if (device_type == core::Device::DeviceType::CUDA) {
+#ifdef BUILD_CUDA_MODULE
+        DISPATCH_VALUE_DTYPE_TO_TEMPLATE(
+                block_weight_dtype, block_color_dtype, [&] {
+                    RayMarchCUDA<tsdf_t, weight_t, color_t>(
+                            hashmap, block_value_map, renderings_map, intrinsic,
+                            extrinsic, h, w, samples, block_resolution,
+                            voxel_size, depth_scale, depth_min, depth_max,
+                            weight_threshold, trunc_voxel_multiplier);
+                });
+#else
+        utility::LogError("Not compiled with CUDA, but CUDA device is used.");
+#endif
+    } else {
+        utility::LogError("Unimplemented device");
+    }
+}
+
 void ExtractPointCloud(const core::Tensor& block_indices,
                        const core::Tensor& nb_block_indices,
                        const core::Tensor& nb_block_masks,

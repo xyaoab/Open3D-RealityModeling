@@ -207,6 +207,22 @@ public:
                       float trunc_voxel_multiplier = 8.0f,
                       int range_map_down_factor = 8);
 
+    /// Multiple-samples (zero-crossing + uniform)
+    TensorMap RayMarch(const core::Tensor &intrinsic,
+                       const core::Tensor &extrinsic,
+                       int width,
+                       int height,
+                       const std::vector<std::string> attrs =
+                               {"index", "mask", "interp_ratio",
+                                "interp_ratio_dx", "interp_ratio_dy",
+                                "interp_ratio_dz"},
+                       int samples = 10,
+                       float depth_scale = 1000.0f,
+                       float depth_min = 0.1f,
+                       float depth_max = 3.0f,
+                       float weight_threshold = 3.0f,
+                       float trunc_voxel_multiplier = 8.0f);
+
     /// Specific operation for TSDF volumes.
     /// Extract point cloud at isosurface points.
     /// Weight threshold is used to filter outliers. By default we use 3.0,

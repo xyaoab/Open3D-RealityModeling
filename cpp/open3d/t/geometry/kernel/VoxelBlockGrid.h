@@ -109,6 +109,22 @@ void RayCast(std::shared_ptr<core::HashMap>& hashmap,
              float trunc_voxel_multiplier,
              int range_map_down_factor);
 
+void RayMarch(std::shared_ptr<core::HashMap>& hashmap,
+              const TensorMap& block_value_map,
+              TensorMap& renderings_map,
+              const core::Tensor& intrinsic,
+              const core::Tensor& extrinsic,
+              index_t h,
+              index_t w,
+              index_t samples,
+              index_t block_resolution,
+              float voxel_size,
+              float depth_scale,
+              float depth_min,
+              float depth_max,
+              float weight_threshold,
+              float trunc_voxel_multiplier);
+
 void ExtractPointCloud(const core::Tensor& block_indices,
                        const core::Tensor& nb_block_indices,
                        const core::Tensor& nb_block_masks,
@@ -212,6 +228,23 @@ void RayCastCPU(std::shared_ptr<core::HashMap>& hashmap,
                 float weight_threshold,
                 float trunc_voxel_multiplier,
                 int range_map_down_factor);
+
+template <typename tsdf_t, typename weight_t, typename color_t>
+void RayMarchCPU(std::shared_ptr<core::HashMap>& hashmap,
+                 const TensorMap& block_value_map,
+                 TensorMap& renderings_map,
+                 const core::Tensor& intrinsic,
+                 const core::Tensor& extrinsic,
+                 index_t h,
+                 index_t w,
+                 index_t samples,
+                 index_t block_resolution,
+                 float voxel_size,
+                 float depth_scale,
+                 float depth_min,
+                 float depth_max,
+                 float weight_threshold,
+                 float trunc_voxel_multiplier);
 
 template <typename tsdf_t, typename weight_t, typename color_t>
 void ExtractPointCloudCPU(const core::Tensor& block_indices,
@@ -318,6 +351,23 @@ void RayCastCUDA(std::shared_ptr<core::HashMap>& hashmap,
                  float weight_threshold,
                  float trunc_voxel_multiplier,
                  int range_map_down_factor);
+
+template <typename tsdf_t, typename weight_t, typename color_t>
+void RayMarchCUDA(std::shared_ptr<core::HashMap>& hashmap,
+                  const TensorMap& block_value_map,
+                  TensorMap& renderings_map,
+                  const core::Tensor& intrinsic,
+                  const core::Tensor& extrinsic,
+                  index_t h,
+                  index_t w,
+                  index_t samples,
+                  index_t block_resolution,
+                  float voxel_size,
+                  float depth_scale,
+                  float depth_min,
+                  float depth_max,
+                  float weight_threshold,
+                  float trunc_voxel_multiplier);
 
 template <typename tsdf_t, typename weight_t, typename color_t>
 void ExtractPointCloudCUDA(const core::Tensor& block_indices,
