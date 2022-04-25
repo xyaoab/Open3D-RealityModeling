@@ -424,7 +424,6 @@ TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
                                    const core::Tensor &extrinsic,
                                    int width,
                                    int height,
-                                   const std::vector<std::string> attrs,
                                    int samples,
                                    float depth_scale,
                                    float depth_min,
@@ -438,8 +437,8 @@ TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
     // Extrinsic: world to camera -> pose: camera to world
     core::Device device = block_hashmap_->GetDevice();
 
-    static const std::unordered_map<std::string, int> kAttrChannelMap = {
-            // Conventional rendering
+    const std::unordered_map<std::string, int> attrs_map = {
+            // Conventional rendering, locate position
             {"depth", 1},
             // Diff rendering
             // Each pixel corresponds to info at 8 neighbor grid points
@@ -460,15 +459,10 @@ TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
     };
 
     TensorMap renderings_map("depth");
-    for (const auto &attr : attrs) {
-        if (kAttrChannelMap.count(attr) == 0) {
-            utility::LogError(
-                    "Unsupported attribute {}, please implement customized "
-                    "casting.");
-        }
-        int channel = kAttrChannelMap.at(attr);
-        core::Dtype dtype = get_dtype(attr);
-        renderings_map[attr] = core::Tensor::Zeros(
+    for (const auto &attr : attrs_map) {
+        int channel = attr.second;
+        core::Dtype dtype = get_dtype(attr.first);
+        renderings_map[attr.first] = core::Tensor::Zeros(
                 {samples, height, width, channel}, dtype, device);
     }
 
