@@ -38,6 +38,7 @@
 #include "open3d/t/geometry/kernel/GeometryMacros.h"
 #include "open3d/t/geometry/kernel/VoxelBlockGrid.h"
 #include "open3d/t/geometry/kernel/VoxelBlockGridImpl.h"
+#include "open3d/t/geometry/kernel/VoxelBlockGridRayMarchImpl.h"
 #include "open3d/utility/Logging.h"
 
 namespace open3d {
@@ -288,6 +289,18 @@ template void RayCastCUDA<float, float, float>(FN_ARGUMENTS);
 
 template void RayMarchCUDA<float, uint16_t, uint16_t>(FN_ARGUMENTS);
 template void RayMarchCUDA<float, float, float>(FN_ARGUMENTS);
+#undef FN_ARGUMENTS
+
+#define FN_ARGUMENTS                                                           \
+    std::shared_ptr<core::HashMap> &hashmap, const TensorMap &block_value_map, \
+            TensorMap &renderings_map, const core::Tensor &rays_o,             \
+            const core::Tensor &rays_d, index_t samples,                       \
+            index_t block_resolution, float voxel_size, float depth_scale,     \
+            float depth_min, float depth_max, float weight_threshold,          \
+            float trunc_voxel_multiplier
+
+template void RaySampleCUDA<float, uint16_t, uint16_t>(FN_ARGUMENTS);
+template void RaySampleCUDA<float, float, float>(FN_ARGUMENTS);
 #undef FN_ARGUMENTS
 
 #define FN_ARGUMENTS                                                           \

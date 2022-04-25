@@ -420,63 +420,6 @@ TensorMap VoxelBlockGrid::RayCast(const core::Tensor &block_coords,
     return renderings_map;
 }
 
-TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
-                                   const core::Tensor &extrinsic,
-                                   int width,
-                                   int height,
-                                   int samples,
-                                   float depth_scale,
-                                   float depth_min,
-                                   float depth_max,
-                                   float weight_threshold,
-                                   float trunc_voxel_multiplier) {
-    AssertInitialized();
-    CheckIntrinsicTensor(intrinsic);
-    CheckExtrinsicTensor(extrinsic);
-
-    // Extrinsic: world to camera -> pose: camera to world
-    core::Device device = block_hashmap_->GetDevice();
-
-    const std::unordered_map<std::string, int> attrs_map = {
-            // Conventional rendering, locate position
-            {"depth", 1},
-            // Diff rendering
-            // Each pixel corresponds to info at 8 neighbor grid points
-            {"index", 8},
-            {"interp_ratio", 8},
-            {"interp_ratio_dx", 8},
-            {"interp_ratio_dy", 8},
-            {"interp_ratio_dz", 8}};
-
-    auto get_dtype = [&](const std::string &attr_name) -> core::Dtype {
-        if (attr_name == "mask") {
-            return core::Dtype::Bool;
-        } else if (attr_name == "index") {
-            return core::Dtype::Int64;
-        } else {
-            return core::Dtype::Float32;
-        }
-    };
-
-    TensorMap renderings_map("depth");
-    for (const auto &attr : attrs_map) {
-        int channel = attr.second;
-        core::Dtype dtype = get_dtype(attr.first);
-        renderings_map[attr.first] = core::Tensor::Zeros(
-                {samples, height, width, channel}, dtype, device);
-    }
-
-    TensorMap block_value_map =
-            ConstructTensorMap(*block_hashmap_, name_attr_map_);
-    kernel::voxel_grid::RayMarch(block_hashmap_, block_value_map,
-                                 renderings_map, intrinsic, extrinsic, height,
-                                 width, samples, block_resolution_, voxel_size_,
-                                 depth_scale, depth_min, depth_max,
-                                 weight_threshold, trunc_voxel_multiplier);
-
-    return renderings_map;
-}
-
 PointCloud VoxelBlockGrid::ExtractPointCloud(float weight_threshold,
                                              int estimated_point_number) {
     AssertInitialized();
@@ -670,6 +613,119 @@ void VoxelBlockGrid::AssertInitialized() const {
     if (block_hashmap_ == nullptr) {
         utility::LogError("VoxelBlockGrid not initialized.");
     }
+}
+
+TensorMap VoxelBlockGrid::RayMarch(const core::Tensor &intrinsic,
+                                   const core::Tensor &extrinsic,
+                                   int width,
+                                   int height,
+                                   int samples,
+                                   float depth_scale,
+                                   float depth_min,
+                                   float depth_max,
+                                   float weight_threshold,
+                                   float trunc_voxel_multiplier) {
+    AssertInitialized();
+    CheckIntrinsicTensor(intrinsic);
+    CheckExtrinsicTensor(extrinsic);
+
+    // Extrinsic: world to camera -> pose: camera to world
+    core::Device device = block_hashmap_->GetDevice();
+
+    const std::unordered_map<std::string, int> attrs_map = {
+            // Conventional rendering, locate position
+            {"depth", 1},
+            // Diff rendering
+            // Each pixel corresponds to info at 8 neighbor grid points
+            {"index", 8},
+            {"interp_ratio", 8},
+            {"interp_ratio_dx", 8},
+            {"interp_ratio_dy", 8},
+            {"interp_ratio_dz", 8}};
+
+    auto get_dtype = [&](const std::string &attr_name) -> core::Dtype {
+        if (attr_name == "mask") {
+            return core::Dtype::Bool;
+        } else if (attr_name == "index") {
+            return core::Dtype::Int64;
+        } else {
+            return core::Dtype::Float32;
+        }
+    };
+
+    TensorMap renderings_map("depth");
+    for (const auto &attr : attrs_map) {
+        int channel = attr.second;
+        core::Dtype dtype = get_dtype(attr.first);
+        renderings_map[attr.first] = core::Tensor::Zeros(
+                {samples, height, width, channel}, dtype, device);
+    }
+
+    TensorMap block_value_map =
+            ConstructTensorMap(*block_hashmap_, name_attr_map_);
+    kernel::voxel_grid::RayMarch(block_hashmap_, block_value_map,
+                                 renderings_map, intrinsic, extrinsic, height,
+                                 width, samples, block_resolution_, voxel_size_,
+                                 depth_scale, depth_min, depth_max,
+                                 weight_threshold, trunc_voxel_multiplier);
+
+    return renderings_map;
+}
+
+TensorMap VoxelBlockGrid::RaySample(const core::Tensor &rays_o,
+                                    const core::Tensor &rays_d,
+                                    int samples,
+                                    float depth_scale,
+                                    float depth_min,
+                                    float depth_max,
+                                    float weight_threshold,
+                                    float trunc_voxel_multiplier) {
+    AssertInitialized();
+
+    // N x 3
+    // TODO: check shape
+    int length = rays_o.GetLength();
+
+    // Extrinsic: world to camera -> pose: camera to world
+    core::Device device = block_hashmap_->GetDevice();
+
+    const std::unordered_map<std::string, int> attrs_map = {
+            // Conventional rendering, locate position
+            {"depth", 1},
+            // Diff rendering
+            // Each pixel corresponds to info at 8 neighbor grid points
+            {"index", 8},
+            {"interp_ratio", 8},
+            {"interp_ratio_dx", 8},
+            {"interp_ratio_dy", 8},
+            {"interp_ratio_dz", 8}};
+
+    auto get_dtype = [&](const std::string &attr_name) -> core::Dtype {
+        if (attr_name == "mask") {
+            return core::Dtype::Bool;
+        } else if (attr_name == "index") {
+            return core::Dtype::Int64;
+        } else {
+            return core::Dtype::Float32;
+        }
+    };
+
+    TensorMap renderings_map("depth");
+    for (const auto &attr : attrs_map) {
+        int channel = attr.second;
+        core::Dtype dtype = get_dtype(attr.first);
+        renderings_map[attr.first] =
+                core::Tensor::Zeros({samples, length, channel}, dtype, device);
+    }
+
+    TensorMap block_value_map =
+            ConstructTensorMap(*block_hashmap_, name_attr_map_);
+    kernel::voxel_grid::RaySample(
+            block_hashmap_, block_value_map, renderings_map, rays_o, rays_d,
+            samples, block_resolution_, voxel_size_, depth_scale, depth_min,
+            depth_max, weight_threshold, trunc_voxel_multiplier);
+
+    return renderings_map;
 }
 
 }  // namespace geometry
