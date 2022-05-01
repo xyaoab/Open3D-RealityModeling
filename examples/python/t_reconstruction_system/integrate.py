@@ -40,12 +40,49 @@ from config import ConfigParser
 from common import load_rgbd_file_names, load_depth_file_names, save_poses, load_intrinsic, load_extrinsics, get_default_testdata
 
 
+def visualize_blocks(block_coords, block_len, color, offset_rate=0.01):
+    # buf_indices = vbg.hashmap().active_buf_indices()
+    xyz000 = (block_coords.cpu().numpy() + offset_rate)* block_len
+    # (vbg.hashmap().key_tensor()[buf_indices]).to(
+    # o3c.float32) * block_len
+    xyz001 = xyz000 + np.array([[block_len, 0, 0]])
+    xyz010 = xyz000 + np.array([[0, block_len, 0]])
+    xyz100 = xyz000 + np.array([[0, 0, block_len]])
+    xyz = np.concatenate((xyz000, xyz001, xyz010, xyz100),
+                         axis=0).astype(np.float32)
+
+    lineset = o3d.t.geometry.LineSet()
+    lineset.point['positions'] = o3c.Tensor(xyz)
+
+    n = len(xyz000)
+    lineset000 = np.arange(0, n)
+    lineset001 = np.arange(n, 2 * n)
+    lineset010 = np.arange(2 * n, 3 * n)
+    lineset100 = np.arange(3 * n, 4 * n)
+
+    indices001 = np.stack((lineset000, lineset001), axis=1)
+    indices010 = np.stack((lineset000, lineset010), axis=1)
+    indices100 = np.stack((lineset000, lineset100), axis=1)
+    indices = np.concatenate((indices001, indices010, indices100), axis=0)
+
+    lineset.line['indices'] = o3c.Tensor(indices.astype(np.int32))
+    colors = np.tile(color, (3 * n, 1))
+    lineset.line['colors'] = o3c.Tensor(colors.astype(np.float32))
+    return lineset
+
+
 def integrate(depth_file_names, color_file_names, depth_intrinsic,
               color_intrinsic, extrinsics, config):
     if os.path.exists(config.path_npz):
         print('Voxel block grid npz file {} found, trying to load...'.format(
             config.path_npz))
         vbg = o3d.t.geometry.VoxelBlockGrid.load(config.path_npz)
+        print(vbg.hashmap().size())
+        buf_indices = vbg.hashmap().active_buf_indices()
+        global_block_coords = vbg.hashmap().key_tensor()[buf_indices].to(o3c.float32)
+        for i in range(3):
+            print(global_block_coords[:, i].min().item(), global_block_coords[:, i].max().item())
+
         print('Loading finished.')
     else:
         print('Voxel block grid npz file {} not found, trying to integrate...'.
@@ -59,7 +96,7 @@ def integrate(depth_file_names, color_file_names, depth_intrinsic,
                 attr_names=('tsdf', 'weight', 'color'),
                 attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
                 attr_channels=((1), (1), (3)),
-                voxel_size=3.0 / 512,
+                voxel_size=0.1,
                 block_resolution=16,
                 block_count=50000,
                 device=device)
@@ -68,7 +105,7 @@ def integrate(depth_file_names, color_file_names, depth_intrinsic,
                                                 attr_dtypes=(o3c.float32,
                                                              o3c.float32),
                                                 attr_channels=((1), (1)),
-                                                voxel_size=3.0 / 512,
+                                                voxel_size=0.1,
                                                 block_resolution=16,
                                                 block_count=50000,
                                                 device=device)
@@ -92,6 +129,29 @@ def integrate(depth_file_names, color_file_names, depth_intrinsic,
             else:
                 vbg.integrate(frustum_block_coords, depth, depth_intrinsic,
                               extrinsic, config.depth_scale, config.depth_max)
+
+            if i % 5000 == 0:
+                lineset = o3d.geometry.LineSet.create_camera_visualization(
+                    640,
+                    480,
+                    depth_intrinsic.cpu().numpy(),
+                    extrinsic.cpu().numpy(),
+                    scale=0.5)
+
+                block_len = 16 * 3.0 / 512
+                local_blocks = visualize_blocks(frustum_block_coords, block_len,
+                                                np.array([1, 0, 0]), offset_rate=0)
+
+                buf_indices = vbg.hashmap().active_buf_indices()
+                global_block_coords = vbg.hashmap().key_tensor(
+                )[buf_indices].to(o3c.float32)
+                global_blocks = visualize_blocks(global_block_coords, block_len,
+                                                 np.array([0, 1, 0]))
+                pcd = vbg.extract_point_cloud(3)
+
+                o3d.visualization.draw(
+                    [pcd, global_blocks, local_blocks, lineset])
+
             dt = time.time() - start
         print('Finished integrating {} frames in {} seconds'.format(
             n_files, dt))
