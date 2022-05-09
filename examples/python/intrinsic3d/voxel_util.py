@@ -10,16 +10,16 @@ def find_neighbors(xyz, check=True):
     xyz_int = xyz.astype(np.int32)
     indices = np.arange(len(xyz_int)).astype(np.int64)
 
-    point_hashmap = o3d.core.Hashmap(len(xyz_int), o3d.core.Dtype.Int32,
-                                     o3d.core.Dtype.Int64, (3), (1), device)
+    point_hashmap = o3d.core.HashMap(len(xyz_int), o3d.core.Dtype.Int32, (3),
+                                     o3d.core.Dtype.Int64, (1), device)
 
     t_xyz = o3d.core.Tensor(xyz_int, device=device)
     t_indices = o3d.core.Tensor(indices, device=device)
 
     # Construction
     addr_self, mask_self = point_hashmap.insert(t_xyz, t_indices)
-    key = point_hashmap.get_key_tensor()
-    value_indices = point_hashmap.get_value_tensor()
+    key = point_hashmap.key_tensor()
+    value_indices = point_hashmap.value_tensor()
 
     # Query
     xyz_xp = t_xyz + o3d.core.Tensor([[1, 0, 0]], dtype=dtype, device=device)
