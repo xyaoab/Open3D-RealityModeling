@@ -106,8 +106,8 @@ void RaySampleCPU
                 "TSDF and/or weight not allocated in blocks, please implement "
                 "customized integration.");
     }
-    // const tsdf_t* tsdf_base_ptr =
-    //         block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    const tsdf_t* tsdf_base_ptr =
+            block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
     const weight_t* weight_base_ptr =
             block_value_map.at("weight").GetDataPtr<weight_t>();
 
@@ -303,8 +303,6 @@ void RaySampleCPU
         float t_max = depth_max;
         if (t >= t_max) return;
 
-        int sample_cnt = 0;
-
         // Search for min range
         index_t linear_idx = -1;
         while (t < t_max && linear_idx < 0) {
@@ -332,15 +330,62 @@ void RaySampleCPU
             t += block_size;
         }
 
-        float step = (t_max - t_min) / samples;
-        if (step <= 0) return;
+        // Search for the surface
+        float t_intersect = -1;
+        float t_prev = t;
+
+        float tsdf_prev = -1.0f;
+        float tsdf = 1.0;
+        float sdf_trunc = voxel_size * trunc_voxel_multiplier;
+        float w = 0.0;
 
         t = t_min;
-        for (int s = 0; s < samples; ++s, t += step) {
+        while (t < t_max) {
             index_t linear_idx =
                     GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
-            if (linear_idx >= 0) {
-                UpdateResult(t, sample_cnt);
+
+            if (linear_idx < 0) {
+                t_prev = t;
+                t += block_size;
+            } else {
+                tsdf_prev = tsdf;
+                tsdf = tsdf_base_ptr[linear_idx];
+                w = weight_base_ptr[linear_idx];
+
+                if (tsdf_prev > 0 && w >= weight_threshold && tsdf <= 0) {
+                    t_intersect = (t * tsdf_prev - t_prev * tsdf) /
+                                  (tsdf_prev - tsdf);
+                    break;
+                }
+                t_prev = t;
+                float delta = tsdf * sdf_trunc;
+                t += delta < voxel_size ? voxel_size : delta;
+            }
+        }
+
+        // Uniform sample
+        int sample_cnt = 0;
+        if (t_intersect < 0) {
+            float step = (t_max - t_min) / samples;
+            if (step <= 0) return;
+
+            t = t_min;
+            for (int s = 0; s < samples; ++s, t += step) {
+                index_t linear_idx =
+                        GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+                if (linear_idx >= 0) {
+                    UpdateResult(t, sample_cnt);
+                }
+            }
+        } else {  // Sample around surfaces
+            float step = voxel_size * 0.2;
+            t = t_intersect - step * (samples / 2);
+            for (int s = 0; s < samples; ++s, t += step) {
+                index_t linear_idx =
+                        GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+                if (linear_idx >= 0) {
+                    UpdateResult(t, sample_cnt);
+                }
             }
         }
     });
