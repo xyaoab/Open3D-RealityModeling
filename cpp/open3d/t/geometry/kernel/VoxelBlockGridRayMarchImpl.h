@@ -106,8 +106,8 @@ void RaySampleCPU
                 "TSDF and/or weight not allocated in blocks, please implement "
                 "customized integration.");
     }
-    const tsdf_t* tsdf_base_ptr =
-            block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
+    // const tsdf_t* tsdf_base_ptr =
+    //         block_value_map.at("tsdf").GetDataPtr<tsdf_t>();
     const weight_t* weight_base_ptr =
             block_value_map.at("weight").GetDataPtr<weight_t>();
 
@@ -203,18 +203,7 @@ void RaySampleCPU
                    y_v * block_resolution + x_v;
         };
 
-        float t = depth_min;
-        const float t_max = depth_max;
-        if (t >= t_max) return;
-
         // Iterative ray intersection check
-        float t_prev = t;
-
-        float tsdf_prev = -1.0f;
-        float tsdf = 1.0;
-        float sdf_trunc = voxel_size * trunc_voxel_multiplier;
-        float w = 0.0;
-
         float* ray_o_ptr = rays_o_indexer.GetDataPtr<float>(workload_idx);
         float* ray_d_ptr = rays_d_indexer.GetDataPtr<float>(workload_idx);
 
@@ -310,28 +299,48 @@ void RaySampleCPU
             sample_cnt += 1;
         };
 
+        float t = depth_min;
+        float t_max = depth_max;
+        if (t >= t_max) return;
+
         int sample_cnt = 0;
-        while (t < t_max && sample_cnt < samples) {
-            index_t linear_idx =
+
+        // Search for min range
+        index_t linear_idx = -1;
+        while (t < t_max && linear_idx < 0) {
+            linear_idx =
+                    GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+            t += voxel_size;
+        }
+        float t_min = t;
+
+        // Search for max range
+        // Allow failure for 3 blocks
+        int outbound_cnt = 0;
+        while (outbound_cnt < 3) {
+            linear_idx =
                     GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
 
-            if (linear_idx < 0) {
-                t_prev = t;
-                t += block_size;
+            if (linear_idx >= 0) {
+                outbound_cnt = 0;
             } else {
-                tsdf_prev = tsdf;
-                tsdf = tsdf_base_ptr[linear_idx];
-                w = weight_base_ptr[linear_idx];
-
-                if (tsdf_prev > 0 && w >= weight_threshold && tsdf <= 0) {
-                    float t_intersect = (t * tsdf_prev - t_prev * tsdf) /
-                                        (tsdf_prev - tsdf);
-
-                    UpdateResult(t_intersect, sample_cnt);
+                if (outbound_cnt == 0) {
+                    t_max = t;
                 }
-                t_prev = t;
-                float delta = tsdf * sdf_trunc;
-                t += delta < voxel_size ? voxel_size : delta;
+                outbound_cnt++;
+            }
+            t += block_size;
+        }
+
+        float step = (t_max - t_min) / samples;
+        if (step <= 0) return;
+
+        t = t_min;
+        for (int s = 0; s < samples; ++s, t += step) {
+            index_t linear_idx =
+                    GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+            if (linear_idx >= 0) {
+                UpdateResult(t, sample_cnt);
             }
         }
     });
