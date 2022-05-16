@@ -115,18 +115,19 @@ void RaySampleCPU
     ArrayIndexer rays_d_indexer(rays_d, 1);
 
     // Geometry
-    ArrayIndexer depth_indexer = ArrayIndexer(renderings_map.at("depth"), 2);
+    ArrayIndexer mask_indexer(renderings_map.at("mask"), 1);
+    ArrayIndexer depth_indexer(renderings_map.at("depth"), 2);
+    ArrayIndexer weight_indexer(renderings_map.at("weight"), 2);
 
     // Diff rendering
-    ArrayIndexer index_indexer = ArrayIndexer(renderings_map.at("index"), 2);
-    ArrayIndexer interp_ratio_indexer =
-            ArrayIndexer(renderings_map.at("interp_ratio"), 2);
-    ArrayIndexer interp_ratio_dx_indexer =
-            ArrayIndexer(renderings_map.at("interp_ratio_dx"), 2);
-    ArrayIndexer interp_ratio_dy_indexer =
-            ArrayIndexer(renderings_map.at("interp_ratio_dy"), 2);
-    ArrayIndexer interp_ratio_dz_indexer =
-            ArrayIndexer(renderings_map.at("interp_ratio_dz"), 2);
+    ArrayIndexer index_indexer(renderings_map.at("index"), 2);
+    ArrayIndexer interp_ratio_indexer(renderings_map.at("interp_ratio"), 2);
+    ArrayIndexer interp_ratio_dx_indexer(renderings_map.at("interp_ratio_dx"),
+                                         2);
+    ArrayIndexer interp_ratio_dy_indexer(renderings_map.at("interp_ratio_dy"),
+                                         2);
+    ArrayIndexer interp_ratio_dz_indexer(renderings_map.at("interp_ratio_dz"),
+                                         2);
 
     index_t n = rays_o.GetLength();
 
@@ -140,6 +141,8 @@ void RaySampleCPU
 #endif
 
     core::ParallelFor(device, n, [=] OPEN3D_DEVICE(index_t workload_idx) {
+        // Helper: access buf index for certain block<int> and voxel<int>
+        // coordinates
         auto GetLinearIdxAtP = [&] OPEN3D_DEVICE(
                                        index_t x_b, index_t y_b, index_t z_b,
                                        index_t x_v, index_t y_v, index_t z_v,
@@ -172,6 +175,8 @@ void RaySampleCPU
             }
         };
 
+        // Helper: access buf index for voxel with point on a ray<float> after
+        // floor op
         auto GetLinearIdxAtT = [&] OPEN3D_DEVICE(
                                        float x_o, float y_o, float z_o,
                                        float x_d, float y_d, float z_d, float t,
@@ -219,13 +224,13 @@ void RaySampleCPU
 
         MiniVecCache cache{0, 0, 0, -1};
 
-        auto UpdateResult = [&] OPEN3D_DEVICE(float t_intersect,
-                                              int& sample_cnt) {
+        // Helper: sample
+        auto Sample = [&] OPEN3D_DEVICE(float t_intersect, int& sample_cnt) {
             x_g = x_o + t_intersect * x_d;
             y_g = y_o + t_intersect * y_d;
             z_g = z_o + t_intersect * z_d;
 
-            // Trivial vertex assignment
+            // Trivial depth assignment
             *depth_indexer.GetDataPtr<float>(workload_idx, sample_cnt) =
                     t_intersect * depth_scale;
 
@@ -235,7 +240,6 @@ void RaySampleCPU
             float x_v = (x_g - float(x_b) * block_size) / voxel_size;
             float y_v = (y_g - float(y_b) * block_size) / voxel_size;
             float z_v = (z_g - float(z_b) * block_size) / voxel_size;
-
             Key key(x_b, y_b, z_b);
 
             index_t block_buf_idx = cache.Check(x_b, y_b, z_b);
@@ -269,6 +273,8 @@ void RaySampleCPU
                     interp_ratio_dz_indexer.GetDataPtr<float>(workload_idx,
                                                               sample_cnt);
 
+            // Assign indices and interp ratios at 8 neighbors
+            float w = 0;
             for (index_t k = 0; k < 8; ++k) {
                 index_t dx_v = (k & 1) > 0 ? 1 : 0;
                 index_t dy_v = (k & 2) > 0 ? 1 : 0;
@@ -293,8 +299,11 @@ void RaySampleCPU
                     interp_ratio_dx_ptr[k] = interp_ratio_dx;
                     interp_ratio_dy_ptr[k] = interp_ratio_dy;
                     interp_ratio_dz_ptr[k] = interp_ratio_dz;
+
+                    w += r * weight_base_ptr[linear_idx_k];
                 }
             }  // loop over 8 neighbors
+            *weight_indexer.GetDataPtr<float>(workload_idx, sample_cnt) = w;
 
             sample_cnt += 1;
         };
@@ -313,7 +322,7 @@ void RaySampleCPU
         float t_min = t;
 
         // Search for max range
-        // Allow failure for 3 blocks
+        // Allow failure for 3 consecutive blocks
         int outbound_cnt = 0;
         while (outbound_cnt < 3) {
             linear_idx =
@@ -346,7 +355,7 @@ void RaySampleCPU
 
             if (linear_idx < 0) {
                 t_prev = t;
-                t += block_size;
+                t += block_size * 0.5;
             } else {
                 tsdf_prev = tsdf;
                 tsdf = tsdf_base_ptr[linear_idx];
@@ -368,23 +377,23 @@ void RaySampleCPU
         if (t_intersect < 0) {
             float step = (t_max - t_min) / samples;
             if (step <= 0) return;
-
             t = t_min;
             for (int s = 0; s < samples; ++s, t += step) {
                 index_t linear_idx =
                         GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
                 if (linear_idx >= 0) {
-                    UpdateResult(t, sample_cnt);
+                    Sample(t, sample_cnt);
                 }
             }
         } else {  // Sample around surfaces
-            float step = voxel_size * 0.2;
-            t = t_intersect - step * (samples / 2);
+            *mask_indexer.GetDataPtr<bool>(workload_idx) = true;
+            float step = (sdf_trunc * 2) / samples;
+            t = t_intersect - sdf_trunc;
             for (int s = 0; s < samples; ++s, t += step) {
                 index_t linear_idx =
                         GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
                 if (linear_idx >= 0) {
-                    UpdateResult(t, sample_cnt);
+                    Sample(t, sample_cnt);
                 }
             }
         }

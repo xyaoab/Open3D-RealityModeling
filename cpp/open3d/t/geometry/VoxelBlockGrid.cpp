@@ -690,12 +690,18 @@ TensorMap VoxelBlockGrid::RaySample(const core::Tensor &rays_o,
     core::Device device = block_hashmap_->GetDevice();
 
     const std::unordered_map<std::string, int> attrs_map = {
-            // Conventional rendering, locate position
+            // Conventional rendering, locate position and indicate mask
             {"depth", 1},
+            // Weight obtained from TSDF fusion as an additional hint,
+            // non-differentiable
+            {"weight", 1},
+            // Whether a valid surface is found.
+            {"mask", 1},
             // Diff rendering
             // Each pixel corresponds to info at 8 neighbor grid points
             {"index", 8},
             {"interp_ratio", 8},
+            // Reserved for depth
             {"interp_ratio_dx", 8},
             {"interp_ratio_dy", 8},
             {"interp_ratio_dz", 8}};
@@ -714,8 +720,14 @@ TensorMap VoxelBlockGrid::RaySample(const core::Tensor &rays_o,
     for (const auto &attr : attrs_map) {
         int channel = attr.second;
         core::Dtype dtype = get_dtype(attr.first);
-        renderings_map[attr.first] =
-                core::Tensor::Zeros({samples, length, channel}, dtype, device);
+
+        if (attr.first == "mask") {  // global mask for the entire ray.
+            renderings_map[attr.first] =
+                    core::Tensor::Zeros({length, channel}, dtype, device);
+        } else {
+            renderings_map[attr.first] = core::Tensor::Zeros(
+                    {samples, length, channel}, dtype, device);
+        }
     }
 
     TensorMap block_value_map =
