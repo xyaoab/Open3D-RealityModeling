@@ -40,6 +40,23 @@
 #include "open3d/utility/Logging.h"
 #include "open3d/utility/Timer.h"
 
+#ifdef __CUDACC__
+#include "curand_kernel.h"
+__device__ float uniform_rand(curandState state,
+                              float tmin = 0.0,
+                              float tmax = 1.0) {
+    float uni = curand_uniform(&state);
+    return uni * (tmax - tmin) + tmin;
+}
+
+__device__ float normal_rand(curandState state,
+                             float mean = 0.0,
+                             float sigma = 1.0) {
+    float nml = curand_normal(&state);
+    return mean + nml * sigma;
+}
+#endif
+
 namespace open3d {
 namespace t {
 namespace geometry {
@@ -129,7 +146,13 @@ void RaySampleCPU
     ArrayIndexer interp_ratio_dz_indexer(renderings_map.at("interp_ratio_dz"),
                                          2);
 
+    // Allocate cuRAND states
     index_t n = rays_o.GetLength();
+#ifdef __CUDACC__
+    curandState* rand_states;
+    OPEN3D_CUDA_CHECK(
+            cudaMalloc((void**)&rand_states, n * sizeof(curandState)));
+#endif
 
     float block_size = voxel_size * block_resolution;
     index_t resolution2 = block_resolution * block_resolution;
@@ -301,12 +324,23 @@ void RaySampleCPU
                     interp_ratio_dz_ptr[k] = interp_ratio_dz;
 
                     w += r * weight_base_ptr[linear_idx_k];
+                } else {
+                    return;
                 }
             }  // loop over 8 neighbors
+
             *weight_indexer.GetDataPtr<float>(workload_idx, sample_cnt) = w;
 
             sample_cnt += 1;
         };
+
+#ifdef __CUDACC__
+        auto state = rand_states[workload_idx];
+        curand_init(workload_idx, workload_idx, 0, &state);
+        // float uni = curand_uniform(&state);
+        // float nml = curand_normal(&state);
+        // printf("uniform sample: %f, normal sample: %f\n", uni, nml);
+#endif
 
         float t = depth_min;
         float t_max = depth_max;
@@ -375,31 +409,66 @@ void RaySampleCPU
         // Uniform sample
         int sample_cnt = 0;
         if (t_intersect < 0) {
-            float step = (t_max - t_min) / samples;
+            int deterministic_samples = 2 * samples / 3;
+            float step = (t_max - t_min) / deterministic_samples;
             if (step <= 0) return;
             t = t_min;
-            for (int s = 0; s < samples; ++s, t += step) {
+
+            for (int s = 0; s < deterministic_samples; ++s, t += step) {
                 index_t linear_idx =
                         GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
                 if (linear_idx >= 0) {
                     Sample(t, sample_cnt);
                 }
             }
+
+#ifdef __CUDACC__
+            // Fill-in the remaining
+            int remainder = samples - sample_cnt;
+            int trails = 3 * remainder;
+            for (int s = 0; s < trails && sample_cnt < samples; ++s) {
+                t = uniform_rand(state, t_min, t_max);
+                index_t linear_idx =
+                        GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+                if (linear_idx >= 0) {
+                    Sample(t, sample_cnt);
+                }
+            }
+#endif
         } else {  // Sample around surfaces
-            *mask_indexer.GetDataPtr<bool>(workload_idx) = true;
-            float step = (sdf_trunc * 2) / samples;
+            int deterministic_samples = 2 * samples / 3;
+            float step = (sdf_trunc * 2) / deterministic_samples;
             t = t_intersect - sdf_trunc;
-            for (int s = 0; s < samples; ++s, t += step) {
+            for (int s = 0; s < deterministic_samples; ++s, t += step) {
                 index_t linear_idx =
                         GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
                 if (linear_idx >= 0) {
                     Sample(t, sample_cnt);
                 }
             }
+
+#ifdef __CUDACC__
+            // Fill-in the remaining
+            int remainder = samples - sample_cnt;
+            int trails = 3 * remainder;
+            for (int s = 0; s < trails && sample_cnt < samples; ++s) {
+                t = normal_rand(state, t_intersect, sdf_trunc / 3);
+                index_t linear_idx =
+                        GetLinearIdxAtT(x_o, y_o, z_o, x_d, y_d, z_d, t, cache);
+                if (linear_idx >= 0) {
+                    Sample(t, sample_cnt);
+                }
+            }
+#endif
+        }
+
+        if (sample_cnt == samples) {
+            *mask_indexer.GetDataPtr<bool>(workload_idx) = true;
         }
     });
 
 #if defined(__CUDACC__)
+    OPEN3D_CUDA_CHECK(cudaFree(rand_states));
     core::cuda::Synchronize();
 #endif
 }
