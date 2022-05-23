@@ -7,6 +7,7 @@ cmake_minimum_required(VERSION 3.19.2)
 #   global hardened link flags
 # - parse JSON files for downloading files from the open3d_downloads repository
 # - use first-class language support for ISPC (3.19.2 patch release required)
+set(CMAKE_CUDA_COMPILER "/usr/local/cuda/bin/nvcc")
 
 if (APPLE)
 set (CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING
