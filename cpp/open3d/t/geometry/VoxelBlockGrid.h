@@ -130,7 +130,10 @@ public:
     /// Returns a (N, 3) coordinate in float, and a (N, ) flattened index
     /// tensor, where N is the number of active voxels located at buf_indices.
     std::pair<core::Tensor, core::Tensor>
-    GetVoxelCoordinatesAndFlattenedIndices(const core::Tensor &buf_indices);
+    GetVoxelCoordinatesAndFlattenedIndices(
+            const core::Tensor &buf_indices,
+            const core::Tensor &offsets = core::Tensor(
+                    std::vector<int>{0, 0, 0}, {3}, core::Dtype::Int32));
 
     /// Same as above, but N is the number of all the active voxels with blocks
     /// stored in the hash map.

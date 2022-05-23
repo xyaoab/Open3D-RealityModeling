@@ -54,12 +54,18 @@ void GetVoxelCoordinatesAndFlattenedIndicesCUDA
 #else
 void GetVoxelCoordinatesAndFlattenedIndicesCPU
 #endif
-        (const core::Tensor& buf_indices,
+        (std::shared_ptr<core::HashMap>& hashmap,
+         const core::Tensor& buf_indices,
          const core::Tensor& block_keys,
+         const core::Tensor& voxel_offsets,
          core::Tensor& voxel_coords,
          core::Tensor& flattened_indices,
          index_t resolution,
          float voxel_size) {
+    using Key = utility::MiniVec<index_t, 3>;
+    using Hash = utility::MiniVecHash<index_t, 3>;
+    using Eq = utility::MiniVecEq<index_t, 3>;
+
     core::Device device = buf_indices.GetDevice();
 
     const index_t* buf_indices_ptr = buf_indices.GetDataPtr<index_t>();
@@ -70,9 +76,66 @@ void GetVoxelCoordinatesAndFlattenedIndicesCPU
 
     index_t n = flattened_indices.GetLength();
     ArrayIndexer voxel_indexer({resolution, resolution, resolution});
-    index_t resolution3 = resolution * resolution * resolution;
+    index_t resolution2 = resolution * resolution;
+    index_t resolution3 = resolution2 * resolution;
+
+    utility::LogInfo("voxel_offset = {}", voxel_offsets.ToString());
+    int dx = voxel_offsets[0].Item<int>();
+    int dy = voxel_offsets[1].Item<int>();
+    int dz = voxel_offsets[2].Item<int>();
+
+    auto device_hashmap = hashmap->GetDeviceHashBackend();
+#if defined(__CUDACC__)
+    auto cuda_hashmap =
+            std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
+                    device_hashmap);
+    if (cuda_hashmap == nullptr) {
+        utility::LogError(
+                "Unsupported backend: CUDA raycasting only supports STDGPU.");
+    }
+    auto hashmap_impl = cuda_hashmap->GetImpl();
+#else
+    auto cpu_hashmap =
+            std::dynamic_pointer_cast<core::TBBHashBackend<Key, Hash, Eq>>(
+                    device_hashmap);
+    if (cpu_hashmap == nullptr) {
+        utility::LogError(
+                "Unsupported backend: CPU raycasting only supports TBB.");
+    }
+    auto hashmap_impl = *cpu_hashmap->GetImpl();
+#endif
 
     core::ParallelFor(device, n, [=] OPEN3D_DEVICE(index_t workload_idx) {
+        auto GetLinearIdxAtP = [&] OPEN3D_DEVICE(
+                                       index_t x_b, index_t y_b, index_t z_b,
+                                       index_t x_v, index_t y_v, index_t z_v,
+                                       core::buf_index_t block_idx) -> index_t {
+            index_t x_vn = (x_v + resolution) % resolution;
+            index_t y_vn = (y_v + resolution) % resolution;
+            index_t z_vn = (z_v + resolution) % resolution;
+
+            index_t dx_b = Sign(x_v - x_vn);
+            index_t dy_b = Sign(y_v - y_vn);
+            index_t dz_b = Sign(z_v - z_vn);
+
+            // In the same block
+            if (dx_b == 0 && dy_b == 0 && dz_b == 0) {
+                return block_idx * resolution3 + z_v * resolution2 +
+                       y_v * resolution + x_v;
+            } else {  // Neighbor block
+                Key key(x_b + dx_b, y_b + dy_b, z_b + dz_b);
+
+                auto iter = hashmap_impl.find(key);
+                if (iter == hashmap_impl.end()) {
+                    return -1;
+                }
+                block_idx = iter->second;
+
+                return block_idx * resolution3 + z_vn * resolution2 +
+                       y_vn * resolution + x_vn;
+            }
+        };
+
         index_t block_idx = buf_indices_ptr[workload_idx / resolution3];
         index_t voxel_idx = workload_idx % resolution3;
 
@@ -84,14 +147,22 @@ void GetVoxelCoordinatesAndFlattenedIndicesCPU
         index_t xv, yv, zv;
         voxel_indexer.WorkloadToCoord(voxel_idx, &xv, &yv, &zv);
 
-        float x = (xb * resolution + xv) * voxel_size;
-        float y = (yb * resolution + yv) * voxel_size;
-        float z = (zb * resolution + zv) * voxel_size;
+        index_t flattened_idx = GetLinearIdxAtP(xb, yb, zb, xv + dx, yv + dy,
+                                                zv + dz, block_idx);
 
-        flattened_indices_ptr[workload_idx] =
-                block_idx * resolution3 + voxel_idx;
+        // Neighbor not existing => return itself, useful for boundary
+        // conditions.
+        if (flattened_idx == -1) {
+            flattened_idx = block_idx * resolution3 + voxel_idx;
+        }
+        flattened_indices_ptr[workload_idx] = flattened_idx;
 
         index_t voxel_coords_offset = workload_idx * 3;
+
+        float x = (xb * resolution + xv + dx) * voxel_size;
+        float y = (yb * resolution + yv + dy) * voxel_size;
+        float z = (zb * resolution + zv + dz) * voxel_size;
+
         voxel_coords_ptr[voxel_coords_offset + 0] = x;
         voxel_coords_ptr[voxel_coords_offset + 1] = y;
         voxel_coords_ptr[voxel_coords_offset + 2] = z;

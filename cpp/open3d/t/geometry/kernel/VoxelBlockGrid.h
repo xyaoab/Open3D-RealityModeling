@@ -59,12 +59,15 @@ void DepthTouch(std::shared_ptr<core::HashMap>& hashmap,
                 float depth_max,
                 index_t stride);
 
-void GetVoxelCoordinatesAndFlattenedIndices(const core::Tensor& buf_indices,
-                                            const core::Tensor& block_keys,
-                                            core::Tensor& voxel_coords,
-                                            core::Tensor& flattened_indices,
-                                            index_t block_resolution,
-                                            float voxel_size);
+void GetVoxelCoordinatesAndFlattenedIndices(
+        std::shared_ptr<core::HashMap>& hashmap,
+        const core::Tensor& buf_indices,
+        const core::Tensor& block_keys,
+        const core::Tensor& voxel_offsets,
+        core::Tensor& voxel_coords,
+        core::Tensor& flattened_indices,
+        index_t block_resolution,
+        float voxel_size);
 
 void Integrate(const core::Tensor& depth,
                const core::Tensor& color,
@@ -187,12 +190,15 @@ void DepthTouchCPU(std::shared_ptr<core::HashMap>& hashmap,
                    float depth_max,
                    index_t stride);
 
-void GetVoxelCoordinatesAndFlattenedIndicesCPU(const core::Tensor& buf_indices,
-                                               const core::Tensor& block_keys,
-                                               core::Tensor& voxel_coords,
-                                               core::Tensor& flattened_indices,
-                                               index_t block_resolution,
-                                               float voxel_size);
+void GetVoxelCoordinatesAndFlattenedIndicesCPU(
+        std::shared_ptr<core::HashMap>& hashmap,
+        const core::Tensor& buf_indices,
+        const core::Tensor& block_keys,
+        const core::Tensor& voxel_offsets,
+        core::Tensor& voxel_coords,
+        core::Tensor& flattened_indices,
+        index_t block_resolution,
+        float voxel_size);
 
 template <typename input_depth_t,
           typename input_color_t,
@@ -325,12 +331,15 @@ void DepthTouchCUDA(std::shared_ptr<core::HashMap>& hashmap,
                     float depth_max,
                     index_t stride);
 
-void GetVoxelCoordinatesAndFlattenedIndicesCUDA(const core::Tensor& buf_indices,
-                                                const core::Tensor& block_keys,
-                                                core::Tensor& voxel_coords,
-                                                core::Tensor& flattened_indices,
-                                                index_t block_resolution,
-                                                float voxel_size);
+void GetVoxelCoordinatesAndFlattenedIndicesCUDA(
+        std::shared_ptr<core::HashMap>& hashmap,
+        const core::Tensor& buf_indices,
+        const core::Tensor& block_keys,
+        const core::Tensor& voxel_offsets,
+        core::Tensor& voxel_coords,
+        core::Tensor& flattened_indices,
+        index_t block_resolution,
+        float voxel_size);
 
 template <typename input_depth_t,
           typename input_color_t,

@@ -285,7 +285,7 @@ VoxelBlockGrid::GetVoxelCoordinatesAndFlattenedIndices() {
 
 std::pair<core::Tensor, core::Tensor>
 VoxelBlockGrid::GetVoxelCoordinatesAndFlattenedIndices(
-        const core::Tensor &buf_indices) {
+        const core::Tensor &buf_indices, const core::Tensor &offsets) {
     AssertInitialized();
     // (N x resolution^3, 3) Float32; (N x resolution^3, 1) Int64
     int64_t n = buf_indices.GetLength();
@@ -298,8 +298,9 @@ VoxelBlockGrid::GetVoxelCoordinatesAndFlattenedIndices(
     core::Tensor flattened_indices({n * resolution3}, core::Int64, device);
 
     kernel::voxel_grid::GetVoxelCoordinatesAndFlattenedIndices(
-            buf_indices, block_hashmap_->GetKeyTensor(), voxel_coords,
-            flattened_indices, block_resolution_, voxel_size_);
+            block_hashmap_, buf_indices, block_hashmap_->GetKeyTensor(),
+            offsets, voxel_coords, flattened_indices, block_resolution_,
+            voxel_size_);
     return std::make_pair(voxel_coords, flattened_indices);
 }
 

@@ -122,13 +122,15 @@ void pybind_voxel_block_grid(py::module& m) {
             "voxel_indices"_a);
 
     vbg.def("voxel_coordinates_and_flattened_indices",
-            py::overload_cast<const core::Tensor&>(
+            py::overload_cast<const core::Tensor&, const core::Tensor&>(
                     &VoxelBlockGrid::GetVoxelCoordinatesAndFlattenedIndices),
             "Get a (buf_indices.shape[0] * resolution^3, 3), Float32 voxel "
             "coordinate tensor,"
             "and a (buf_indices.shape[0] * resolution^3, 1), Int64 voxel index "
             "tensor.",
-            "buf_indices"_a);
+            "buf_indices"_a,
+            "offset"_a = core::Tensor(std::vector<int>{0, 0, 0}, {3},
+                                      core::Dtype::Int32));
 
     vbg.def("voxel_coordinates_and_flattened_indices",
             py::overload_cast<>(
