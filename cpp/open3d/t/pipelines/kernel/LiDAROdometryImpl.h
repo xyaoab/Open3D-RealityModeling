@@ -170,8 +170,8 @@ inline OPEN3D_DEVICE bool DeviceProjectSimple(
     float v = (phi / DEG2RAD - config.min_altitude) /
               (config.max_altitude - config.min_altitude);
     v *= (config.height / config.down_factor);
-
-    if (v >= 0 && v <= config.height - 1) {
+    // remove out of boundary index
+    if (v >= 0 && v <= config.height - 1 && u >= 0 && u <= config.width - 1) {
         *ui = static_cast<int64_t>(round(u));
         *vi = static_cast<int64_t>(round(v));
         return true;
