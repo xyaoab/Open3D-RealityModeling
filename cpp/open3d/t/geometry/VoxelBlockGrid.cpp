@@ -360,6 +360,32 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
     return block_coords;
 }
 
+//overloading
+core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
+        const PointCloud &pcd, 
+        const core::Tensor &extrinsic,
+        float depth_max,
+        float trunc_voxel_multiplier) {
+    AssertInitialized();
+    core::Tensor positions = pcd.GetPointPositions();
+
+    const int64_t est_sample_multiplier = 4;
+    if (frustum_hashmap_ == nullptr) {
+        int64_t capacity = positions.GetLength() * est_sample_multiplier;
+        frustum_hashmap_ = std::make_shared<core::HashMap>(
+                capacity, core::Int32, core::SizeVector{3}, core::Int32,
+                core::SizeVector{1}, block_hashmap_->GetDevice());
+    } else {
+        frustum_hashmap_->Clear();
+    }
+
+    core::Tensor block_coords;
+    kernel::voxel_grid::PointCloudRayMarching(
+            frustum_hashmap_, positions, extrinsic, block_coords, block_resolution_,
+            voxel_size_, depth_max, voxel_size_ * trunc_voxel_multiplier);
+    return block_coords;
+}
+
 void VoxelBlockGrid::Integrate(const core::Tensor &block_coords,
                                const Image &depth,
                                const core::Tensor &intrinsic,

@@ -59,6 +59,33 @@ void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
     }
 }
 
+void PointCloudRayMarching(std::shared_ptr<core::HashMap>
+                &hashmap, 
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc){
+
+        core::Device::DeviceType device_type = hashmap->GetDevice().GetType();
+
+        if (device_type == core::Device::DeviceType::CPU) {
+            PointCloudRayMarchingCPU(hashmap, points, extrinsic,
+                            voxel_block_coords, voxel_grid_resolution,
+                            voxel_size, depth_max, sdf_trunc);
+        } else if (device_type == core::Device::DeviceType::CUDA) {
+            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, extrinsic,
+                            voxel_block_coords, voxel_grid_resolution,
+                            voxel_size, depth_max, sdf_trunc);
+        } else {
+            utility::LogError("Unimplemented device");
+        }
+}
+
+
 void DepthTouch(std::shared_ptr<core::HashMap>& hashmap,
                 const core::Tensor& depth,
                 const core::Tensor& intrinsic,

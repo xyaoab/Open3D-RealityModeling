@@ -59,6 +59,17 @@ struct Coord3i {
     index_t z_;
 };
 
+struct Coord3f {
+    Coord3f(float x, float y, float z) : x_(x), y_(y), z_(z) {}
+    bool operator==(const Coord3f &other) const {
+        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_;
+    }
+
+    float x_;
+    float y_;
+    float z_;
+};
+
 struct Coord3iHash {
     size_t operator()(const Coord3i &k) const {
         static const size_t p0 = 73856093;
@@ -70,6 +81,109 @@ struct Coord3iHash {
                (static_cast<size_t>(k.z_) * p2);
     }
 };
+
+// for pointcloud, select grids along the ray direction
+void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
+                &hashmap,  // dummy for now, one pass insertion is faster
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+			// counting # blocks for each point -- used for association
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc) {
+        core::Device device = core::Device("CPU:0");
+        // sensor origin
+        core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+        index_t resolution = voxel_grid_resolution;
+        float block_size = voxel_size * resolution;
+
+        index_t n = points.GetLength();
+        const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
+		// embedding all block coords under one scan -- tmp
+        tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
+
+        const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
+        float x_o = origin_ptr[0];
+        float y_o = origin_ptr[1];
+        float z_o = origin_ptr[2];
+      
+        // for each xyz point
+        core::ParallelFor(device, n, [&](index_t workload_idx) {
+        // point in map frame
+        float x = pcd_ptr[3 * workload_idx + 0];
+        float y = pcd_ptr[3 * workload_idx + 1];
+        float z = pcd_ptr[3 * workload_idx + 2];
+
+        // Marching Ray Direction
+        float x_d = x - x_o;
+        float y_d = y - y_o;
+        float z_d = z - z_o;
+        float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
+	
+        // step size
+        const index_t step_size = 3;
+        const float t_min = std::max(d - sdf_trunc, 0.0f);
+        const float t_max = std::min(d + sdf_trunc, depth_max);
+        const float t_step = (t_max - t_min) / step_size;
+
+        float t = t_min;
+		index_t step = 0;
+        for (step = 0; step <= step_size; ++step) {
+			index_t xb = static_cast<index_t>(
+				std::floor((x_o + t * x_d) / block_size));
+			index_t yb = static_cast<index_t>(
+				std::floor((y_o + t * y_d) / block_size));
+			index_t zb = static_cast<index_t>(
+				std::floor((z_o + t * z_d) / block_size));
+			set.emplace(xb, yb, zb);
+			t += t_step;
+        }
+		// block_map[Coord3f(x,y,z)] = step;
+
+        });
+
+		// index_t block_map_size = block_map.size();
+		// if (block_map_size != 0){
+		// 	utility::LogInfo(
+		// 		"Block map size={:d}",
+		// 		block_map_size);
+		// }
+		// else {
+		// 	utility::LogError(
+		// 		"Block size map is empty!"
+		// 	);
+		// }
+
+        index_t block_count = set.size();
+        if (block_count == 0) {
+			utility::LogError(
+				"No block is touched in TSDF volume, abort integration. Please "
+				"check specified parameters, "
+				"especially depth_scale and voxel_size");
+        }
+
+
+        // push set in to block coords datafield
+
+        voxel_block_coords =
+			core::Tensor({block_count, 3}, core::Int32, points.GetDevice());
+        index_t *block_coords_ptr =
+			static_cast<index_t *>(voxel_block_coords.GetDataPtr());
+        index_t count = 0;
+        for (auto it = set.begin(); it != set.end(); ++it, ++count) {
+			index_t offset = count * 3;
+			block_coords_ptr[offset + 0] = static_cast<index_t>(it->x_);
+			block_coords_ptr[offset + 1] = static_cast<index_t>(it->y_);
+			block_coords_ptr[offset + 2] = static_cast<index_t>(it->z_);
+        }
+
+
+
+}
+
 
 void PointCloudTouchCPU(
         std::shared_ptr<core::HashMap>

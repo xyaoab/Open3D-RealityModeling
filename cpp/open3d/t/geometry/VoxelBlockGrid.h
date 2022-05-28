@@ -152,6 +152,12 @@ public:
     core::Tensor GetUniqueBlockCoordinates(const PointCloud &pcd,
                                            float trunc_voxel_multiplier = 8.0);
 
+    core::Tensor GetUniqueBlockCoordinates(
+        const PointCloud &pcd, 
+        const core::Tensor &extrinsic,
+        float depth_max = 3.0f,
+        float trunc_voxel_multiplier = 8.0);
+    
     /// Specific operation for TSDF volumes.
     /// Integrate an RGB-D frame in the selected block coordinates using pinhole
     /// camera model.

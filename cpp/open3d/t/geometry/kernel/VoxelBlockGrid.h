@@ -27,6 +27,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <tbb/concurrent_unordered_map.h>
 
 #include "open3d/core/Tensor.h"
 #include "open3d/core/hashmap/HashMap.h"
@@ -39,6 +40,18 @@ namespace kernel {
 namespace voxel_grid {
 
 using index_t = int;
+struct Coord3f;
+
+void PointCloudRayMarching(std::shared_ptr<core::HashMap>
+                &hashmap,
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc);
 
 void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
                      const core::Tensor& points,
@@ -138,6 +151,17 @@ void ExtractTriangleMesh(const core::Tensor& block_indices,
                          index_t& vertex_count);
 
 /// CPU
+void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
+                &hashmap,
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc);
+
 void PointCloudTouchCPU(std::shared_ptr<core::HashMap>& hashmap,
                         const core::Tensor& points,
                         core::Tensor& voxel_block_coords,
@@ -244,6 +268,17 @@ void ExtractTriangleMeshCPU(const core::Tensor& block_indices,
                             index_t& vertex_count);
 
 #ifdef BUILD_CUDA_MODULE
+void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
+                &hashmap,
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc);
+
 void PointCloudTouchCUDA(std::shared_ptr<core::HashMap>& hashmap,
                          const core::Tensor& points,
                          core::Tensor& voxel_block_coords,

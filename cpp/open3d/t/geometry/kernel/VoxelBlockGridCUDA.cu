@@ -58,6 +58,114 @@ struct Coord3i {
     index_t z_;
 };
 
+struct Coord3f {
+    OPEN3D_HOST_DEVICE Coord3f(float x, float y, float z) : x_(x), y_(y), z_(z) {}
+    OPEN3D_HOST_DEVICE bool operator==(const Coord3f &other) const {
+        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_;
+    }
+
+    float x_;
+    float y_;
+    float z_;
+};
+
+void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
+                &hashmap,
+        const core::Tensor &points,
+        const core::Tensor &extrinsic,
+        core::Tensor &voxel_block_coords,
+		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
+        index_t voxel_grid_resolution,
+        float voxel_size,
+        float depth_max,
+        float sdf_trunc){
+        core::Device device = points.GetDevice();
+        // sensor origin
+        core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+        index_t resolution = voxel_grid_resolution;
+        float block_size = voxel_size * resolution;
+
+        index_t n = points.GetLength();
+        const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
+
+        const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
+        float x_o = origin_ptr[0];
+        float y_o = origin_ptr[1];
+        float z_o = origin_ptr[2];
+
+		const index_t step_size = 3;
+		const index_t est_multipler_factor = (step_size + 1);
+
+   	 	// static core::Tensor block_coordi;
+		// if (block_coordi.GetLength() != est_multipler_factor * n) {
+		// 	block_coordi = core::Tensor({est_multipler_factor * n, 3},
+		// 								core::Dtype::Int32, device);
+		// }
+
+		core::Tensor block_coordi({est_multipler_factor * n, 3}, core::Int32, device);
+
+    	index_t *block_coordi_ptr =
+            static_cast<index_t *>(block_coordi.GetDataPtr());
+
+		core::Tensor count(std::vector<index_t>{0}, {}, core::Int32, device);
+    	index_t *count_ptr = static_cast<index_t *>(count.GetDataPtr());
+
+
+        // for each xyz point
+        core::ParallelFor(hashmap->GetDevice(), n,
+                      [=] OPEN3D_DEVICE(index_t workload_idx) {
+			// point in map frame
+			float x = pcd_ptr[3 * workload_idx + 0];
+			float y = pcd_ptr[3 * workload_idx + 1];
+			float z = pcd_ptr[3 * workload_idx + 2];
+
+			// Marching Ray Direction
+			float x_d = x - x_o;
+			float y_d = y - y_o;
+			float z_d = z - z_o;
+			float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
+		
+			const float t_min = std::max(d - sdf_trunc, 0.0f);
+			const float t_max = std::min(d + sdf_trunc, depth_max);
+			const float t_step = (t_max - t_min) / step_size;
+
+			float t = t_min;
+			index_t idx = OPEN3D_ATOMIC_ADD(count_ptr, (step_size + 1));
+			for (index_t step = 0; step <= step_size; ++step) {
+				index_t offset = (step + idx) * 3;
+				index_t xb = static_cast<index_t>(
+					std::floor((x_o + t * x_d) / block_size));
+				index_t yb = static_cast<index_t>(
+					std::floor((y_o + t * y_d) / block_size));
+				index_t zb = static_cast<index_t>(
+					std::floor((z_o + t * z_d) / block_size));
+				block_coordi_ptr[offset + 0] = xb;
+				block_coordi_ptr[offset + 1] = yb;
+				block_coordi_ptr[offset + 2] = zb;
+
+				t += t_step;
+			}
+
+
+		});
+		
+
+		index_t total_block_count = count.Item<index_t>();
+		utility::LogInfo("Toal block count={:d}", total_block_count);
+		utility::LogInfo("Toal pcd points={:d}",n);
+		if (total_block_count == 0) {
+			utility::LogError(
+					"[CUDATSDFTouchKernel] No block is touched in TSDF volume, "
+					"abort integration. Please check specified parameters, "
+					"especially depth_scale and voxel_size");
+		}
+		block_coordi = block_coordi.Slice(0, 0, total_block_count);
+		core::Tensor block_buf_indices, block_masks;
+		hashmap->Activate(block_coordi.Slice(0, 0, count.Item<index_t>()),
+						block_buf_indices, block_masks);
+		voxel_block_coords = block_coordi.IndexGet({block_masks});
+}
+
 void PointCloudTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
                          const core::Tensor &points,
                          core::Tensor &voxel_block_coords,
@@ -109,6 +217,8 @@ void PointCloudTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
                       });
 
     index_t total_block_count = count.Item<index_t>();
+	utility::LogInfo("Toal block count={:d}", total_block_count);
+	utility::LogInfo("Toal pcd points={:d}",n);
     if (total_block_count == 0) {
         utility::LogError(
                 "[CUDATSDFTouchKernel] No block is touched in TSDF volume, "
