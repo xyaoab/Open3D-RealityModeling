@@ -1316,6 +1316,8 @@ void ExtractTriangleMeshCPU
         mesh_structure = core::Tensor::Zeros(
                 {n_blocks, resolution, resolution, resolution, 4}, core::Int32,
                 device);
+        utility::LogInfo("[MeshExtractionKernel] Allocate assitance mesh structure"
+                        " with {} active voxel blocks", n_blocks);
     } catch (const std::runtime_error&) {
         utility::LogError(
                 "[MeshExtractionKernel] Unable to allocate assistance mesh "

@@ -93,6 +93,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
+		index_t step_size,
         float sdf_trunc) {
         core::Device device = core::Device("CPU:0");
         // sensor origin
@@ -103,8 +104,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
 		// embedding all block coords under one scan -- tmp
-        tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
-
+        // tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
+        
         const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
         float x_o = origin_ptr[0];
         float y_o = origin_ptr[1];
@@ -112,6 +113,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
       
         // for each xyz point
         core::ParallelFor(device, n, [&](index_t workload_idx) {
+		// for(index_t workload_idx=0; workload_idx<n; workload_idx++){
+			
         // point in map frame
         float x = pcd_ptr[3 * workload_idx + 0];
         float y = pcd_ptr[3 * workload_idx + 1];
@@ -123,11 +126,15 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float z_d = z - z_o;
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
 	
-        // step size
-        const index_t step_size = 3;
-        const float t_min = std::max(d - sdf_trunc, 0.0f);
-        const float t_max = std::min(d + sdf_trunc, depth_max);
-        const float t_step = (t_max - t_min) / step_size;
+
+		// utility::LogInfo("PCD x: {:d} \n y: {:d} \n z: {:d}", x, y, z);
+		// utility::LogInfo("Origin x: {:d} \n y: {:d} \n z: {:d}", x_o, y_o, z_o);
+
+		const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
+		const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
+		const float t_step = (t_max - t_min) / step_size;
+
+		// utility::LogInfo("tmin: {:d} \n tmax: {:d}", t_min, t_max);
 
         float t = t_min;
 		index_t step = 0;
@@ -140,9 +147,13 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 				std::floor((z_o + t * z_d) / block_size));
 			set.emplace(xb, yb, zb);
 			t += t_step;
+						
+			// utility::LogInfo("step: { }", step);
+			// utility::LogInfo("FLOAT BLOCK x: {:d} \n y: {:d} \n z: {:d}", 
+			// 				(x_o + t * x_d), (y_o + t * y_d), (z_o + t * z_d));
         }
 		// block_map[Coord3f(x,y,z)] = step;
-
+		// }
         });
 
 		// index_t block_map_size = block_map.size();
@@ -158,6 +169,10 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 		// }
 
         index_t block_count = set.size();
+        utility::LogInfo(
+				"Block map size={}",
+				block_count);
+		
         if (block_count == 0) {
 			utility::LogError(
 				"No block is touched in TSDF volume, abort integration. Please "

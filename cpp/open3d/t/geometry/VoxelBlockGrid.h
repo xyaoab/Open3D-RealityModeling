@@ -156,6 +156,7 @@ public:
         const PointCloud &pcd, 
         const core::Tensor &extrinsic,
         float depth_max = 3.0f,
+        int step_size = 3,
         float trunc_voxel_multiplier = 8.0);
     
     /// Specific operation for TSDF volumes.

@@ -78,6 +78,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
+		index_t step_size,
         float sdf_trunc){
         core::Device device = points.GetDevice();
         // sensor origin
@@ -93,7 +94,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float y_o = origin_ptr[1];
         float z_o = origin_ptr[2];
 
-		const index_t step_size = 3;
+		// const index_t step_size = 3;
 		const index_t est_multipler_factor = (step_size + 1);
 
    	 	// static core::Tensor block_coordi;
@@ -123,25 +124,29 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			float x_d = x - x_o;
 			float y_d = y - y_o;
 			float z_d = z - z_o;
-			float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
-		
-			const float t_min = std::max(d - sdf_trunc, 0.0f);
-			const float t_max = std::min(d + sdf_trunc, depth_max);
+			float d = sqrtf(x_d * x_d + y_d * y_d + z_d * z_d);
+
+
+			const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
+			const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
 			const float t_step = (t_max - t_min) / step_size;
 
+
 			float t = t_min;
-			index_t idx = OPEN3D_ATOMIC_ADD(count_ptr, (step_size + 1));
+
 			for (index_t step = 0; step <= step_size; ++step) {
-				index_t offset = (step + idx) * 3;
+
 				index_t xb = static_cast<index_t>(
-					std::floor((x_o + t * x_d) / block_size));
+					floorf((x_o + t * x_d) / block_size));
 				index_t yb = static_cast<index_t>(
-					std::floor((y_o + t * y_d) / block_size));
+					floorf((y_o + t * y_d) / block_size));
 				index_t zb = static_cast<index_t>(
-					std::floor((z_o + t * z_d) / block_size));
-				block_coordi_ptr[offset + 0] = xb;
-				block_coordi_ptr[offset + 1] = yb;
-				block_coordi_ptr[offset + 2] = zb;
+					floorf((z_o + t * z_d) / block_size));
+				index_t idx = atomicAdd(count_ptr, 1);
+				block_coordi_ptr[3 * idx + 0] = xb;
+				block_coordi_ptr[3 * idx + 1] = yb;
+				block_coordi_ptr[3 * idx + 2] = zb;
+				
 
 				t += t_step;
 			}
@@ -152,7 +157,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
 		index_t total_block_count = count.Item<index_t>();
 		utility::LogInfo("Toal block count={:d}", total_block_count);
-		utility::LogInfo("Toal pcd points={:d}",n);
+		utility::LogInfo("Toal pcd points={:d}", n);
 		if (total_block_count == 0) {
 			utility::LogError(
 					"[CUDATSDFTouchKernel] No block is touched in TSDF volume, "

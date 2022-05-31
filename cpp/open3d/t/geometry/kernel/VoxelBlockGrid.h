@@ -51,6 +51,7 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
+        index_t step_size,
         float sdf_trunc);
 
 void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
@@ -160,6 +161,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
+        index_t step_size,
         float sdf_trunc);
 
 void PointCloudTouchCPU(std::shared_ptr<core::HashMap>& hashmap,
@@ -277,6 +279,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
+        index_t step_size,
         float sdf_trunc);
 
 void PointCloudTouchCUDA(std::shared_ptr<core::HashMap>& hashmap,

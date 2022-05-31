@@ -365,11 +365,12 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
         const PointCloud &pcd, 
         const core::Tensor &extrinsic,
         float depth_max,
+        int step_size,
         float trunc_voxel_multiplier) {
     AssertInitialized();
     core::Tensor positions = pcd.GetPointPositions();
 
-    const int64_t est_sample_multiplier = 4;
+    const int64_t est_sample_multiplier = step_size + 1;
     if (frustum_hashmap_ == nullptr) {
         int64_t capacity = positions.GetLength() * est_sample_multiplier;
         frustum_hashmap_ = std::make_shared<core::HashMap>(
@@ -382,7 +383,7 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
     core::Tensor block_coords;
     kernel::voxel_grid::PointCloudRayMarching(
             frustum_hashmap_, positions, extrinsic, block_coords, block_resolution_,
-            voxel_size_, depth_max, voxel_size_ * trunc_voxel_multiplier);
+            voxel_size_, depth_max, step_size, voxel_size_ * trunc_voxel_multiplier);
     return block_coords;
 }
 
