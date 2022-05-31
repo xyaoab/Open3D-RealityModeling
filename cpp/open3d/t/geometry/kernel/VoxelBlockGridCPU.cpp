@@ -59,16 +59,6 @@ struct Coord3i {
     index_t z_;
 };
 
-struct Coord3f {
-    Coord3f(float x, float y, float z) : x_(x), y_(y), z_(z) {}
-    bool operator==(const Coord3f &other) const {
-        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_;
-    }
-
-    float x_;
-    float y_;
-    float z_;
-};
 
 struct Coord3iHash {
     size_t operator()(const Coord3i &k) const {
@@ -88,8 +78,6 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         const core::Tensor &points,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
-		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
-			// counting # blocks for each point -- used for association
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
@@ -127,14 +115,10 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
 	
 
-		// utility::LogInfo("PCD x: {:d} \n y: {:d} \n z: {:d}", x, y, z);
-		// utility::LogInfo("Origin x: {:d} \n y: {:d} \n z: {:d}", x_o, y_o, z_o);
 
 		const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
 		const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
-
-		// utility::LogInfo("tmin: {:d} \n tmax: {:d}", t_min, t_max);
 
         float t = t_min;
 		index_t step = 0;
@@ -148,31 +132,13 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 			set.emplace(xb, yb, zb);
 			t += t_step;
 						
-			// utility::LogInfo("step: { }", step);
-			// utility::LogInfo("FLOAT BLOCK x: {:d} \n y: {:d} \n z: {:d}", 
-			// 				(x_o + t * x_d), (y_o + t * y_d), (z_o + t * z_d));
+
         }
-		// block_map[Coord3f(x,y,z)] = step;
-		// }
+
         });
 
-		// index_t block_map_size = block_map.size();
-		// if (block_map_size != 0){
-		// 	utility::LogInfo(
-		// 		"Block map size={:d}",
-		// 		block_map_size);
-		// }
-		// else {
-		// 	utility::LogError(
-		// 		"Block size map is empty!"
-		// 	);
-		// }
-
         index_t block_count = set.size();
-        utility::LogInfo(
-				"Block map size={}",
-				block_count);
-		
+
         if (block_count == 0) {
 			utility::LogError(
 				"No block is touched in TSDF volume, abort integration. Please "

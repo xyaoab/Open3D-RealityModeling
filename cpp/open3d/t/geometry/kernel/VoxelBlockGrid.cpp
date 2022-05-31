@@ -64,7 +64,6 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         const core::Tensor &points,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
-		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,

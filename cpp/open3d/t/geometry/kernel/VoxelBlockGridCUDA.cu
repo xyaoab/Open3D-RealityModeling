@@ -58,23 +58,11 @@ struct Coord3i {
     index_t z_;
 };
 
-struct Coord3f {
-    OPEN3D_HOST_DEVICE Coord3f(float x, float y, float z) : x_(x), y_(y), z_(z) {}
-    OPEN3D_HOST_DEVICE bool operator==(const Coord3f &other) const {
-        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_;
-    }
-
-    float x_;
-    float y_;
-    float z_;
-};
-
 void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
-		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
@@ -94,14 +82,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float y_o = origin_ptr[1*4+3];
         float z_o = origin_ptr[2*4+3];
 
-		// const index_t step_size = 3;
 		const index_t est_multipler_factor = (step_size + 1);
-
-   	 	// static core::Tensor block_coordi;
-		// if (block_coordi.GetLength() != est_multipler_factor * n) {
-		// 	block_coordi = core::Tensor({est_multipler_factor * n, 3},
-		// 								core::Dtype::Int32, device);
-		// }
 
 		core::Tensor block_coordi({est_multipler_factor * n, 3}, core::Int32, device);
 
@@ -110,7 +91,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
 		core::Tensor count(std::vector<index_t>{0}, {}, core::Int32, device);
     	index_t *count_ptr = static_cast<index_t *>(count.GetDataPtr());
-
 
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
@@ -127,7 +107,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			float d = sqrtf(x_d * x_d + y_d * y_d + z_d * z_d);
 
 
-			const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
+			const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
 			const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
 			const float t_step = (t_max - t_min) / step_size;
 
@@ -146,7 +126,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 				block_coordi_ptr[3 * idx + 0] = xb;
 				block_coordi_ptr[3 * idx + 1] = yb;
 				block_coordi_ptr[3 * idx + 2] = zb;
-				
 
 				t += t_step;
 			}
@@ -156,8 +135,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		
 
 		index_t total_block_count = count.Item<index_t>();
-		utility::LogInfo("Toal block count={:d}", total_block_count);
-		utility::LogInfo("Toal pcd points={:d}", n);
+
 		if (total_block_count == 0) {
 			utility::LogError(
 					"[CUDATSDFTouchKernel] No block is touched in TSDF volume, "
@@ -222,8 +200,7 @@ void PointCloudTouchCUDA(std::shared_ptr<core::HashMap> &hashmap,
                       });
 
     index_t total_block_count = count.Item<index_t>();
-	utility::LogInfo("Toal block count={:d}", total_block_count);
-	utility::LogInfo("Toal pcd points={:d}",n);
+
     if (total_block_count == 0) {
         utility::LogError(
                 "[CUDATSDFTouchKernel] No block is touched in TSDF volume, "
