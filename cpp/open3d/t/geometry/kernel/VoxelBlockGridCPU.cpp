@@ -104,12 +104,12 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
 		// embedding all block coords under one scan -- tmp
-        // tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
+        tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
         
         const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
-        float x_o = origin_ptr[0];
-        float y_o = origin_ptr[1];
-        float z_o = origin_ptr[2];
+        float x_o = origin_ptr[0*4+3];
+        float y_o = origin_ptr[1*4+3];
+        float z_o = origin_ptr[2*4+3];
       
         // for each xyz point
         core::ParallelFor(device, n, [&](index_t workload_idx) {

@@ -90,9 +90,9 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
 
         const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
-        float x_o = origin_ptr[0];
-        float y_o = origin_ptr[1];
-        float z_o = origin_ptr[2];
+        float x_o = origin_ptr[0*4+3];
+        float y_o = origin_ptr[1*4+3];
+        float z_o = origin_ptr[2*4+3];
 
 		// const index_t step_size = 3;
 		const index_t est_multipler_factor = (step_size + 1);
