@@ -363,7 +363,8 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
 //overloading
 core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
         const PointCloud &pcd, 
-        const core::Tensor &extrinsic,
+        // const core::Tensor &extrinsic,
+        float x_o, float y_o, float z_o,
         float depth_max,
         int step_size,
         float trunc_voxel_multiplier) {
@@ -382,7 +383,8 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
 
     core::Tensor block_coords;
     kernel::voxel_grid::PointCloudRayMarching(
-            frustum_hashmap_, positions, extrinsic, block_coords, block_resolution_,
+            // frustum_hashmap_, positions, extrinsic, block_coords, block_resolution_,
+            frustum_hashmap_, positions, x_o, y_o, z_o, block_coords, block_resolution_,
             voxel_size_, depth_max, step_size, voxel_size_ * trunc_voxel_multiplier);
     return block_coords;
 }

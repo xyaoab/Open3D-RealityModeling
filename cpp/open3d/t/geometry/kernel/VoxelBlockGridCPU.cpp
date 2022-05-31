@@ -86,7 +86,8 @@ struct Coord3iHash {
 void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                 &hashmap,  // dummy for now, one pass insertion is faster
         const core::Tensor &points,
-        const core::Tensor &extrinsic,
+        // const core::Tensor &extrinsic,
+        float x_o, float y_o, float z_o,
         core::Tensor &voxel_block_coords,
 		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
 			// counting # blocks for each point -- used for association
@@ -95,9 +96,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float depth_max,
 		index_t step_size,
         float sdf_trunc) {
-        core::Device device = core::Device("CPU:0");
+        // core::Device device = core::Device("CPU:0");
         // sensor origin
-        core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+        // core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
         index_t resolution = voxel_grid_resolution;
         float block_size = voxel_size * resolution;
 
@@ -105,15 +106,20 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
 		// embedding all block coords under one scan -- tmp
         // tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
-        
-        const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
-        float x_o = origin_ptr[0];
-        float y_o = origin_ptr[1];
-        float z_o = origin_ptr[2];
+        // std::unordered_map<std::shared_ptr<Coord3i>, int> set;
+
+        typedef std::tuple<int, int, int> Coordinate3;
+        std::unordered_map<Coordinate3, size_t, utility::hash_tuple<Coordinate3>>
+            set;
+        // const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
+        // float x_o = origin_ptr[0];
+        // float y_o = origin_ptr[1];
+        // float z_o = origin_ptr[2];
+
       
         // for each xyz point
-        core::ParallelFor(device, n, [&](index_t workload_idx) {
-		// for(index_t workload_idx=0; workload_idx<n; workload_idx++){
+        // core::ParallelFor(device, n, [&](index_t workload_idx) {
+		for(index_t workload_idx=0; workload_idx<n; workload_idx++){
 			
         // point in map frame
         float x = pcd_ptr[3 * workload_idx + 0];
@@ -127,14 +133,14 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
 	
 
-		// utility::LogInfo("PCD x: {:d} \n y: {:d} \n z: {:d}", x, y, z);
-		// utility::LogInfo("Origin x: {:d} \n y: {:d} \n z: {:d}", x_o, y_o, z_o);
+		utility::LogInfo("PCD x: {} \n y: {} \n z: {}", x, y, z);
+		utility::LogInfo("Origin x: {} \n y: {} \n z: {}", x_o, y_o, z_o);
 
 		const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
 		const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
 
-		// utility::LogInfo("tmin: {:d} \n tmax: {:d}", t_min, t_max);
+		utility::LogInfo("tmin: {} \n tmax: {}", t_min, t_max);
 
         float t = t_min;
 		index_t step = 0;
@@ -145,16 +151,22 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 				std::floor((y_o + t * y_d) / block_size));
 			index_t zb = static_cast<index_t>(
 				std::floor((z_o + t * z_d) / block_size));
-			set.emplace(xb, yb, zb);
-			t += t_step;
+			
+            // size_t tmp =  (static_cast<size_t>(xb) * p0) ^
+            //    (static_cast<size_t>(yb) * p1) ^
+            //    (static_cast<size_t>(zb) * p2);
+			// set.emplace(std::make_pair(Coord3i(xb, yb, zb), tmp));
+            Coordinate3 index = std::make_tuple(xb, yb, zb);
+            set[index] = step;
+            t += t_step;
 						
-			// utility::LogInfo("step: { }", step);
-			// utility::LogInfo("FLOAT BLOCK x: {:d} \n y: {:d} \n z: {:d}", 
-			// 				(x_o + t * x_d), (y_o + t * y_d), (z_o + t * z_d));
+			utility::LogInfo("step: {}", step);
+			utility::LogInfo("FLOAT BLOCK x: {} \n y: {} \n z: {}", 
+							(x_o + t * x_d), (y_o + t * y_d), (z_o + t * z_d));
         }
 		// block_map[Coord3f(x,y,z)] = step;
-		// }
-        });
+		}
+        // });
 
 		// index_t block_map_size = block_map.size();
 		// if (block_map_size != 0){
@@ -190,9 +202,14 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t count = 0;
         for (auto it = set.begin(); it != set.end(); ++it, ++count) {
 			index_t offset = count * 3;
-			block_coords_ptr[offset + 0] = static_cast<index_t>(it->x_);
-			block_coords_ptr[offset + 1] = static_cast<index_t>(it->y_);
-			block_coords_ptr[offset + 2] = static_cast<index_t>(it->z_);
+			// block_coords_ptr[offset + 0] = static_cast<index_t>(it->x_);
+			// block_coords_ptr[offset + 1] = static_cast<index_t>(it->y_);
+			// block_coords_ptr[offset + 2] = static_cast<index_t>(it->z_);
+            std::pair<Coordinate3, size_t> temp = *it;
+            Coordinate3 coords = temp.first;
+            block_coords_ptr[offset + 0] = static_cast<index_t>(std::get<0>(coords));
+			block_coords_ptr[offset + 1] = static_cast<index_t>(std::get<1>(coords));
+			block_coords_ptr[offset + 2] = static_cast<index_t>(std::get<2>(coords));
         }
 
 

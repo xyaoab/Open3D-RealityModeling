@@ -62,7 +62,8 @@ void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
 void PointCloudRayMarching(std::shared_ptr<core::HashMap>
                 &hashmap, 
         const core::Tensor &points,
-        const core::Tensor &extrinsic,
+        // const core::Tensor &extrinsic,
+        float x_o, float y_o,float z_o,
         core::Tensor &voxel_block_coords,
 		// tbb::concurrent_unordered_map<Coord3f, index_t> &block_map,
         index_t voxel_grid_resolution,
@@ -74,11 +75,11 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         core::Device::DeviceType device_type = hashmap->GetDevice().GetType();
 
         if (device_type == core::Device::DeviceType::CPU) {
-            PointCloudRayMarchingCPU(hashmap, points, extrinsic,
+            PointCloudRayMarchingCPU(hashmap, points, x_o,  y_o,z_o, //extrinsic,
                             voxel_block_coords, voxel_grid_resolution,
                             voxel_size, depth_max, step_size, sdf_trunc);
         } else if (device_type == core::Device::DeviceType::CUDA) {
-            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, extrinsic,
+            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points,  x_o,  y_o,z_o,// extrinsic,
                             voxel_block_coords, voxel_grid_resolution,
                             voxel_size, depth_max, step_size, sdf_trunc);
         } else {

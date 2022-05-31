@@ -154,7 +154,8 @@ public:
 
     core::Tensor GetUniqueBlockCoordinates(
         const PointCloud &pcd, 
-        const core::Tensor &extrinsic,
+        // const core::Tensor &extrinsic,
+        float x_o, float y_o, float z_o,
         float depth_max = 3.0f,
         int step_size = 3,
         float trunc_voxel_multiplier = 8.0);
