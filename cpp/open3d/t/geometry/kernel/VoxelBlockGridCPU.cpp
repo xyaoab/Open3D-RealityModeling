@@ -72,12 +72,27 @@ struct Coord3iHash {
     }
 };
 
+struct Coord4f {
+    Coord4f(float x, float y, float z, index_t count): 
+            x_(x), y_(y), z_(z), count_(count){}
+    bool operator==(const Coord4f &other) const {
+        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_ && count_ == other.count_;
+    }
+
+    index_t x_;
+    index_t y_;
+    index_t z_;
+    index_t count_;
+};
+
+
 // for pointcloud, select grids along the ray direction
 void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                 &hashmap,  // dummy for now, one pass insertion is faster
         const core::Tensor &points,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
+        core::Tensor &block_pcd_coords,
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
@@ -91,8 +106,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
-		// embedding all block coords under one scan -- tmp
+
         tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
+        tbb::concurrent_unordered_map<Coord3i, Coord4f, Coord3iHash> hashmap_block2points;
         
         const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
         float x_o = origin_ptr[0*4+3];
@@ -115,7 +131,6 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
 	
 
-
 		const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
 		const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
@@ -130,6 +145,20 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 			index_t zb = static_cast<index_t>(
 				std::floor((z_o + t * z_d) / block_size));
 			set.emplace(xb, yb, zb);
+            Coord3i current_block_coords = Coord3i{xb, yb, zb};
+            Coord4f current_pcd_coords = Coord4f{x, y, z, 1};
+            if (hashmap_block2points.count(current_block_coords)!=0){
+                // update
+                index_t num_pts = hashmap_block2points[current_block_coords].count_;
+                current_pcd_coords.count_ = num_pts + 1;
+                current_pcd_coords.x_ = (hashmap_block2points[current_block_coords].x_ * num_pts 
+                                        + current_pcd_coords.x_) / current_pcd_coords.count_;
+                current_pcd_coords.y_ = (hashmap_block2points[current_block_coords].y_ * num_pts 
+                                        + current_pcd_coords.y_) / current_pcd_coords.count_;
+                current_pcd_coords.z_ = (hashmap_block2points[current_block_coords].z_ * num_pts 
+                                        + current_pcd_coords.z_) / current_pcd_coords.count_;
+            }
+            hashmap_block2points[current_block_coords] = current_pcd_coords;
 			t += t_step;
 						
 
@@ -147,19 +176,36 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         }
 
 
-        // push set in to block coords datafield
-
         voxel_block_coords =
 			core::Tensor({block_count, 3}, core::Int32, points.GetDevice());
         index_t *block_coords_ptr =
 			static_cast<index_t *>(voxel_block_coords.GetDataPtr());
+ 
+        // TO-DO: Use number of associated pcd points to update weights -- maybe 
+        block_pcd_coords =
+			core::Tensor({block_count, 3}, core::Float32, points.GetDevice());
+        float *block_pcd_coords_ptr  =
+			static_cast<float *>(block_pcd_coords.GetDataPtr());
+
         index_t count = 0;
         for (auto it = set.begin(); it != set.end(); ++it, ++count) {
 			index_t offset = count * 3;
-			block_coords_ptr[offset + 0] = static_cast<index_t>(it->x_);
-			block_coords_ptr[offset + 1] = static_cast<index_t>(it->y_);
-			block_coords_ptr[offset + 2] = static_cast<index_t>(it->z_);
+            index_t blockX = static_cast<index_t>(it->x_);
+            index_t blockY = static_cast<index_t>(it->y_);
+            index_t blockZ = static_cast<index_t>(it->z_);
+            Coord3i block = Coord3i{blockX, blockY, blockZ};
+            float pcdX = static_cast<float>(hashmap_block2points[block].x_);
+            float pcdY = static_cast<float>(hashmap_block2points[block].y_);
+            float pcdZ = static_cast<float>(hashmap_block2points[block].z_);
+
+			block_coords_ptr[offset + 0] = blockX;
+			block_coords_ptr[offset + 1] = blockY;
+			block_coords_ptr[offset + 2] = blockZ;
+            block_pcd_coords_ptr[offset + 0] = pcdX;
+            block_pcd_coords_ptr[offset + 1] = pcdY;
+            block_pcd_coords_ptr[offset + 2] = pcdZ;
         }
+        
 
 
 

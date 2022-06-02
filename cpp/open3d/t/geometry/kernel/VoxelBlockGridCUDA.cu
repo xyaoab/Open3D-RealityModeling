@@ -82,14 +82,14 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float y_o = origin_ptr[1*4+3];
         float z_o = origin_ptr[2*4+3];
 
-		const index_t est_multipler_factor = (step_size + 1);
+        const index_t est_multipler_factor = (step_size + 1);
 
-		core::Tensor block_coordi({est_multipler_factor * n, 3}, core::Int32, device);
+        core::Tensor block_coordi({est_multipler_factor * n, 3}, core::Int32, device);
 
     	index_t *block_coordi_ptr =
             static_cast<index_t *>(block_coordi.GetDataPtr());
 
-		core::Tensor count(std::vector<index_t>{0}, {}, core::Int32, device);
+        core::Tensor count(std::vector<index_t>{0}, {}, core::Int32, device);
     	index_t *count_ptr = static_cast<index_t *>(count.GetDataPtr());
 
         // for each xyz point
