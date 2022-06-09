@@ -381,7 +381,7 @@ std::pair<core::Tensor, core::Tensor> VoxelBlockGrid::GetUniqueBlockCoordinates(
     }
 
     core::Tensor block_coords;
-    core::Tensor block_pcd_coords,
+    core::Tensor block_pcd_coords;
     kernel::voxel_grid::PointCloudRayMarching(
             frustum_hashmap_, positions, extrinsic, block_coords, block_pcd_coords,
             block_resolution_, voxel_size_, depth_max, step_size,

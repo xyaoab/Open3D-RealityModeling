@@ -73,15 +73,16 @@ struct Coord3iHash {
 };
 
 struct Coord4f {
+    Coord4f() {}
     Coord4f(float x, float y, float z, index_t count): 
-            x_(x), y_(y), z_(z), count_(count){}
+            x_(x), y_(y), z_(z), count_(count) {}
     bool operator==(const Coord4f &other) const {
         return x_ == other.x_ && y_ == other.y_ && z_ == other.z_ && count_ == other.count_;
     }
 
-    index_t x_;
-    index_t y_;
-    index_t z_;
+    float x_;
+    float y_;
+    float z_;
     index_t count_;
 };
 
@@ -131,8 +132,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
 	
 
-		const float t_min = (d - sdf_trunc) / d;//max(d - sdf_trunc, 0.0f) / d;
-		const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
+		const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
+		const float t_max = (d + sdf_trunc) /  d; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
 
         float t = t_min;
@@ -145,11 +146,19 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 			index_t zb = static_cast<index_t>(
 				std::floor((z_o + t * z_d) / block_size));
 			set.emplace(xb, yb, zb);
-            Coord3i current_block_coords = Coord3i{xb, yb, zb};
-            Coord4f current_pcd_coords = Coord4f{x, y, z, 1};
+            const Coord3i current_block_coords{xb, yb, zb};
+            Coord4f current_pcd_coords{x, y, z, 1};
+
+            // update weighted average pcd 3d points
             if (hashmap_block2points.count(current_block_coords)!=0){
                 // update
-                index_t num_pts = hashmap_block2points[current_block_coords].count_;
+                Coord4f &tmp = hashmap_block2points[current_block_coords];
+                // auto tmp_iter = hashmap_block2points.find(current_block_coords);
+                // if( tmp_iter != hashmap_block2points.end() )
+                // {
+                // index_t num_pts = tmp_iter->second.count_;
+                // }
+                index_t num_pts = tmp.count_;
                 current_pcd_coords.count_ = num_pts + 1;
                 current_pcd_coords.x_ = (hashmap_block2points[current_block_coords].x_ * num_pts 
                                         + current_pcd_coords.x_) / current_pcd_coords.count_;
@@ -159,6 +168,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                                         + current_pcd_coords.z_) / current_pcd_coords.count_;
             }
             hashmap_block2points[current_block_coords] = current_pcd_coords;
+            // hashmap_block2points.insert(
+                        // tbb::concurrent_unordered_map::make_value[current_block_coords] = current_pcd_coords;
 			t += t_step;
 						
 
