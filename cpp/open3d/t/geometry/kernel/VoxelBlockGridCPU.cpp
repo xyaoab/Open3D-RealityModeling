@@ -152,12 +152,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             // update weighted average pcd 3d points
             if (hashmap_block2points.count(current_block_coords)!=0){
                 // update
-                Coord4f &tmp = hashmap_block2points[current_block_coords];
-                // auto tmp_iter = hashmap_block2points.find(current_block_coords);
-                // if( tmp_iter != hashmap_block2points.end() )
-                // {
-                // index_t num_pts = tmp_iter->second.count_;
-                // }
+                Coord4f tmp = hashmap_block2points[current_block_coords];
+
                 index_t num_pts = tmp.count_;
                 current_pcd_coords.count_ = num_pts + 1;
                 current_pcd_coords.x_ = (hashmap_block2points[current_block_coords].x_ * num_pts 
