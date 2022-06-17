@@ -99,11 +99,13 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float depth_max,
 		index_t step_size,
         float sdf_trunc) {
+
         core::Device device = core::Device("CPU:0");
         // sensor origin
         core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
         index_t resolution = voxel_grid_resolution;
         float block_size = voxel_size * resolution;
+        const int tangential_step_size = 8;
 
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
@@ -118,7 +120,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
       
         // for each xyz point
         core::ParallelFor(device, n, [&](index_t workload_idx) {
-		// for(index_t workload_idx=0; workload_idx<n; workload_idx++){
+
 			
         // point in map frame
         float x = pcd_ptr[3 * workload_idx + 0];
@@ -130,25 +132,49 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float y_d = y - y_o;
         float z_d = z - z_o;
         float d = std::sqrt(x_d * x_d + y_d * y_d + z_d * z_d);
-	
+        std::vector<float> unit_normal = std::vector<float>{x_d/d, y_d/d, z_d/d};
+        float denominator = std::sqrt(unit_normal[0] * unit_normal[0]
+                                    + unit_normal[1] * unit_normal[1]);
+
+        
+        std::vector<float> fraction_ptr = std::vector<float>{unit_normal[0]/denominator, 
+                                        unit_normal[1]/denominator, unit_normal[2]/denominator};
+        // get plane rotation matrix
+        core::Tensor rotation = core::Tensor::Init<float>(
+                {{fraction_ptr[1], -fraction_ptr[0], 0.}, 
+                {fraction_ptr[0] * unit_normal[2], 
+                    fraction_ptr[1] * unit_normal[2], -denominator},
+                {fraction_ptr[0], unit_normal[1], unit_normal[2]}}, device);
 
 		const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
-		const float t_max = (d + sdf_trunc) /  d; // min(d + sdf_trunc, depth_max) / d;
+		const float t_max = (d + sdf_trunc) / d; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
+        const float tangential_step = (t_max - t_min) / tangential_step_size;
+
+        core::Tensor neighbor_pts = core::Tensor::Init<float>(
+            {{-1*tangential_step, 0, 0}, {tangential_step, 0, 0},
+            {0, -1*tangential_step, 0}, {0, tangential_step, 0}}, device);
+        neighbor_pts = rotation.Matmul(neighbor_pts.T()).T();
+        float *neighbor_pts_ptr = 
+            static_cast<float *>(neighbor_pts.GetDataPtr());
 
         float t = t_min;
 		index_t step = 0;
+        Coord4f current_pcd_coords{x, y, z, 1};
+
         for (step = 0; step <= step_size; ++step) {
+            float x_f = x_o + t * x_d;
+            float y_f = y_o + t * y_d;
+            float z_f = z_o + t * z_d;
 			index_t xb = static_cast<index_t>(
-				std::floor((x_o + t * x_d) / block_size));
+				std::floor(x_f / block_size));
 			index_t yb = static_cast<index_t>(
-				std::floor((y_o + t * y_d) / block_size));
+				std::floor(y_f / block_size));
 			index_t zb = static_cast<index_t>(
-				std::floor((z_o + t * z_d) / block_size));
+				std::floor(z_f / block_size));
 			set.emplace(xb, yb, zb);
             const Coord3i current_block_coords{xb, yb, zb};
-            Coord4f current_pcd_coords{x, y, z, 1};
-
+            
             // update weighted average pcd 3d points
             if (hashmap_block2points.count(current_block_coords)!=0){
                 // update
@@ -164,8 +190,33 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                                         + current_pcd_coords.z_) / current_pcd_coords.count_;
             }
             hashmap_block2points[current_block_coords] = current_pcd_coords;
-            // hashmap_block2points.insert(
-                        // tbb::concurrent_unordered_map::make_value[current_block_coords] = current_pcd_coords;
+            
+            for (index_t idx = 0; idx<=neighbor_pts.GetShape(0); idx++){
+                index_t x_neighbor =  static_cast<index_t>(
+				    std::floor((x_f + neighbor_pts_ptr[idx + 0]) / block_size));
+                index_t y_neighbor =  static_cast<index_t>(
+				    std::floor((y_f + neighbor_pts_ptr[idx + 1]) / block_size));
+                index_t z_neighbor =  static_cast<index_t>(
+				    std::floor((z_f + neighbor_pts_ptr[idx + 2]) / block_size));
+                const Coord3i neighbor_block_coords{x_neighbor, y_neighbor, z_neighbor};
+                
+                // update weighted average pcd 3d points
+                if (hashmap_block2points.count(neighbor_block_coords)!=0){
+                    // update
+                    Coord4f tmp = hashmap_block2points[neighbor_block_coords];
+
+                    index_t num_pts = tmp.count_;
+                    current_pcd_coords.count_ = num_pts + 1;
+                    current_pcd_coords.x_ = (hashmap_block2points[neighbor_block_coords].x_ * num_pts 
+                                            + current_pcd_coords.x_) / current_pcd_coords.count_;
+                    current_pcd_coords.y_ = (hashmap_block2points[neighbor_block_coords].y_ * num_pts 
+                                            + current_pcd_coords.y_) / current_pcd_coords.count_;
+                    current_pcd_coords.z_ = (hashmap_block2points[neighbor_block_coords].z_ * num_pts 
+                                            + current_pcd_coords.z_) / current_pcd_coords.count_;
+                }
+                hashmap_block2points[neighbor_block_coords] = current_pcd_coords;
+            }
+
 			t += t_step;
 						
 
