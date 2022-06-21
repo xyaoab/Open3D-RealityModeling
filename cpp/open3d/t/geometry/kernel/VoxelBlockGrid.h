@@ -275,10 +275,11 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         const core::Tensor &points,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
+        core::Tensor &block_pcd_coords,
         index_t voxel_grid_resolution,
         float voxel_size,
-        float depth_max,
         index_t step_size,
+        index_t tangential_step_size,
         float sdf_trunc);
 
 void PointCloudTouchCUDA(std::shared_ptr<core::HashMap>& hashmap,

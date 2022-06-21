@@ -122,7 +122,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         index_t num_blocks = tangential_step_size * tangential_step_size * 4;
         core::Tensor neighbor_pts = core::Tensor({num_blocks,3}, core::Float32, device);
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
-        int cnt = 0;
+        index_t cnt = 0;
         for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
             for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {
                 neighbor_pts_ptr[cnt*3 + 0] = ii*tangential_step;

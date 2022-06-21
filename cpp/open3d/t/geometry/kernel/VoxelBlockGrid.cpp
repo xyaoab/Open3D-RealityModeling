@@ -80,8 +80,8 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
                             voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else if (device_type == core::Device::DeviceType::CUDA) {
             CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, extrinsic,
-                            voxel_block_coords, voxel_grid_resolution,
-                            voxel_size, depth_max, step_size, sdf_trunc);
+                            voxel_block_coords, block_pcd_coords, voxel_grid_resolution,
+                            voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else {
             utility::LogError("Unimplemented device");
         }
