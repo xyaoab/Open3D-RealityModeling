@@ -153,14 +153,12 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 
 
         core::Tensor neighbor_pts =
-			core::Tensor({99,3}, core::Float32, device);
+			core::Tensor({100,3}, core::Float32, device);
         float *neighbor_pts_ptr =
 			static_cast<float *>(neighbor_pts.GetDataPtr());
         int cnt=0;
         for (auto ii=-5;ii<5;ii++){
             for (auto jj=-5;jj<5;jj++){
-                if (ii==0 && jj==0) continue;
-
                 neighbor_pts_ptr[cnt*3 + 0] = ii*tangential_step;
                 neighbor_pts_ptr[cnt*3 + 1] = jj*tangential_step;
                 neighbor_pts_ptr[cnt*3 + 2] = 0;
@@ -168,15 +166,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             }
         }
 
-    
-        // core::Tensor neighbor_pts = core::Tensor::Init<float>(
-        //     {
-        //     {-1*tangential_step, 0, 0}, {tangential_step, 0, 0},
-        //     {0, -1*tangential_step, 0}, {0, tangential_step, 0}}, 
-        //     device);
         neighbor_pts = rotation.Matmul(neighbor_pts.T()).T();
-        // float *neighbor_pts_ptr =
-		// 	static_cast<float *>(neighbor_pts.GetDataPtr());
 
         float t = t_min;
 		index_t step = 0;
@@ -186,32 +176,6 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             float x_f = x_o + t * x_d;
             float y_f = y_o + t * y_d;
             float z_f = z_o + t * z_d;
-			index_t xb = static_cast<index_t>(
-				std::floor(x_f / block_size));
-			index_t yb = static_cast<index_t>(
-				std::floor(y_f / block_size));
-			index_t zb = static_cast<index_t>(
-				std::floor(z_f / block_size));
-			set.emplace(xb, yb, zb);
-            const Coord3i current_block_coords{xb, yb, zb};
-            std::vector<float> block_dir{ static_cast<float>(xb) - x_o, 
-                                        static_cast<float>(yb) - y_o,
-                                        static_cast<float>(zb) - z_o };
-            float block_dir_norm = std::sqrt(block_dir[0] * block_dir[0]
-                                    + block_dir[1] * block_dir[1]
-                                    + block_dir[2] * block_dir[2]);
-            float current_angle = std::fabs((block_dir[0] * unit_normal[0]
-                                    + block_dir[1] * unit_normal[1]
-                                    + block_dir[2] * unit_normal[2]) / block_dir_norm);
-            current_pcd_coords.angle_ = current_angle;
-
-            // update weighted average pcd 3d points
-            if ((hashmap_block2points.count(current_block_coords)!=0 &&
-                    hashmap_block2points[current_block_coords].angle_ < current_angle)
-                    || hashmap_block2points.count(current_block_coords)==0) {
-                
-                hashmap_block2points[current_block_coords] = current_pcd_coords;
-            }
 
             for (index_t idx = 0; idx<neighbor_pts.GetShape(0); idx++){
                 index_t x_neighbor =  static_cast<index_t>(
@@ -223,49 +187,29 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                 const Coord3i neighbor_block_coords{x_neighbor, y_neighbor, z_neighbor};
                 set.emplace(x_neighbor, y_neighbor, z_neighbor);
 
-                block_dir =  std::vector<float>{ static_cast<float>(x_neighbor) - x_o, 
+                std::vector<float> block_dir =  std::vector<float>{ static_cast<float>(x_neighbor) - x_o, 
                                         static_cast<float>(y_neighbor) - y_o,
                                         static_cast<float>(z_neighbor) - z_o };
-                block_dir_norm = std::sqrt(block_dir[0] * block_dir[0]
+                float block_dir_norm = std::sqrt(block_dir[0] * block_dir[0]
                                         + block_dir[1] * block_dir[1]
                                         + block_dir[2] * block_dir[2]);
-                current_angle = std::fabs((block_dir[0] * unit_normal[0]
+                float current_angle = std::fabs((block_dir[0] * unit_normal[0]
                                         + block_dir[1] * unit_normal[1]
                                         + block_dir[2] * unit_normal[2]) / block_dir_norm);
                 current_pcd_coords.angle_ = current_angle;
                 // update weighted average pcd 3d points
                 if ((hashmap_block2points.count(neighbor_block_coords)!=0 &&
-                    hashmap_block2points[neighbor_block_coords].angle_ < current_angle)
-                    || hashmap_block2points.count(neighbor_block_coords)==0) {
-                
-                hashmap_block2points[neighbor_block_coords] = current_pcd_coords;
+                        hashmap_block2points[neighbor_block_coords].angle_ < current_angle)
+                        || hashmap_block2points.count(neighbor_block_coords)==0) {
+                    hashmap_block2points[neighbor_block_coords] = current_pcd_coords;
                 }
-                // // update weighted average pcd 3d points
-                // if (hashmap_block2points.count(neighbor_block_coords)!=0){
-                //     // update
-                //     Coord4f tmp = hashmap_block2points[neighbor_block_coords];
-
-                //     index_t num_pts = tmp.count_;
-                //     current_pcd_coords.count_ = num_pts + 1;
-                //     current_pcd_coords.x_ = (hashmap_block2points[neighbor_block_coords].x_ * num_pts 
-                //                             + current_pcd_coords.x_) / current_pcd_coords.count_;
-                //     current_pcd_coords.y_ = (hashmap_block2points[neighbor_block_coords].y_ * num_pts 
-                //                             + current_pcd_coords.y_) / current_pcd_coords.count_;
-                //     current_pcd_coords.z_ = (hashmap_block2points[neighbor_block_coords].z_ * num_pts 
-                //                             + current_pcd_coords.z_) / current_pcd_coords.count_;
-                // }
-                // hashmap_block2points[neighbor_block_coords] = current_pcd_coords;
             }
 
 			t += t_step;
-						
-
         }
-
         });
 
         index_t block_count = set.size();
-
         if (block_count == 0) {
 			utility::LogError(
 				"No block is touched in TSDF volume, abort integration. Please "
