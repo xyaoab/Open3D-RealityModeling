@@ -69,6 +69,7 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         float voxel_size,
         float depth_max,
         index_t step_size,
+        index_t tangential_step_size,
         float sdf_trunc){
 
         core::Device::DeviceType device_type = hashmap->GetDevice().GetType();
@@ -76,7 +77,7 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         if (device_type == core::Device::DeviceType::CPU) {
             PointCloudRayMarchingCPU(hashmap, points, extrinsic,
                             voxel_block_coords, block_pcd_coords, voxel_grid_resolution,
-                            voxel_size, depth_max, step_size, sdf_trunc);
+                            voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else if (device_type == core::Device::DeviceType::CUDA) {
             CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, extrinsic,
                             voxel_block_coords, voxel_grid_resolution,

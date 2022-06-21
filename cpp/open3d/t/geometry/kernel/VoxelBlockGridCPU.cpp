@@ -96,8 +96,8 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         core::Tensor &block_pcd_coords,
         index_t voxel_grid_resolution,
         float voxel_size,
-        float depth_max,
-		index_t step_size,
+		index_t step_size, // param for num of voxels along the ray
+        index_t tangential_step_size, // param for expansion on the tangential plane
         float sdf_trunc) {
 
         core::Device device = core::Device("CPU:0");
@@ -105,23 +105,36 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
         index_t resolution = voxel_grid_resolution;
         float block_size = voxel_size * resolution;
-        const int tangential_step_size = 8;
 
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
 
         tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
         tbb::concurrent_unordered_map<Coord3i, Coord4f, Coord3iHash> hashmap_block2points;
-        
-        const float *origin_ptr= static_cast<const float *>(pose.GetDataPtr());
+
+        const float *origin_ptr = static_cast<const float *>(pose.GetDataPtr());
         float x_o = origin_ptr[0*4+3];
         float y_o = origin_ptr[1*4+3];
         float z_o = origin_ptr[2*4+3];
-      
+
+        // populate neighbor points for association
+        const float tangential_step = voxel_size;
+        index_t num_blocks = tangential_step_size * tangential_step_size * 4;
+        core::Tensor neighbor_pts = core::Tensor({num_blocks,3}, core::Float32, device);
+        float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
+        int cnt = 0;
+        for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
+            for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {
+                neighbor_pts_ptr[cnt*3 + 0] = ii*tangential_step;
+                neighbor_pts_ptr[cnt*3 + 1] = jj*tangential_step;
+                neighbor_pts_ptr[cnt*3 + 2] = 0;
+                cnt++;
+            }
+        }
+
         // for each xyz point
         core::ParallelFor(device, n, [&](index_t workload_idx) {
 
-			
         // point in map frame
         float x = pcd_ptr[3 * workload_idx + 0];
         float y = pcd_ptr[3 * workload_idx + 1];
@@ -136,7 +149,6 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float denominator = std::sqrt(unit_normal[0] * unit_normal[0]
                                     + unit_normal[1] * unit_normal[1]);
 
-        
         std::vector<float> fraction_ptr = std::vector<float>{unit_normal[0]/denominator, 
                                         unit_normal[1]/denominator, unit_normal[2]/denominator};
         // get plane rotation matrix
@@ -149,24 +161,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 		const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
 		const float t_max = (d + sdf_trunc) / d; // min(d + sdf_trunc, depth_max) / d;
 		const float t_step = (t_max - t_min) / step_size;
-        const float tangential_step = (t_max - t_min) / tangential_step_size;
 
-
-        core::Tensor neighbor_pts =
-			core::Tensor({100,3}, core::Float32, device);
-        float *neighbor_pts_ptr =
-			static_cast<float *>(neighbor_pts.GetDataPtr());
-        int cnt=0;
-        for (auto ii=-5;ii<5;ii++){
-            for (auto jj=-5;jj<5;jj++){
-                neighbor_pts_ptr[cnt*3 + 0] = ii*tangential_step;
-                neighbor_pts_ptr[cnt*3 + 1] = jj*tangential_step;
-                neighbor_pts_ptr[cnt*3 + 2] = 0;
-                cnt++;
-            }
-        }
-
-        neighbor_pts = rotation.Matmul(neighbor_pts.T()).T();
+        core::Tensor rotated_neighbor_pts = rotation.Matmul(neighbor_pts.T()).T();
+        float *rotated_neighbors_ptr = static_cast<float *>(rotated_neighbor_pts.GetDataPtr());
 
         float t = t_min;
 		index_t step = 0;
@@ -177,19 +174,20 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             float y_f = y_o + t * y_d;
             float z_f = z_o + t * z_d;
 
-            for (index_t idx = 0; idx<neighbor_pts.GetShape(0); idx++){
-                index_t x_neighbor =  static_cast<index_t>(
-				    std::floor((x_f + neighbor_pts_ptr[idx*3 + 0]) / block_size));
-                index_t y_neighbor =  static_cast<index_t>(
-				    std::floor((y_f + neighbor_pts_ptr[idx*3 + 1]) / block_size));
-                index_t z_neighbor =  static_cast<index_t>(
-				    std::floor((z_f + neighbor_pts_ptr[idx*3 + 2]) / block_size));
+            for (index_t idx = 0; idx<rotated_neighbor_pts.GetShape(0); idx++){
+                index_t x_neighbor = static_cast<index_t>(
+				    std::floor((x_f + rotated_neighbors_ptr[idx*3 + 0]) / block_size));
+                index_t y_neighbor = static_cast<index_t>(
+				    std::floor((y_f + rotated_neighbors_ptr[idx*3 + 1]) / block_size));
+                index_t z_neighbor = static_cast<index_t>(
+				    std::floor((z_f + rotated_neighbors_ptr[idx*3 + 2]) / block_size));
+                
                 const Coord3i neighbor_block_coords{x_neighbor, y_neighbor, z_neighbor};
                 set.emplace(x_neighbor, y_neighbor, z_neighbor);
 
-                std::vector<float> block_dir =  std::vector<float>{ static_cast<float>(x_neighbor) - x_o, 
-                                        static_cast<float>(y_neighbor) - y_o,
-                                        static_cast<float>(z_neighbor) - z_o };
+                std::vector<float> block_dir = std::vector<float>{static_cast<float>(x_neighbor) - x_o, 
+                                                static_cast<float>(y_neighbor) - y_o,
+                                                static_cast<float>(z_neighbor) - z_o};
                 float block_dir_norm = std::sqrt(block_dir[0] * block_dir[0]
                                         + block_dir[1] * block_dir[1]
                                         + block_dir[2] * block_dir[2]);
@@ -198,9 +196,10 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                                         + block_dir[2] * unit_normal[2]) / block_dir_norm);
                 current_pcd_coords.angle_ = current_angle;
                 // update weighted average pcd 3d points
-                if ((hashmap_block2points.count(neighbor_block_coords)!=0 &&
-                        hashmap_block2points[neighbor_block_coords].angle_ < current_angle)
-                        || hashmap_block2points.count(neighbor_block_coords)==0) {
+                if ((hashmap_block2points.count(neighbor_block_coords)!= 0 
+                    && hashmap_block2points[neighbor_block_coords].angle_ < current_angle)
+                    || hashmap_block2points.count(neighbor_block_coords)==0) {
+
                     hashmap_block2points[neighbor_block_coords] = current_pcd_coords;
                 }
             }
@@ -222,7 +221,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 			core::Tensor({block_count, 3}, core::Int32, points.GetDevice());
         index_t *block_coords_ptr =
 			static_cast<index_t *>(voxel_block_coords.GetDataPtr());
- 
+
         // TO-DO: Use number of associated pcd points to update weights -- maybe 
         block_pcd_coords =
 			core::Tensor({block_count, 3}, core::Float32, points.GetDevice());
@@ -247,10 +246,6 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             block_pcd_coords_ptr[offset + 1] = pcdY;
             block_pcd_coords_ptr[offset + 2] = pcdZ;
         }
-        
-
-
-
 }
 
 
