@@ -97,7 +97,8 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float y_o = origin_ptr[1*4+3];
         float z_o = origin_ptr[2*4+3];
 
-        const index_t est_multipler_factor = (step_size + 1);
+		const index_t num_blocks = tangential_step_size * tangential_step_size * 4;
+        const index_t est_multipler_factor = (step_size + 1) *  num_blocks;
 
         core::Tensor block_coordi({est_multipler_factor * n, 3}, core::Int32, device);
     	index_t *block_coordi_ptr =
@@ -108,7 +109,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
          // populate neighbor points for association
         const float tangential_step = voxel_size;
-        index_t num_blocks = tangential_step_size * tangential_step_size * 4;
+
         core::Tensor neighbor_pts = core::Tensor({num_blocks,3}, core::Float32, device);
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
 
@@ -121,6 +122,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 cnt++;
             }
         }
+
 
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
@@ -136,6 +138,15 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			float z_d = z - z_o;
 			float d = sqrtf(x_d * x_d + y_d * y_d + z_d * z_d);
 
+			// unit_normal
+			float unit_normal_x = x_d / d;
+			float unit_normal_y = y_d / d;
+			float unit_normal_z = z_d / d;
+			float denominator = std::sqrt(unit_normal_x * unit_normal_x
+										+ unit_normal_y * unit_normal_y);
+
+			float fraction_x = unit_normal_x / denominator;
+			float fraction_y = unit_normal_y / denominator;
 
 			const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
 			const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
@@ -145,17 +156,34 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
 			for (index_t step = 0; step <= step_size; ++step) {
 
-				index_t xb = static_cast<index_t>(
-					floorf((x_o + t * x_d) / block_size));
-				index_t yb = static_cast<index_t>(
-					floorf((y_o + t * y_d) / block_size));
-				index_t zb = static_cast<index_t>(
-					floorf((z_o + t * z_d) / block_size));
-				index_t idx = atomicAdd(count_ptr, 1);
-				block_coordi_ptr[3 * idx + 0] = xb;
-				block_coordi_ptr[3 * idx + 1] = yb;
-				block_coordi_ptr[3 * idx + 2] = zb;
+				float x_f = x_o + t * x_d;
+				float y_f = y_o + t * y_d;
+				float z_f = z_o + t * z_d;
 
+				for (index_t ii = 0; ii<num_blocks; ii++){
+					float x_g = 0, y_g = 0, z_g = 0;
+					float x_in = neighbor_pts_ptr[ii*3 + 0], 
+						y_in = neighbor_pts_ptr[ii*3 + 1],
+						z_in = neighbor_pts_ptr[ii*3 + 2];
+					x_g = x_in * fraction_y + y_in * (-fraction_x) +
+							z_in * 0;
+					y_g = x_in * (fraction_x * unit_normal_z) 
+							+ y_in * (fraction_y * unit_normal_z) +
+							z_in * (-denominator);
+					z_g = x_in * fraction_x + y_in * unit_normal_y +
+							z_in * unit_normal_z;
+
+					index_t x_neighbor = static_cast<index_t>(
+						std::floor((x_f + x_g) / block_size));
+					index_t y_neighbor = static_cast<index_t>(
+						std::floor((y_f + y_g) / block_size));
+					index_t z_neighbor = static_cast<index_t>(
+						std::floor((z_f + z_g) / block_size));
+					index_t idx = atomicAdd(count_ptr, 1);
+					block_coordi_ptr[3 * idx + 0] = x_neighbor;
+					block_coordi_ptr[3 * idx + 1] = y_neighbor;
+					block_coordi_ptr[3 * idx + 2] = z_neighbor;
+				}
 				t += t_step;
 			}
 

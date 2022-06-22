@@ -166,10 +166,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float *rotated_neighbors_ptr = static_cast<float *>(rotated_neighbor_pts.GetDataPtr());
 
         float t = t_min;
-		index_t step = 0;
         Coord4f current_pcd_coords{x, y, z, 0};
 
-        for (step = 0; step <= step_size; ++step) {
+        for (index_t step = 0; step <= step_size; ++step) {
             float x_f = x_o + t * x_d;
             float y_f = y_o + t * y_d;
             float z_f = z_o + t * z_d;
