@@ -62,7 +62,7 @@ struct Coord4f {
     OPEN3D_HOST_DEVICE Coord4f() {}
     OPEN3D_HOST_DEVICE Coord4f(float x, float y, float z, float angle)
 		: x_(x), y_(y), z_(z), angle_(angle) {}
-    bool operator==(const Coord4f &other) const {
+    OPEN3D_HOST_DEVICE bool operator==(const Coord4f &other) const {
         return x_ == other.x_ && y_ == other.y_ && z_ == other.z_ && angle_ == other.angle_;
     }
 
@@ -110,20 +110,27 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
          // populate neighbor points for association
         const float tangential_step = voxel_size;
 
-        core::Tensor neighbor_pts = core::Tensor({num_blocks,3}, core::Float32, device);
-        float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
+		utility::LogInfo("before neighbor_pts");
 
+        core::Tensor neighbor_pts_host({num_blocks,3}, core::Dtype::Float32, core::Device("CPU:0"));
+        float *neighbor_pts_host_ptr = static_cast<float *>(neighbor_pts_host.GetDataPtr());
+
+		utility::LogInfo("inside ptr={}",neighbor_pts_host_ptr[0] );
 		index_t cnt = 0;
-        for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
-            for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {
-                neighbor_pts_ptr[cnt*3 + 0] = ii*tangential_step;
-                neighbor_pts_ptr[cnt*3 + 1] = jj*tangential_step;
-                neighbor_pts_ptr[cnt*3 + 2] = 0;
-                cnt++;
+		for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
+            for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {	
+				neighbor_pts_host_ptr[cnt*3 + 0] = ii*tangential_step;
+                neighbor_pts_host_ptr[cnt*3 + 1] = jj*tangential_step;
+                neighbor_pts_host_ptr[cnt*3 + 2] = 0;
+				cnt++;
+
             }
         }
-
-
+		utility::LogInfo("sfter neighbor_pts");
+		// move from cpu host to gpu device
+		core::Tensor neighbor_pts = neighbor_pts_host.To(device);
+        float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
+		utility::LogInfo("after converting");
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
                       [=] OPEN3D_DEVICE(index_t workload_idx) {
