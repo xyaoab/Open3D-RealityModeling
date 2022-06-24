@@ -110,12 +110,9 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
          // populate neighbor points for association
         const float tangential_step = voxel_size;
 
-		utility::LogInfo("before neighbor_pts");
-
         core::Tensor neighbor_pts_host({num_blocks,3}, core::Dtype::Float32, core::Device("CPU:0"));
         float *neighbor_pts_host_ptr = static_cast<float *>(neighbor_pts_host.GetDataPtr());
 
-		utility::LogInfo("inside ptr={}",neighbor_pts_host_ptr[0] );
 		index_t cnt = 0;
 		for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
             for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {	
@@ -123,14 +120,13 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 neighbor_pts_host_ptr[cnt*3 + 1] = jj*tangential_step;
                 neighbor_pts_host_ptr[cnt*3 + 2] = 0;
 				cnt++;
-
             }
         }
-		utility::LogInfo("sfter neighbor_pts");
+
 		// move from cpu host to gpu device
 		core::Tensor neighbor_pts = neighbor_pts_host.To(device);
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
-		utility::LogInfo("after converting");
+
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
                       [=] OPEN3D_DEVICE(index_t workload_idx) {
