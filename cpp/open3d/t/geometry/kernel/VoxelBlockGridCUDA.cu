@@ -110,15 +110,15 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
          // populate neighbor points for association
         const float tangential_step = voxel_size;
 
-        core::Tensor neighbor_pts_host({num_blocks,3}, core::Dtype::Float32, core::Device("CPU:0"));
+        core::Tensor neighbor_pts_host({num_blocks, 3}, core::Dtype::Float32, core::Device("CPU:0"));
         float *neighbor_pts_host_ptr = static_cast<float *>(neighbor_pts_host.GetDataPtr());
 
 		index_t cnt = 0;
 		for (auto ii=-tangential_step_size;ii<tangential_step_size;ii++) {
             for (auto jj=-tangential_step_size;jj<tangential_step_size;jj++) {	
-				neighbor_pts_host_ptr[cnt*3 + 0] = ii*tangential_step;
-                neighbor_pts_host_ptr[cnt*3 + 1] = jj*tangential_step;
-                neighbor_pts_host_ptr[cnt*3 + 2] = 0;
+				neighbor_pts_host_ptr[cnt * 3 + 0] = ii*tangential_step;
+                neighbor_pts_host_ptr[cnt * 3 + 1] = jj*tangential_step;
+                neighbor_pts_host_ptr[cnt * 3 + 2] = 0;
 				cnt++;
             }
         }
@@ -127,6 +127,20 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		core::Tensor neighbor_pts = neighbor_pts_host.To(device);
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
 
+		// init a hashmap to store block-pcd correspondences
+		std::shared_ptr<core::HashMap>  hashmap_block2points = std::make_shared<core::HashMap>
+		 		(est_multipler_factor * n, 
+				core::Int32, core::SizeVector{3}, core::Float32,
+				core::SizeVector{4}, device);
+	
+		core::Tensor value_coords({1, 4}, core::Dtype::Float32, device);
+		float *value_coords_ptr = static_cast<float *>(value_coords.GetDataPtr());
+		core::Tensor key_coords({1, 3}, core::Dtype::Int32, device);
+		index_t *key_coords_ptr = static_cast<index_t *>(key_coords.GetDataPtr());
+		core::Tensor indice, mask;
+		indice = indice.To(device);
+
+		mask = mask.To(device);
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
                       [=] OPEN3D_DEVICE(index_t workload_idx) {
@@ -134,6 +148,12 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			float x = pcd_ptr[3 * workload_idx + 0];
 			float y = pcd_ptr[3 * workload_idx + 1];
 			float z = pcd_ptr[3 * workload_idx + 2];
+			// pcd coords float + angle
+
+			value_coords_ptr[0] = x;
+			value_coords_ptr[1] = y;
+			value_coords_ptr[2] = z;
+			
 
 			// Marching Ray Direction
 			float x_d = x - x_o;
@@ -168,13 +188,13 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					float x_in = neighbor_pts_ptr[ii*3 + 0], 
 						y_in = neighbor_pts_ptr[ii*3 + 1],
 						z_in = neighbor_pts_ptr[ii*3 + 2];
-					x_g = x_in * fraction_y + y_in * (-fraction_x) +
-							z_in * 0;
-					y_g = x_in * (fraction_x * unit_normal_z) 
-							+ y_in * (fraction_y * unit_normal_z) +
-							z_in * (-denominator);
+					
+					x_g = x_in * fraction_y + y_in * (-fraction_x) + z_in * 0;
+					y_g = x_in * (fraction_x * unit_normal_z)  
+						+ y_in * (fraction_y * unit_normal_z) +
+						z_in * (-denominator);
 					z_g = x_in * fraction_x + y_in * unit_normal_y +
-							z_in * unit_normal_z;
+						z_in * unit_normal_z;
 
 					index_t x_neighbor = static_cast<index_t>(
 						std::floor((x_f + x_g) / block_size));
@@ -183,14 +203,51 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					index_t z_neighbor = static_cast<index_t>(
 						std::floor((z_f + z_g) / block_size));
 					index_t idx = atomicAdd(count_ptr, 1);
+
 					block_coordi_ptr[3 * idx + 0] = x_neighbor;
 					block_coordi_ptr[3 * idx + 1] = y_neighbor;
 					block_coordi_ptr[3 * idx + 2] = z_neighbor;
+
+					float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
+						block_dir_y = static_cast<float>(y_neighbor) - y_o,
+						block_dir_z = static_cast<float>(z_neighbor) - z_o;
+
+                	float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
+										+ block_dir_y * block_dir_y
+										+ block_dir_z * block_dir_z);
+                	float current_angle = std::fabs((block_dir_x * unit_normal_x
+                                        + block_dir_y * unit_normal_y
+                                        + block_dir_z * unit_normal_z) / block_dir_norm);
+
+					value_coords_ptr[3] = current_angle;
+
+					// block coords int
+
+					key_coords_ptr[0] = x_neighbor;
+					key_coords_ptr[1] = y_neighbor;
+					key_coords_ptr[2] = z_neighbor;
+
+					// bool update = false;
+					hashmap_block2points->Activate(key_coords, indice, mask);					
+					using core::TensorKey;
+					// if (mask.Item<bool>()==false) {update = true;}
+				// 	else{
+				// 		core::Tensor tmp = hashmap_block2points->GetValueTensors()[0]
+				// 					.IndexGet({mask});
+								
+				// 		float angle = tmp.GetItem({TensorKey::Index(3)}).Item<float>();
+				// 		if (angle < current_angle){update = true;}
+							
+				// 	}
+
+				// 	if (update==true) {
+				// 	hashmap_block2points->GetValueTensors()[0]
+				// 				.IndexSet({indice.To(core::Int64)}, value_coords);
+				// 	}
+                // }
 				}
 				t += t_step;
 			}
-
-
 		});
 		
 

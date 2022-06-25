@@ -372,8 +372,9 @@ std::pair<core::Tensor, core::Tensor> VoxelBlockGrid::GetUniqueBlockCoordinates(
     core::Tensor positions = pcd.GetPointPositions();
 
     const int64_t est_sample_multiplier = step_size + 1;
+    const int64_t num_blocks = tangential_step_size * tangential_step_size * 4;
     if (frustum_hashmap_ == nullptr) {
-        int64_t capacity = positions.GetLength() * est_sample_multiplier;
+        int64_t capacity = positions.GetLength() * est_sample_multiplier * num_blocks;
         frustum_hashmap_ = std::make_shared<core::HashMap>(
                 capacity, core::Int32, core::SizeVector{3}, core::Int32,
                 core::SizeVector{1}, block_hashmap_->GetDevice());
