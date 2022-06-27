@@ -58,6 +58,18 @@ struct Coord3i {
     index_t z_;
 };
 
+struct Coord3iHash {
+    size_t operator()(const Coord3i &k) const {
+        static const size_t p0 = 73856093;
+        static const size_t p1 = 19349669;
+        static const size_t p2 = 83492791;
+
+        return (static_cast<size_t>(k.x_) * p0) ^
+               (static_cast<size_t>(k.y_) * p1) ^
+               (static_cast<size_t>(k.z_) * p2);
+    }
+};
+
 struct Coord4f {
     OPEN3D_HOST_DEVICE Coord4f() {}
     OPEN3D_HOST_DEVICE Coord4f(float x, float y, float z, float angle)
@@ -83,6 +95,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		index_t step_size,
 		index_t tangential_step_size,
         float sdf_trunc){
+
         core::Device device = points.GetDevice();
         // sensor origin
         core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
@@ -128,19 +141,18 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
 
 		// init a hashmap to store block-pcd correspondences
-		std::shared_ptr<core::HashMap>  hashmap_block2points = std::make_shared<core::HashMap>
-		 		(est_multipler_factor * n, 
-				core::Int32, core::SizeVector{3}, core::Float32,
-				core::SizeVector{4}, device);
-	
-		core::Tensor value_coords({1, 4}, core::Dtype::Float32, device);
-		float *value_coords_ptr = static_cast<float *>(value_coords.GetDataPtr());
-		core::Tensor key_coords({1, 3}, core::Dtype::Int32, device);
-		index_t *key_coords_ptr = static_cast<index_t *>(key_coords.GetDataPtr());
-		core::Tensor indice, mask;
-		indice = indice.To(device);
+		using Key = utility::MiniVec<index_t, 3>;
+    	using Hash = utility::MiniVecHash<index_t, 3>;
+    	using Eq = utility::MiniVecEq<index_t, 3>;
+		std::shared_ptr<core::HashMap> block2pcd_hashmap_ = std::make_shared<core::HashMap>(
+               est_multipler_factor * n, core::Int32, core::SizeVector{3}, core::Float32,
+                core::SizeVector{4}, device);
+		auto device_hashmap = block2pcd_hashmap_->GetDeviceHashBackend();
+		auto cuda_hashmap =
+			std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
+					device_hashmap);
+		auto hashmap_impl = cuda_hashmap->GetImpl();
 
-		mask = mask.To(device);
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
                       [=] OPEN3D_DEVICE(index_t workload_idx) {
@@ -148,11 +160,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			float x = pcd_ptr[3 * workload_idx + 0];
 			float y = pcd_ptr[3 * workload_idx + 1];
 			float z = pcd_ptr[3 * workload_idx + 2];
-			// pcd coords float + angle
-
-			value_coords_ptr[0] = x;
-			value_coords_ptr[1] = y;
-			value_coords_ptr[2] = z;
 			
 
 			// Marching Ray Direction
@@ -219,17 +226,20 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                                         + block_dir_y * unit_normal_y
                                         + block_dir_z * unit_normal_z) / block_dir_norm);
 
-					value_coords_ptr[3] = current_angle;
+					// value_coords_ptr[3] = current_angle;
 
 					// block coords int
 
-					key_coords_ptr[0] = x_neighbor;
-					key_coords_ptr[1] = y_neighbor;
-					key_coords_ptr[2] = z_neighbor;
+					// key_coords_ptr[0] = x_neighbor;
+					// key_coords_ptr[1] = y_neighbor;
+					// key_coords_ptr[2] = z_neighbor;
+					Key key(x_neighbor, y_neighbor, z_neighbor);
+					auto iter = hashmap_impl.find(key);
+					if (iter == hashmap_impl.end()) {
 
+					}
 					// bool update = false;
-					hashmap_block2points->Activate(key_coords, indice, mask);					
-					using core::TensorKey;
+
 					// if (mask.Item<bool>()==false) {update = true;}
 				// 	else{
 				// 		core::Tensor tmp = hashmap_block2points->GetValueTensors()[0]
