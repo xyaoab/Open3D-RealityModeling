@@ -140,18 +140,21 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		core::Tensor neighbor_pts = neighbor_pts_host.To(device);
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
 
-		// init a hashmap to store block-pcd correspondences
+		// // init a hashmap to store block-pcd correspondences
 		using Key = utility::MiniVec<index_t, 3>;
+		using Mapped = utility::MiniVec<float, 4>;
     	using Hash = utility::MiniVecHash<index_t, 3>;
     	using Eq = utility::MiniVecEq<index_t, 3>;
-		std::shared_ptr<core::HashMap> block2pcd_hashmap_ = std::make_shared<core::HashMap>(
-               est_multipler_factor * n, core::Int32, core::SizeVector{3}, core::Float32,
-                core::SizeVector{4}, device);
-		auto device_hashmap = block2pcd_hashmap_->GetDeviceHashBackend();
-		auto cuda_hashmap =
-			std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
-					device_hashmap);
-		auto hashmap_impl = cuda_hashmap->GetImpl();
+		// std::shared_ptr<core::HashMap> block2pcd_hashmap_ = std::make_shared<core::HashMap>(
+        //        est_multipler_factor * n, core::Int32, core::SizeVector{3}, core::Float32,
+        //         core::SizeVector{4}, device);
+		// auto device_hashmap = block2pcd_hashmap_->GetDeviceHashBackend();
+		// auto cuda_hashmap =
+		// 	std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
+		// 			device_hashmap);
+		// auto hashmap_impl = cuda_hashmap->GetImpl();
+		stdgpu::unordered_map<Key, Mapped, Hash, Eq> block2pcd_hashmap
+			 = stdgpu::unordered_map<Key, Mapped, Hash, Eq>::createDeviceObject(est_multipler_factor*n);
 
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
@@ -226,18 +229,18 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                                         + block_dir_y * unit_normal_y
                                         + block_dir_z * unit_normal_z) / block_dir_norm);
 
-					// value_coords_ptr[3] = current_angle;
-
-					// block coords int
-
-					// key_coords_ptr[0] = x_neighbor;
-					// key_coords_ptr[1] = y_neighbor;
-					// key_coords_ptr[2] = z_neighbor;
-					Key key(x_neighbor, y_neighbor, z_neighbor);
-					auto iter = hashmap_impl.find(key);
-					if (iter == hashmap_impl.end()) {
-
+					using Key = utility::MiniVec<index_t, 3>;
+					using Mapped = utility::MiniVec<float, 4>;
+					auto key = utility::MiniVec<index_t, 3>(x_neighbor, y_neighbor, z_neighbor);
+					auto value = utility::MiniVec<float, 4>(x,y,z,current_angle);
+					auto iter = block2pcd_hashmap.find(key);
+					if (iter == block2pcd_hashmap.end() ||  iter->second[3] < current_angle) {
+						// open3d::core::buf_index_t output_buf_indices;
+						// bool output_masks;
+						
+						block2pcd_hashmap.emplace(key, value);
 					}
+					
 					// bool update = false;
 
 					// if (mask.Item<bool>()==false) {update = true;}
@@ -259,7 +262,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 				t += t_step;
 			}
 		});
-		
+		stdgpu::unordered_map<Key, Mapped, Hash, Eq>::destroyDeviceObject(block2pcd_hashmap);
 
 		index_t total_block_count = count.Item<index_t>();
 
