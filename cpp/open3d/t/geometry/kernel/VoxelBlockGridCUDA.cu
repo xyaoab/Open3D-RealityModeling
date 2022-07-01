@@ -141,20 +141,18 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float *neighbor_pts_ptr = static_cast<float *>(neighbor_pts.GetDataPtr());
 
 		// // init a hashmap to store block-pcd correspondences
-		// using Key = utility::MiniVec<index_t, 3>;
-		// using Mapped = utility::MiniVec<float, 4>;
-    	// using Hash = utility::MiniVecHash<index_t, 3>;
-    	// using Eq = utility::MiniVecEq<index_t, 3>;
-		// std::shared_ptr<core::HashMap> block2pcd_hashmap_ = std::make_shared<core::HashMap>(
-        //        est_multipler_factor * n, core::Int32, core::SizeVector{3}, core::Float32,
-        //         core::SizeVector{4}, device);
-		// auto device_hashmap = block2pcd_hashmap_->GetDeviceHashBackend();
-		// auto cuda_hashmap =
-		// 	std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
-		// 			device_hashmap);
-		// auto hashmap_impl = cuda_hashmap->GetImpl();
-		// stdgpu::unordered_map<Key, Mapped, Hash, Eq> block2pcd_hashmap
-		// 	 = stdgpu::unordered_map<Key, Mapped, Hash, Eq>::createDeviceObject(est_multipler_factor*n);
+		using Key = utility::MiniVec<index_t, 3>;
+    	using Hash = utility::MiniVecHash<index_t, 3>;
+    	using Eq = utility::MiniVecEq<index_t, 3>;
+		// block to pcd index
+		std::shared_ptr<core::HashMap> block2pcd_hashmap_ = std::make_shared<core::HashMap>(
+               est_multipler_factor * n, core::Int32, core::SizeVector{3}, core::Int32,
+                core::SizeVector{1}, device);
+		auto device_hashmap = block2pcd_hashmap_->GetDeviceHashBackend();
+		auto cuda_hashmap =
+			std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
+					device_hashmap);
+		auto hashmap_impl = cuda_hashmap->GetImpl();
 
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
@@ -166,20 +164,18 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 			
 
 			// Marching Ray Direction
-			float x_d = x - x_o;
-			float y_d = y - y_o;
-			float z_d = z - z_o;
+			float x_d = x - x_o, y_d = y - y_o, z_d = z - z_o;
 			float d = sqrtf(x_d * x_d + y_d * y_d + z_d * z_d);
 
 			// unit_normal
-			float unit_normal_x = x_d / d;
-			float unit_normal_y = y_d / d;
-			float unit_normal_z = z_d / d;
+			float unit_normal_x = x_d / d,
+				unit_normal_y = y_d / d,
+				unit_normal_z = z_d / d;
 			float denominator = std::sqrt(unit_normal_x * unit_normal_x
 										+ unit_normal_y * unit_normal_y);
 
-			float fraction_x = unit_normal_x / denominator;
-			float fraction_y = unit_normal_y / denominator;
+			float fraction_x = unit_normal_x / denominator,
+				fraction_y = unit_normal_y / denominator;
 
 			const float t_min = (d - sdf_trunc) / d; //max(d - sdf_trunc, 0.0f) / d;
 			const float t_max = (d + sdf_trunc) /  d ; // min(d + sdf_trunc, depth_max) / d;
@@ -218,46 +214,45 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					block_coordi_ptr[3 * idx + 1] = y_neighbor;
 					block_coordi_ptr[3 * idx + 2] = z_neighbor;
 
-					// float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
-					// 	block_dir_y = static_cast<float>(y_neighbor) - y_o,
-					// 	block_dir_z = static_cast<float>(z_neighbor) - z_o;
+					float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
+						block_dir_y = static_cast<float>(y_neighbor) - y_o,
+						block_dir_z = static_cast<float>(z_neighbor) - z_o;
 
-                	// float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
-					// 					+ block_dir_y * block_dir_y
-					// 					+ block_dir_z * block_dir_z);
-                	// float current_angle = std::fabs((block_dir_x * unit_normal_x
-                    //                     + block_dir_y * unit_normal_y
-                    //                     + block_dir_z * unit_normal_z) / block_dir_norm);
+                	float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
+										+ block_dir_y * block_dir_y
+										+ block_dir_z * block_dir_z);
+                	float current_angle = std::fabs((block_dir_x * unit_normal_x
+                                        + block_dir_y * unit_normal_y
+                                        + block_dir_z * unit_normal_z) / block_dir_norm);
 
-					// using Key = utility::MiniVec<index_t, 3>;
-					// using Mapped = utility::MiniVec<float, 4>;
-					// auto key = utility::MiniVec<index_t, 3>(x_neighbor, y_neighbor, z_neighbor);
-					// auto value = utility::MiniVec<float, 4>(x,y,z,current_angle);
-					// auto iter = block2pcd_hashmap.find(key);
-					// if (iter == block2pcd_hashmap.end() ||  iter->second[3] < current_angle) {
-					// 	// open3d::core::buf_index_t output_buf_indices;
-					// 	// bool output_masks;
-						
-					// 	block2pcd_hashmap.emplace(key, value);
-					// }
+					bool update = false;
+
+					auto key = utility::MiniVec<index_t, 3>(x_neighbor, y_neighbor, z_neighbor);
 					
-					// bool update = false;
+					auto iter = hashmap_impl.find(key);
+					if (iter == hashmap_impl.end()) {update=true;}
+					// key exists, need to compare saved pcd angle
+					else{
+						index_t saved_pcd_idx = iter->second;
+						float saved_dir_x = pcd_ptr[3 * saved_pcd_idx + 0] - x_o,
+							saved_dir_y = pcd_ptr[3 * saved_pcd_idx + 1] - y_o,
+							saved_dir_z = pcd_ptr[3 * saved_pcd_idx + 2] - z_o;
+						float saved_dir_norm = std::sqrt(saved_dir_x * saved_dir_x 
+												+ saved_dir_y * saved_dir_y
+												+ saved_dir_z * saved_dir_z);
+						float saved_angle = std::fabs((block_dir_x * saved_dir_x
+                                        + block_dir_y * saved_dir_y
+                                        + block_dir_z * saved_dir_z) 
+										/ (saved_dir_norm * block_dir_norm));
+						if (current_angle > saved_angle) {update = true;}
+					}
 
-					// if (mask.Item<bool>()==false) {update = true;}
-				// 	else{
-				// 		core::Tensor tmp = hashmap_block2points->GetValueTensors()[0]
-				// 					.IndexGet({mask});
-								
-				// 		float angle = tmp.GetItem({TensorKey::Index(3)}).Item<float>();
-				// 		if (angle < current_angle){update = true;}
-							
-				// 	}
+					if (update){
+						std::vector<core::Tensor> return_tensor = cuda_hashmap->GetValueBuffers();
+						// auto res = hashmap_impl.emplace(key, static_cast<core::buf_index_t>(workload_idx));
+					}
 
-				// 	if (update==true) {
-				// 	hashmap_block2points->GetValueTensors()[0]
-				// 				.IndexSet({indice.To(core::Int64)}, value_coords);
-				// 	}
-                // }
+		
 				}
 				t += t_step;
 			}
