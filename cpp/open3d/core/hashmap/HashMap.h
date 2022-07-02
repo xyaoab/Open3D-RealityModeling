@@ -198,7 +198,7 @@ public:
     float LoadFactor() const;
 
     /// Return the implementation of the device hash backend.
-    std::shared_ptr<DeviceHashBackend> GetDeviceHashBackend() {
+    std::shared_ptr<DeviceHashBackend> GetDeviceHashBackend() const {
         return device_hashmap_;
     }
 

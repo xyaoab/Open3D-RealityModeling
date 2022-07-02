@@ -152,7 +152,8 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		auto cuda_hashmap =
 			std::dynamic_pointer_cast<core::StdGPUHashBackend<Key, Hash, Eq>>(
 					device_hashmap);
-		auto hashmap_impl = cuda_hashmap->GetImpl();
+		auto hashmap_impl_const = cuda_hashmap->GetImpl();
+		auto * hashmap_impl = const_cast<core::InternalStdGPUHashBackend<Key, Hash, Eq>*>(&hashmap_impl_const);
 
         // for each xyz point
         core::ParallelFor(hashmap->GetDevice(), n,
@@ -229,8 +230,8 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
 					auto key = utility::MiniVec<index_t, 3>(x_neighbor, y_neighbor, z_neighbor);
 					
-					auto iter = hashmap_impl.find(key);
-					if (iter == hashmap_impl.end()) {update=true;}
+					auto iter = hashmap_impl->find(key);
+					if (iter == hashmap_impl->end()) {update=true;}
 					// key exists, need to compare saved pcd angle
 					else{
 						index_t saved_pcd_idx = iter->second;
@@ -248,8 +249,8 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					}
 
 					if (update){
-						std::vector<core::Tensor> return_tensor = cuda_hashmap->GetValueBuffers();
-						// auto res = hashmap_impl.emplace(key, static_cast<core::buf_index_t>(workload_idx));
+	
+						auto res = hashmap_impl->emplace(key, static_cast<core::buf_index_t>(workload_idx));
 					}
 
 		
@@ -257,7 +258,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 				t += t_step;
 			}
 		});
-		// stdgpu::unordered_map<Key, Mapped, Hash, Eq>::destroyDeviceObject(block2pcd_hashmap);
 
 		index_t total_block_count = count.Item<index_t>();
 
