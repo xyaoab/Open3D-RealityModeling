@@ -236,12 +236,16 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 		core::Tensor block_buf_indices, block_masks;
 		hashmap->Activate(block_coordi, block_buf_indices, block_masks);
         index_t num_unique_blocks = hashmap->Size();
-        utility::LogInfo(
-            "[RaymarchingHashing] total_block_count: {} "
-            "num_unique_blocks {}",total_block_count, num_unique_blocks);
+        // utility::LogInfo(
+        //     "[RaymarchingHashing] total_block_count: {} "
+        //     "num_unique_blocks {}",total_block_count, num_unique_blocks);
 		voxel_block_coords = block_coordi.IndexGet({block_masks});
-        block_pcd_coords = core::Tensor(block_coordi.GetShape(), core::Float32, device);
+        block_pcd_coords = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device);
         float *block_pcd_coords_ptr  = static_cast<float *>(block_pcd_coords.GetDataPtr());
+
+        // core::Tensor result_index = block_pcd_lookup.IndexGet({block_masks});
+        // index_t *result_index_ptr = static_cast<index_t *>(result_index.GetDataPtr());
+
 
         // step 2
         hashmap->Find(block_coordi, block_buf_indices, block_masks);
@@ -277,7 +281,9 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
             atomicMaxf(&result_value_ptr[hash_idx], block_angle_lookup_ptr[workload_idx]);
             });
         utility::LogInfo(
-            "[Pass1] result_value_ptr max index {}", result_value.Max({0}, true).Item<float>());
+            "[Pass1] result_value_ptr min {}, {}", result_value.Min({0}, true).Item<float>(), 
+            block_angle_lookup.Min({0}, true).Item<float>());
+
         // Pass 2: finding the argmax angle to pcd
         core::ParallelFor(hashmap->GetDevice(), total_block_count,
                       [=] OPEN3D_DEVICE(index_t workload_idx){
@@ -291,21 +297,23 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
             "[Pass2] result_index max index {}", result_index.Max({0}, true).Item<index_t>());
 
         // Pass 3: prepare return tensor for association
-        hashmap->Find(voxel_block_coords, block_buf_indices, block_masks);
+        core::Tensor voxel_block_buf_indices, voxel_block_masks;
+        hashmap->Find(voxel_block_coords, voxel_block_buf_indices, voxel_block_masks);
         // assert
-        if (!block_masks.All()){
+        if (!voxel_block_masks.All()){
             utility::LogError(
 					"[Pass 3] Hashmap find has missing keys.");
         }
-        if (block_buf_indices.Max({0}, true).Item<index_t>() 
+        if (voxel_block_buf_indices.Max({0}, true).Item<index_t>() 
                         != voxel_block_coords.GetShape(0)-1 ){
             utility::LogError(
 					"[Pass 3] block_buf_indices size in correct.");
         }
+        index_t *voxel_block_buf_indices_ptr = static_cast<index_t *>(voxel_block_buf_indices.GetDataPtr());
         core::ParallelFor(hashmap->GetDevice(), voxel_block_coords.GetShape(0),
                       [=] OPEN3D_DEVICE(index_t workload_idx){
 
-            index_t hash_idx = block_buf_indices_ptr[workload_idx];
+            index_t hash_idx = voxel_block_buf_indices_ptr[workload_idx];
             index_t pcd_idx = result_index_ptr[hash_idx];
             float pcdX = pcd_ptr[3 * pcd_idx + 0];
             float pcdY = pcd_ptr[3 * pcd_idx + 1];
