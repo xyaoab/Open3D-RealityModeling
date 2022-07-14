@@ -205,19 +205,27 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					block_coordi_ptr[3 * idx + 1] = y_neighbor;
 					block_coordi_ptr[3 * idx + 2] = z_neighbor;
 
-					float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
-						block_dir_y = static_cast<float>(y_neighbor) - y_o,
-						block_dir_z = static_cast<float>(z_neighbor) - z_o;
+					// float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
+					// 	block_dir_y = static_cast<float>(y_neighbor) - y_o,
+					// 	block_dir_z = static_cast<float>(z_neighbor) - z_o;
 
-                	float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
-										+ block_dir_y * block_dir_y
-										+ block_dir_z * block_dir_z);
-                	float current_angle = std::fabs((block_dir_x * unit_normal_x
-                                        + block_dir_y * unit_normal_y
-                                        + block_dir_z * unit_normal_z) / block_dir_norm);
+                	// float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
+					// 					+ block_dir_y * block_dir_y
+					// 					+ block_dir_z * block_dir_z);
+                	// float current_angle = std::fabs((block_dir_x * unit_normal_x
+                    //                     + block_dir_y * unit_normal_y
+                    //                     + block_dir_z * unit_normal_z) / block_dir_norm);
 
+
+                    // change herustics to using distance
+                    float block_pcd_dist_x = static_cast<float>(x_neighbor) - x, 
+						block_pcd_dist_y = static_cast<float>(y_neighbor) - y,
+						block_pcd_dist_z = static_cast<float>(z_neighbor) - z;
+                    float current_distance =  std::sqrt(block_pcd_dist_x * block_pcd_dist_x
+                                            + block_pcd_dist_y * block_pcd_dist_y
+                                            + block_pcd_dist_z * block_pcd_dist_z);
 					block_pcd_lookup_ptr[idx] = workload_idx;
-					block_angle_lookup_ptr[idx] = current_angle;
+					block_angle_lookup_ptr[idx] = current_distance;
 		
 				}
 				t += t_step;
@@ -260,7 +268,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         }
 
         // Init tensor to be updated and written into hashmap value
-        std::vector<float> vec_val(num_unique_blocks, -1.f);
+        std::vector<float> vec_val(num_unique_blocks, 1000.f);
         std::vector<index_t> vec_index(num_unique_blocks, 0);
 
         core::Tensor result_value(vec_val, {num_unique_blocks, 1}, core::Float32, device);
@@ -275,7 +283,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
          core::ParallelFor(hashmap->GetDevice(), total_block_count,
                       [=] OPEN3D_DEVICE(index_t workload_idx){
             index_t hash_idx = block_buf_indices_ptr[workload_idx];
-            atomicMaxf(&result_value_ptr[hash_idx], block_angle_lookup_ptr[workload_idx]);
+            atomicMinf(&result_value_ptr[hash_idx], block_angle_lookup_ptr[workload_idx]);
             });
 
         // Pass 2: find the argmax angle to pcd
@@ -283,7 +291,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                       [=] OPEN3D_DEVICE(index_t workload_idx){
             index_t hash_idx = block_buf_indices_ptr[workload_idx];
             // finding the index with the largest angle with some precision tolerance
-            if (result_value_ptr[hash_idx] < block_angle_lookup_ptr[workload_idx] + 1e-6){
+            if (result_value_ptr[hash_idx] > block_angle_lookup_ptr[workload_idx] - 1e-6){
                 result_index_ptr[hash_idx] = block_pcd_lookup_ptr[workload_idx];
             }
             });
