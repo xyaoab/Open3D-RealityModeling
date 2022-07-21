@@ -83,9 +83,11 @@ static void OPEN3D_DEVICE CUDAEqElementKernel(const void* lhs,
 void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
+        const core::Tensor &pcd_normals,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
 		core::Tensor &block_pcd_coords,
+        core::Tensor &block_pcd_normals,
         index_t voxel_grid_resolution,
         float voxel_size,
 		index_t step_size,
@@ -100,7 +102,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
-
+        const float *pcd_normals_ptr = static_cast<const float *>(pcd_normals.GetDataPtr());
         const float *origin_ptr = static_cast<const float *>(pose.GetDataPtr());
         float x_o = origin_ptr[0*4+3];
         float y_o = origin_ptr[1*4+3];
@@ -205,18 +207,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 					block_coordi_ptr[3 * idx + 1] = y_neighbor;
 					block_coordi_ptr[3 * idx + 2] = z_neighbor;
 
-					// float block_dir_x = static_cast<float>(x_neighbor) - x_o, 
-					// 	block_dir_y = static_cast<float>(y_neighbor) - y_o,
-					// 	block_dir_z = static_cast<float>(z_neighbor) - z_o;
-
-                	// float block_dir_norm = std::sqrt(block_dir_x * block_dir_x
-					// 					+ block_dir_y * block_dir_y
-					// 					+ block_dir_z * block_dir_z);
-                	// float current_angle = std::fabs((block_dir_x * unit_normal_x
-                    //                     + block_dir_y * unit_normal_y
-                    //                     + block_dir_z * unit_normal_z) / block_dir_norm);
-
-
                     // change herustics to using distance
                     float block_pcd_dist_x = static_cast<float>(x_neighbor) - x, 
 						block_pcd_dist_y = static_cast<float>(y_neighbor) - y,
@@ -248,8 +238,10 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
 		voxel_block_coords = block_coordi.IndexGet({block_masks});
         block_pcd_coords = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device);
-        float *block_pcd_coords_ptr  = static_cast<float *>(block_pcd_coords.GetDataPtr());
-
+        float *block_pcd_coords_ptr = static_cast<float *>(block_pcd_coords.GetDataPtr());
+        
+        block_pcd_normals = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device); 
+        float *block_pcd_normals_ptr = static_cast<float *>(block_pcd_normals.GetDataPtr());
         // Step 2: All keys shall reside in the hashmap
         // to get depulicated key location in the hashmap
         hashmap->Find(block_coordi, block_buf_indices, block_masks);
@@ -312,7 +304,11 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
             block_pcd_coords_ptr[3 * workload_idx + 0] = pcdX;
             block_pcd_coords_ptr[3 * workload_idx + 1] = pcdY;
-            block_pcd_coords_ptr[3 * workload_idx + 2] = pcdZ; 
+            block_pcd_coords_ptr[3 * workload_idx + 2] = pcdZ;
+
+            block_pcd_normals_ptr[3 * workload_idx + 0] = pcd_normals_ptr[3 * pcd_idx + 0];
+            block_pcd_normals_ptr[3 * workload_idx + 1] = pcd_normals_ptr[3 * pcd_idx + 1];
+            block_pcd_normals_ptr[3 * workload_idx + 2] = pcd_normals_ptr[3 * pcd_idx + 2];
 
             });
 }

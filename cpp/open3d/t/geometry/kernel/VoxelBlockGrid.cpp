@@ -62,9 +62,11 @@ void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
 void PointCloudRayMarching(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
+        const core::Tensor &pcd_normals,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
         core::Tensor &block_pcd_coords,
+        core::Tensor &block_pcd_normals,
         index_t voxel_grid_resolution,
         float voxel_size,
         float depth_max,
@@ -79,8 +81,8 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
                             voxel_block_coords, block_pcd_coords, voxel_grid_resolution,
                             voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else if (device_type == core::Device::DeviceType::CUDA) {
-            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, extrinsic,
-                            voxel_block_coords, block_pcd_coords, voxel_grid_resolution,
+            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, pcd_normals, extrinsic,
+                            voxel_block_coords, block_pcd_coords, block_pcd_normals, voxel_grid_resolution,
                             voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else {
             utility::LogError("Unimplemented device");
