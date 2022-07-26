@@ -72,18 +72,20 @@ struct Coord3iHash {
     }
 };
 
-struct Coord4f {
-    Coord4f() {}
-    Coord4f(float x, float y, float z, float angle): 
-            x_(x), y_(y), z_(z), angle_(angle) {}
-    bool operator==(const Coord4f &other) const {
-        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_ && angle_ == other.angle_;
+struct Coord5f {
+    Coord5f() {}
+    Coord5f(float x, float y, float z, float angle, index_t idx): 
+            x_(x), y_(y), z_(z), angle_(angle), idx_(idx){}
+    bool operator==(const Coord5f &other) const {
+        return x_ == other.x_ && y_ == other.y_ && z_ == other.z_ && angle_ == other.angle_
+        && idx_ == other.idx_;
     }
 
     float x_;
     float y_;
     float z_;
     float angle_;
+    index_t idx_;
 };
 
 
@@ -91,9 +93,11 @@ struct Coord4f {
 void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                 &hashmap,  // dummy for now, one pass insertion is faster
         const core::Tensor &points,
+        const core::Tensor &pcd_normals,
         const core::Tensor &extrinsic,
         core::Tensor &voxel_block_coords,
         core::Tensor &block_pcd_coords,
+        core::Tensor &block_pcd_normals,
         index_t voxel_grid_resolution,
         float voxel_size,
 		index_t step_size, // param for num of voxels along the ray
@@ -108,9 +112,10 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
 
         index_t n = points.GetLength();
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
+        const float *pcd_normals_ptr = static_cast<const float *>(pcd_normals.GetDataPtr());
 
         tbb::concurrent_unordered_set<Coord3i, Coord3iHash> set;
-        tbb::concurrent_unordered_map<Coord3i, Coord4f, Coord3iHash> hashmap_block2points;
+        tbb::concurrent_unordered_map<Coord3i, Coord5f, Coord3iHash> hashmap_block2points;
 
         const float *origin_ptr = static_cast<const float *>(pose.GetDataPtr());
         float x_o = origin_ptr[0*4+3];
@@ -166,7 +171,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float *rotated_neighbors_ptr = static_cast<float *>(rotated_neighbor_pts.GetDataPtr());
 
         float t = t_min;
-        Coord4f current_pcd_coords{x, y, z, 0};
+        Coord5f current_pcd_coords{x, y, z, 0, -1};
 
         for (index_t step = 0; step <= step_size; ++step) {
             float x_f = x_o + t * x_d;
@@ -194,6 +199,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                                         + block_dir[1] * unit_normal[1]
                                         + block_dir[2] * unit_normal[2]) / block_dir_norm);
                 current_pcd_coords.angle_ = current_angle;
+                current_pcd_coords.idx_ = workload_idx;
                 // update weighted average pcd 3d points
                 if ((hashmap_block2points.count(neighbor_block_coords)!= 0 
                     && hashmap_block2points[neighbor_block_coords].angle_ < current_angle)
@@ -227,6 +233,12 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float *block_pcd_coords_ptr  =
 			static_cast<float *>(block_pcd_coords.GetDataPtr());
 
+        block_pcd_normals =
+            core::Tensor({block_count, 3}, core::Float32, points.GetDevice());
+
+        float *block_pcd_normals_ptr  =
+			static_cast<float *>(block_pcd_normals.GetDataPtr());
+
         index_t count = 0;
         for (auto it = set.begin(); it != set.end(); ++it, ++count) {
 			index_t offset = count * 3;
@@ -237,6 +249,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             float pcdX = static_cast<float>(hashmap_block2points[block].x_);
             float pcdY = static_cast<float>(hashmap_block2points[block].y_);
             float pcdZ = static_cast<float>(hashmap_block2points[block].z_);
+            
+            index_t pcdIdx = static_cast<index_t>(hashmap_block2points[block].idx_);
+
 
 			block_coords_ptr[offset + 0] = blockX;
 			block_coords_ptr[offset + 1] = blockY;
@@ -244,6 +259,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
             block_pcd_coords_ptr[offset + 0] = pcdX;
             block_pcd_coords_ptr[offset + 1] = pcdY;
             block_pcd_coords_ptr[offset + 2] = pcdZ;
+            block_pcd_normals_ptr[offset + 0] = pcd_normals_ptr[3 * pcdIdx + 0];
+            block_pcd_normals_ptr[offset + 1] = pcd_normals_ptr[3 * pcdIdx + 1];
+            block_pcd_normals_ptr[offset + 2] = pcd_normals_ptr[3 * pcdIdx + 2];
         }
 }
 
