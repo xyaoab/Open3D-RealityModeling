@@ -94,7 +94,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
                 &hashmap,  // dummy for now, one pass insertion is faster
         const core::Tensor &points,
         const core::Tensor &pcd_normals,
-        const core::Tensor &extrinsic,
+        const core::Tensor &pose,
         core::Tensor &voxel_block_coords,
         core::Tensor &block_pcd_coords,
         core::Tensor &block_pcd_normals,
@@ -105,8 +105,7 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         float sdf_trunc) {
 
         core::Device device = core::Device("CPU:0");
-        // sensor origin
-        core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
+
         index_t resolution = voxel_grid_resolution;
         float block_size = voxel_size * resolution;
 

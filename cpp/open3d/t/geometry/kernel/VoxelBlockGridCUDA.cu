@@ -84,7 +84,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
         const core::Tensor &pcd_normals,
-        const core::Tensor &extrinsic,
+        const core::Tensor &pose,
         core::Tensor &voxel_block_coords,
 		core::Tensor &block_pcd_coords,
         core::Tensor &block_pcd_normals,
@@ -96,7 +96,6 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
         core::Device device = points.GetDevice();
         // sensor origin
-        core::Tensor pose = t::geometry::InverseTransformation(extrinsic);
         index_t resolution = voxel_grid_resolution;
         float block_size = voxel_size * resolution;
 

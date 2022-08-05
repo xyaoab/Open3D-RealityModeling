@@ -155,7 +155,7 @@ public:
     // OVerload functions for reality modeling project -- ray marching
     std::tuple<core::Tensor, core::Tensor, core::Tensor> GetUniqueBlockCoordinates(
         const PointCloud &pcd, 
-        const core::Tensor &extrinsic,
+        const core::Tensor &pose,
         float depth_max = 3.0f,
         int step_size = 3,
         int tangential_step_size = 2,
