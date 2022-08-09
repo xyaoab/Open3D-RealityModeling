@@ -100,12 +100,13 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         float block_size = voxel_size * resolution;
 
         index_t n = points.GetLength();
+  
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
         const float *pcd_normals_ptr = static_cast<const float *>(pcd_normals.GetDataPtr());
-        const float *origin_ptr = static_cast<const float *>(pose.GetDataPtr());
-        float x_o = origin_ptr[0*4+3];
-        float y_o = origin_ptr[1*4+3];
-        float z_o = origin_ptr[2*4+3];
+        const float *origin_ptr = static_cast<const float *>(pose.To(core::Device("CPU:0")).GetDataPtr());
+        float x_o = origin_ptr[0];
+        float y_o = origin_ptr[1];
+        float z_o = origin_ptr[2];
 
 		const index_t num_blocks = tangential_step_size * tangential_step_size * 4;
         const index_t est_multipler_factor = (step_size + 1) *  num_blocks;

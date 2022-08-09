@@ -117,9 +117,9 @@ void PointCloudRayMarchingCPU(std::shared_ptr<core::HashMap>
         tbb::concurrent_unordered_map<Coord3i, Coord5f, Coord3iHash> hashmap_block2points;
 
         const float *origin_ptr = static_cast<const float *>(pose.GetDataPtr());
-        float x_o = origin_ptr[0*4+3];
-        float y_o = origin_ptr[1*4+3];
-        float z_o = origin_ptr[2*4+3];
+        float x_o = origin_ptr[0];
+        float y_o = origin_ptr[1];
+        float z_o = origin_ptr[2];
 
         // populate neighbor points for association
         const float tangential_step = voxel_size;

@@ -155,11 +155,11 @@ void pybind_voxel_block_grid(py::module& m) {
 
 	vbg.def("compute_unique_block_coordinates",
             py::overload_cast<const PointCloud&, const core::Tensor&,
-											float, int, int, float>(
+											int, int, float>(
                     &VoxelBlockGrid::GetUniqueBlockCoordinates),
             "Obtain active block coordinates and associated average pcd points "
             "from a point cloud. Ray Marching", "pcd"_a,
-			"pose"_a, "depth_max"_a = 3.0f, "step_size"_a = 3,
+			"pose"_a, "step_size"_a = 3,
 			"tangential_step_size"_a = 2, "trunc_voxel_multiplier"_a = 8.0);
 
     vbg.def("integrate",

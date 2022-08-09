@@ -364,7 +364,6 @@ core::Tensor VoxelBlockGrid::GetUniqueBlockCoordinates(
 std::tuple<core::Tensor, core::Tensor, core::Tensor> VoxelBlockGrid::GetUniqueBlockCoordinates(
         const PointCloud &pcd,
         const core::Tensor &pose,
-        float depth_max,
         int step_size,
         int tangential_step_size,
         float trunc_voxel_multiplier) {
@@ -389,7 +388,7 @@ std::tuple<core::Tensor, core::Tensor, core::Tensor> VoxelBlockGrid::GetUniqueBl
     kernel::voxel_grid::PointCloudRayMarching(
             frustum_hashmap_, positions, normals, pose,
             block_coords, block_pcd_coords, block_pcd_normals, 
-            block_resolution_, voxel_size_, depth_max, step_size, tangential_step_size,
+            block_resolution_, voxel_size_, step_size, tangential_step_size,
             voxel_size_ * trunc_voxel_multiplier);
     return std::make_tuple(block_coords, block_pcd_coords, block_pcd_normals);
 }

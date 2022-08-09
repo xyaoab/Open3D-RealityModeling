@@ -51,7 +51,6 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         core::Tensor &block_pcd_normals,
         index_t voxel_grid_resolution,
         float voxel_size,
-        float depth_max,
         index_t step_size,
         index_t tangential_step_size,
         float sdf_trunc);
