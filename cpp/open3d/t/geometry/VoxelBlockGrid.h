@@ -153,7 +153,7 @@ public:
                                            float trunc_voxel_multiplier = 8.0);
 
     // OVerload functions for reality modeling project -- ray marching
-    std::tuple<core::Tensor, core::Tensor, core::Tensor> GetUniqueBlockCoordinates(
+    std::pair<core::Tensor, core::Tensor> GetUniqueBlockCoordinates(
         const PointCloud &pcd, 
         const core::Tensor &pose,
         int step_size = 3,

@@ -83,11 +83,9 @@ static void OPEN3D_DEVICE CUDAEqElementKernel(const void* lhs,
 void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
-        const core::Tensor &pcd_normals,
         const core::Tensor &pose,
         core::Tensor &voxel_block_coords,
-		core::Tensor &block_pcd_coords,
-        core::Tensor &block_pcd_normals,
+		core::Tensor &block_pcd_index,
         index_t voxel_grid_resolution,
         float voxel_size,
 		index_t step_size,
@@ -102,7 +100,7 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         index_t n = points.GetLength();
   
         const float *pcd_ptr = static_cast<const float *>(points.GetDataPtr());
-        const float *pcd_normals_ptr = static_cast<const float *>(pcd_normals.GetDataPtr());
+
         const float *origin_ptr = static_cast<const float *>(pose.To(core::Device("CPU:0")).GetDataPtr());
         float x_o = origin_ptr[0];
         float y_o = origin_ptr[1];
@@ -237,11 +235,15 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
         index_t num_unique_blocks = hashmap->Size();
 
 		voxel_block_coords = block_coordi.IndexGet({block_masks});
-        block_pcd_coords = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device);
-        float *block_pcd_coords_ptr = static_cast<float *>(block_pcd_coords.GetDataPtr());
+
+        block_pcd_index = core::Tensor({voxel_block_coords.GetShape(0),1}, core::Int32, device); 
+        index_t *block_pcd_index_ptr = static_cast<index_t *>(block_pcd_index.GetDataPtr());
+        // block_pcd_coords = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device);
+        // float *block_pcd_coords_ptr = static_cast<float *>(block_pcd_coords.GetDataPtr());
         
-        block_pcd_normals = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device); 
-        float *block_pcd_normals_ptr = static_cast<float *>(block_pcd_normals.GetDataPtr());
+        // block_pcd_normals = core::Tensor(voxel_block_coords.GetShape(), core::Float32, device); 
+        // float *block_pcd_normals_ptr = static_cast<float *>(block_pcd_normals.GetDataPtr());
+
         // Step 2: All keys shall reside in the hashmap
         // to get depulicated key location in the hashmap
         hashmap->Find(block_coordi, block_buf_indices, block_masks);
@@ -298,17 +300,18 @@ void PointCloudRayMarchingCUDA(std::shared_ptr<core::HashMap>
 
             index_t hash_idx = voxel_block_buf_indices_ptr[workload_idx];
             index_t pcd_idx = result_index_ptr[hash_idx];
-            float pcdX = pcd_ptr[3 * pcd_idx + 0];
-            float pcdY = pcd_ptr[3 * pcd_idx + 1];
-            float pcdZ = pcd_ptr[3 * pcd_idx + 2];
+            block_pcd_index_ptr[workload_idx] = pcd_idx;
+            // float pcdX = pcd_ptr[3 * pcd_idx + 0];
+            // float pcdY = pcd_ptr[3 * pcd_idx + 1];
+            // float pcdZ = pcd_ptr[3 * pcd_idx + 2];
 
-            block_pcd_coords_ptr[3 * workload_idx + 0] = pcdX;
-            block_pcd_coords_ptr[3 * workload_idx + 1] = pcdY;
-            block_pcd_coords_ptr[3 * workload_idx + 2] = pcdZ;
+            // block_pcd_coords_ptr[3 * workload_idx + 0] = pcdX;
+            // block_pcd_coords_ptr[3 * workload_idx + 1] = pcdY;
+            // block_pcd_coords_ptr[3 * workload_idx + 2] = pcdZ;
 
-            block_pcd_normals_ptr[3 * workload_idx + 0] = pcd_normals_ptr[3 * pcd_idx + 0];
-            block_pcd_normals_ptr[3 * workload_idx + 1] = pcd_normals_ptr[3 * pcd_idx + 1];
-            block_pcd_normals_ptr[3 * workload_idx + 2] = pcd_normals_ptr[3 * pcd_idx + 2];
+            // block_pcd_normals_ptr[3 * workload_idx + 0] = pcd_normals_ptr[3 * pcd_idx + 0];
+            // block_pcd_normals_ptr[3 * workload_idx + 1] = pcd_normals_ptr[3 * pcd_idx + 1];
+            // block_pcd_normals_ptr[3 * workload_idx + 2] = pcd_normals_ptr[3 * pcd_idx + 2];
 
             });
 }

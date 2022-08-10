@@ -62,11 +62,9 @@ void PointCloudTouch(std::shared_ptr<core::HashMap>& hashmap,
 void PointCloudRayMarching(std::shared_ptr<core::HashMap>
                 &hashmap,
         const core::Tensor &points,
-        const core::Tensor &pcd_normals,
         const core::Tensor &pose,
         core::Tensor &voxel_block_coords,
-        core::Tensor &block_pcd_coords,
-        core::Tensor &block_pcd_normals,
+        core::Tensor &block_pcd_index,
         index_t voxel_grid_resolution,
         float voxel_size,
         index_t step_size,
@@ -76,12 +74,12 @@ void PointCloudRayMarching(std::shared_ptr<core::HashMap>
         core::Device::DeviceType device_type = hashmap->GetDevice().GetType();
 
         if (device_type == core::Device::DeviceType::CPU) {
-            PointCloudRayMarchingCPU(hashmap, points, pcd_normals, pose,
-                            voxel_block_coords, block_pcd_coords, block_pcd_normals,
+            PointCloudRayMarchingCPU(hashmap, points, pose,
+                            voxel_block_coords, block_pcd_index,
                             voxel_grid_resolution, voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else if (device_type == core::Device::DeviceType::CUDA) {
-            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, pcd_normals, pose,
-                            voxel_block_coords, block_pcd_coords, block_pcd_normals, voxel_grid_resolution,
+            CUDA_CALL(PointCloudRayMarchingCUDA, hashmap, points, pose,
+                            voxel_block_coords, block_pcd_index, voxel_grid_resolution,
                             voxel_size, step_size, tangential_step_size, sdf_trunc);
         } else {
             utility::LogError("Unimplemented device");
